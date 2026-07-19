@@ -1,0 +1,56 @@
+# -----------------------------
+# Monorepo ignore (backend + frontends)
+# -----------------------------
+
+# Secrets / env files
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# Virtual envs
+venv/
+env/
+**/venv/
+**/env/
+
+# Uploads / generated media
+backend/uploads/
+uploads/
+
+# Node
+**/node_modules/
+frontend/dist/
+frontend-admin/dist/
+**/.vite/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Old git metadata backup (if you renamed backend/.git)
+backend/.git_backend_old/
+
+# Local scripts and seeders (do not publish)
+backend/scripts/seed*.py
+backend/scripts/bootstrap_superadmin.py
+backend/scripts/e2e_password_reset_smoke.ps1

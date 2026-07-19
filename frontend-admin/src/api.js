@@ -1,7 +1,7 @@
-const API_BASE = "/api";
 const TOKEN_KEY = "tienda_admin_token";
 const DEFAULT_DEV_API_BASE = "http://127.0.0.1:8000";
 const ENV_API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
+const API_BASE = ENV_API_BASE ? `${ENV_API_BASE}/api` : "/api";
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY) || "";

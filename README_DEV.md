@@ -178,3 +178,4 @@ SMTP_USE_TLS=true
 - Checklist y smoke test rapido:
   - `E2E_PASSWORD_RESET_CHECKLIST.md`
   - `backend/scripts/e2e_password_reset_smoke.ps1`
+  

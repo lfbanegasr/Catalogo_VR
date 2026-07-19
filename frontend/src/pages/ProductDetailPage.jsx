@@ -16,6 +16,7 @@ function normalizeWhatsappNumber(raw) {
 function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUrl, onWhatsappClick, onBack }) {
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [failedImageSrc, setFailedImageSrc] = useState("");
 
   const nombre = product.nombre || product.name || "Producto";
   const imagenUrl = product.imagen_url || product.imageUrl || "";
@@ -27,6 +28,8 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
   const imageList = imageListRaw.length > 0 ? imageListRaw : (imagenUrl ? [imagenUrl] : []);
   const currentImageUrl = imageList[selectedImageIndex] || imagenUrl;
   const currentImageSrc = buildAssetUrl(currentImageUrl);
+  const currentImageFailed =
+    Boolean(currentImageSrc) && failedImageSrc === currentImageSrc;
   const descripcion = product.descripcion || product.description || "";
   const precio = product.precio ?? product.price ?? 0;
   const precioOriginal = product.precio_original ?? product.originalPrice ?? precio;
@@ -64,6 +67,7 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
 
   useEffect(() => {
     setSelectedImageIndex(0);
+    setFailedImageSrc("");
   }, [product.id, product.id_producto]);
 
   return (
@@ -75,34 +79,24 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
 
         <section className="panel detail-layout">
           <div className="detail-image-wrap">
-            {currentImageUrl ? (
-              <>
-                <img
-                  className="detail-image"
-                  src={currentImageSrc}
-                  alt={nombre}
-                  onError={(event) => {
-                    event.currentTarget.style.display = "none";
-                    const wrapper = event.currentTarget.parentElement;
-                    const fallback = wrapper?.querySelector(".detail-image-fallback");
-                    const overlay = wrapper?.querySelector(".image-fallback-overlay");
-                    if (fallback) fallback.style.display = "grid";
-                    if (overlay) overlay.style.display = "none";
-                  }}
-                />
-                <div
-                  className="image-fallback detail-image-fallback hidden"
-                  aria-hidden="true"
-                >
-                  Sin imagen
-                </div>
-              </>
+            {currentImageUrl && !currentImageFailed ? (
+              <img
+                key={currentImageSrc}
+                className="detail-image"
+                src={currentImageSrc}
+                alt={nombre}
+                onError={() => setFailedImageSrc(currentImageSrc)}
+              />
             ) : (
-              <div className="image-fallback" aria-hidden="true">
-                Sin imagen
+              <div
+                className="image-fallback detail-image-fallback"
+                role="img"
+                aria-label={`${nombre}: imagen no disponible`}
+              >
+                Imagen no disponible
               </div>
             )}
-            {!currentImageUrl ? null : (
+            {!currentImageUrl || currentImageFailed ? null : (
               <div className="image-fallback-overlay" aria-hidden="true">
                 Vista previa
               </div>
@@ -116,7 +110,13 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
                     className={`thumb-btn ${index === selectedImageIndex ? "active" : ""}`}
                     onClick={() => setSelectedImageIndex(index)}
                   >
-                    <img src={buildAssetUrl(url)} alt={`Imagen ${index + 1} de ${nombre}`} />
+                    <img
+                      src={buildAssetUrl(url)}
+                      alt={`Imagen ${index + 1} de ${nombre}`}
+                      onError={(event) => {
+                        event.currentTarget.style.visibility = "hidden";
+                      }}
+                    />
                   </button>
                 ))}
               </div>

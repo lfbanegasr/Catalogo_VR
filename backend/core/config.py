@@ -1,3 +1,4 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +23,28 @@ class Settings(BaseSettings):
     # Dev: vacio para usar rutas relativas /uploads/...
     # Prod: ejemplo https://cdn.tudominio.com/products
     PRODUCT_IMAGE_BASE_URL: str = ""
+    UPLOADS_DIR: str = "uploads"
+    PUBLIC_ASSET_BASE_URL: str = ""
+
+    @property
+    def UPLOADS_PATH(self) -> Path:
+        p = Path(self.UPLOADS_DIR)
+        if not p.is_absolute():
+            # Resolve relative to the backend root directory (parent of core/)
+            p = Path(__file__).resolve().parents[1] / p
+        return p.expanduser().resolve()
+
+    @property
+    def PRODUCTS_UPLOAD_PATH(self) -> Path:
+        return self.UPLOADS_PATH / "products"
+
+    @property
+    def OFFERS_UPLOAD_PATH(self) -> Path:
+        return self.UPLOADS_PATH / "offers"
+
+    @property
+    def THEME_UPLOAD_PATH(self) -> Path:
+        return self.UPLOADS_PATH / "theme"
 
     # Password reset
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30

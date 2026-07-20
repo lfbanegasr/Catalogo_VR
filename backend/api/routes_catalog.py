@@ -56,17 +56,13 @@ from schemas.catalog_schema import (
     ProductoUpdate,
 )
 
+from core.storage import save_upload_file, build_public_asset_url
+
 router = APIRouter(prefix="/api/catalog", tags=["Catalog"])
 
-UPLOAD_DIR = Path(__file__).resolve().parents[1] / "uploads" / "products"
-OFFERS_UPLOAD_DIR = Path(__file__).resolve().parents[1] / "uploads" / "offers"
-THEME_UPLOAD_DIR = Path(__file__).resolve().parents[1] / "uploads" / "theme"
-MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
-ALLOWED_IMAGE_TYPES = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-}
+UPLOAD_DIR = settings.PRODUCTS_UPLOAD_PATH
+OFFERS_UPLOAD_DIR = settings.OFFERS_UPLOAD_PATH
+THEME_UPLOAD_DIR = settings.THEME_UPLOAD_PATH
 
 
 def _resolve_target_tienda_id(
@@ -144,105 +140,15 @@ def _resolve_categoria_id_for_tienda(
 
 
 def _save_product_image_file(id_producto: UUID, file: UploadFile) -> str:
-    content_type = (file.content_type or "").lower()
-    ext = ALLOWED_IMAGE_TYPES.get(content_type)
-    if not ext:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Formato no permitido. Usa JPG, PNG o WEBP.",
-        )
-
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
-    filename = f"{id_producto}_{timestamp}{ext}"
-    destination = UPLOAD_DIR / filename
-
-    total = 0
-    with destination.open("wb") as out:
-        while True:
-            chunk = file.file.read(1024 * 1024)
-            if not chunk:
-                break
-            total += len(chunk)
-            if total > MAX_IMAGE_SIZE_BYTES:
-                out.close()
-                destination.unlink(missing_ok=True)
-                raise HTTPException(
-                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                    detail="La imagen excede el tamano maximo de 5MB.",
-                )
-            out.write(chunk)
-
-    base_url = (settings.PRODUCT_IMAGE_BASE_URL or "").rstrip("/")
-    if base_url:
-        return f"{base_url}/{filename}"
-    return f"/uploads/products/{filename}"
+    return save_upload_file(file, "products", id_producto)
 
 
 def _save_offer_banner_file(id_oferta: UUID, file: UploadFile) -> str:
-    content_type = (file.content_type or "").lower()
-    ext = ALLOWED_IMAGE_TYPES.get(content_type)
-    if not ext:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Formato no permitido. Usa JPG, PNG o WEBP.",
-        )
-
-    OFFERS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
-    filename = f"{id_oferta}_{timestamp}{ext}"
-    destination = OFFERS_UPLOAD_DIR / filename
-
-    total = 0
-    with destination.open("wb") as out:
-        while True:
-            chunk = file.file.read(1024 * 1024)
-            if not chunk:
-                break
-            total += len(chunk)
-            if total > MAX_IMAGE_SIZE_BYTES:
-                out.close()
-                destination.unlink(missing_ok=True)
-                raise HTTPException(
-                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                    detail="La imagen excede el tamano maximo de 5MB.",
-                )
-            out.write(chunk)
-
-    return f"/uploads/offers/{filename}"
+    return save_upload_file(file, "offers", id_oferta)
 
 
 def _save_theme_banner_file(id_tienda: UUID, file: UploadFile) -> str:
-    content_type = (file.content_type or "").lower()
-    ext = ALLOWED_IMAGE_TYPES.get(content_type)
-    if not ext:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Formato no permitido. Usa JPG, PNG o WEBP.",
-        )
-
-    THEME_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
-    filename = f"{id_tienda}_{timestamp}{ext}"
-    destination = THEME_UPLOAD_DIR / filename
-
-    total = 0
-    with destination.open("wb") as out:
-        while True:
-            chunk = file.file.read(1024 * 1024)
-            if not chunk:
-                break
-            total += len(chunk)
-            if total > MAX_IMAGE_SIZE_BYTES:
-                out.close()
-                destination.unlink(missing_ok=True)
-                raise HTTPException(
-                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                    detail="La imagen excede el tamano maximo de 5MB.",
-                )
-            out.write(chunk)
-
-    return f"/uploads/theme/{filename}"
+    return save_upload_file(file, "theme", id_tienda)
 
 
 def _ensure_user_can_access_tenant(current_user: Usuario, target_tienda_id: UUID) -> None:
@@ -562,8 +468,8 @@ def api_upload_product_image(
 
     return {
         "id_producto": str(updated.id_producto),
-        "imagen_url": updated.imagen_url,
-        "imagenes": get_product_image_urls(db=db, id_producto=id_producto),
+        "imagen_url": build_public_asset_url(updated.imagen_url),
+        "imagenes": [build_public_asset_url(url) for url in get_product_image_urls(db=db, id_producto=id_producto)],
     }
 
 
@@ -927,7 +833,7 @@ def api_upload_offer_banner(
     _ensure_resource_matches_target_tienda(offer.id_tienda, target_tienda_id)
     banner_url = _save_offer_banner_file(id_oferta=id_oferta, file=file)
     updated = update_offer(db=db, offer=offer, payload=OfferUpdate(banner_url=banner_url))
-    return {"id_oferta": str(updated.id_oferta), "banner_url": updated.banner_url}
+    return {"id_oferta": str(updated.id_oferta), "banner_url": build_public_asset_url(updated.banner_url)}
 
 
 @router.post(
@@ -954,4 +860,8 @@ def api_upload_theme_banner(
     )
     _ensure_user_can_access_tenant(current_user, target_tienda_id)
     banner_url = _save_theme_banner_file(id_tienda=target_tienda_id, file=file)
-    return {"id_tienda": str(target_tienda_id), "hero_image_url": banner_url, "url": banner_url}
+    return {
+        "id_tienda": str(target_tienda_id),
+        "hero_image_url": build_public_asset_url(banner_url),
+        "url": build_public_asset_url(banner_url),
+    }

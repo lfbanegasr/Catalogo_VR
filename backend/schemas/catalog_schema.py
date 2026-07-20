@@ -3,7 +3,8 @@ from decimal import Decimal
 from typing import Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
+from core.storage import build_public_asset_url
 
 
 # -------------------------
@@ -72,6 +73,14 @@ class ProductoOut(BaseModel):
     activo: bool
     fecha_agregado: datetime
 
+    @field_serializer("imagen_url")
+    def serialize_imagen_url(self, value: Optional[str]) -> Optional[str]:
+        return build_public_asset_url(value)
+
+    @field_serializer("imagenes")
+    def serialize_imagenes(self, value: list[str]) -> list[str]:
+        return [build_public_asset_url(v) for v in value if v]
+
     class Config:
         from_attributes = True
 
@@ -101,6 +110,14 @@ class ProductoPublicOut(BaseModel):
     descuento_pct: Optional[Decimal] = None
     badge_text: Optional[str] = None
     id_oferta_aplicada: Optional[UUID] = None
+
+    @field_serializer("imagen_url")
+    def serialize_imagen_url(self, value: Optional[str]) -> Optional[str]:
+        return build_public_asset_url(value)
+
+    @field_serializer("imagenes")
+    def serialize_imagenes(self, value: list[str]) -> list[str]:
+        return [build_public_asset_url(v) for v in value if v]
 
     class Config:
         from_attributes = True
@@ -144,6 +161,10 @@ class OfferOut(BaseModel):
     badge_text: Optional[str]
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("banner_url")
+    def serialize_banner_url(self, value: Optional[str]) -> Optional[str]:
+        return build_public_asset_url(value)
 
     class Config:
         from_attributes = True

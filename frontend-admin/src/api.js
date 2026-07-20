@@ -52,15 +52,25 @@ function withQuery(path, params = {}) {
 }
 
 export function buildAssetUrl(path) {
-  if (!path) return "";
+  if (!path) return "https://placehold.co/600x400/e2e8f0/475569?text=Sin+Imagen";
   if (/^https?:\/\//i.test(path)) return path;
-  const base =
-    import.meta.env.PROD
-      ? ENV_API_BASE
-      : ENV_API_BASE || DEFAULT_DEV_API_BASE;
-  if (!base) return path;
-  if (!String(path).startsWith("/")) return `${base}/${path}`;
-  return `${base}${path}`;
+  if (/^(data|blob):/i.test(path)) return path;
+
+  const base = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
+  const cleanPath = String(path).startsWith("/") ? path : `/${path}`;
+
+  // Never build images using Vercel domains
+  if (base && !base.includes("vercel.app")) {
+    return `${base}${cleanPath}`;
+  }
+
+  // Fallback depending on production or development environment
+  const isProd = import.meta.env.PROD;
+  const apiBase = isProd
+    ? "https://catalogovr-production.up.railway.app"
+    : "http://127.0.0.1:8000";
+
+  return `${apiBase}${cleanPath}`;
 }
 
 export const api = {

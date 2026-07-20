@@ -3,7 +3,8 @@ from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
+from core.storage import build_public_asset_url
 
 
 class ClienteNuevo(BaseModel):
@@ -44,6 +45,10 @@ class ProductoMiniOut(BaseModel):
     nombre: str
     imagen_url: Optional[str] = None
     costo_adquisicion: Optional[Decimal] = None
+
+    @field_serializer("imagen_url")
+    def serialize_imagen_url(self, value: Optional[str]) -> Optional[str]:
+        return build_public_asset_url(value)
 
     class Config:
         from_attributes = True

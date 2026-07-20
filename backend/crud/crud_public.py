@@ -3,6 +3,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from core.storage import build_public_asset_url
 from crud.crud_offers import apply_offer_to_products
 from models.catalog import Categoria, Producto, ProductoImagen
 from models.tenant import Tienda
@@ -76,12 +77,14 @@ def get_catalog_public(db: Session, slug: str):
             "precio": _decimal_to_float(precio_venta),
             "stock": stock_actual,
             "categoria_id": str(categoria_id) if categoria_id else None,
-            "imagen_url": imagen_url,
-            "imagenes": (
-                [imagen_url, *imagenes_por_producto.get(str(producto_id), [])]
-                if imagen_url and imagen_url not in imagenes_por_producto.get(str(producto_id), [])
-                else imagenes_por_producto.get(str(producto_id), []) or ([imagen_url] if imagen_url else [])
-            ),
+            "imagen_url": build_public_asset_url(imagen_url),
+            "imagenes": [
+                build_public_asset_url(img) for img in (
+                    [imagen_url, *imagenes_por_producto.get(str(producto_id), [])]
+                    if imagen_url and imagen_url not in imagenes_por_producto.get(str(producto_id), [])
+                    else imagenes_por_producto.get(str(producto_id), []) or ([imagen_url] if imagen_url else [])
+                ) if img
+            ],
         }
         for (
             producto_id,
@@ -95,6 +98,15 @@ def get_catalog_public(db: Session, slug: str):
     ]
     productos, active_offers = apply_offer_to_products(db=db, id_tienda=tienda_id, products=productos)
 
+    resolved_theme_config = dict(theme_config) if theme_config else {}
+    if "hero_image_url" in resolved_theme_config:
+        resolved_theme_config["hero_image_url"] = build_public_asset_url(resolved_theme_config["hero_image_url"])
+    if "category_images" in resolved_theme_config and isinstance(resolved_theme_config["category_images"], dict):
+        resolved_theme_config["category_images"] = {
+            cat_id: build_public_asset_url(img_url)
+            for cat_id, img_url in resolved_theme_config["category_images"].items()
+        }
+
     return {
         "tienda": {
             "id": str(tienda_id),
@@ -102,7 +114,7 @@ def get_catalog_public(db: Session, slug: str):
             "slug": tienda_slug,
             "whatsapp_number": whatsapp_number,
             "theme_id": theme_id,
-            "theme_config": theme_config,
+            "theme_config": resolved_theme_config,
         },
         "ofertas": [
             {
@@ -113,7 +125,7 @@ def get_catalog_public(db: Session, slug: str):
                 "prioridad": oferta.prioridad,
                 "fecha_inicio": oferta.fecha_inicio.isoformat() if oferta.fecha_inicio else None,
                 "fecha_fin": oferta.fecha_fin.isoformat() if oferta.fecha_fin else None,
-                "banner_url": oferta.banner_url,
+                "banner_url": build_public_asset_url(oferta.banner_url),
                 "badge_text": oferta.badge_text,
             }
             for oferta in active_offers

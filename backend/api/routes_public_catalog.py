@@ -100,11 +100,19 @@ def api_public_checkout(
     payload: VentaCreate,
     db: Session = Depends(get_db),
 ):
+    print(f"[checkout] Recibido slug: {slug}", flush=True)
     tienda = _get_active_tienda_or_404(db, slug)
     try:
-        # Forzar estado inicial para la creación
-        payload.estado = "generada_whatsapp"
+        # Forzar estado inicial y origen para la creación
+        payload.estado = "pendiente"
+        payload.origen = "whatsapp"
+        
         venta = create_venta(db=db, id_tienda=tienda.id_tienda, payload=payload)
+
+        # Logs mínimos requeridos para confirmar la operación
+        print(f"[checkout] Venta creada con ID: {venta.id_venta}", flush=True)
+        print(f"[checkout] Estado: {venta.estado}", flush=True)
+        print(f"[checkout] Origen: {venta.origen}", flush=True)
 
         return VentaOut(
             id_venta=venta.id_venta,
@@ -112,6 +120,7 @@ def api_public_checkout(
             id_cliente=venta.id_cliente,
             fecha_venta=venta.fecha_venta,
             estado=venta.estado,
+            origen=venta.origen,
             total_venta=venta.total_venta,
             detalles=venta.detalles or [],
         )

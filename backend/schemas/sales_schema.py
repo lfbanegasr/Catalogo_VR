@@ -23,6 +23,7 @@ class VentaCreate(BaseModel):
     id_cliente: Optional[UUID] = None
     cliente_nuevo: Optional[ClienteNuevo] = None
     estado: Optional[str] = "pendiente_whatsapp"
+    origen: Optional[str] = "caja"
     detalles: List[DetalleVentaCreate] = Field(..., min_length=1)
 
 
@@ -73,6 +74,7 @@ class VentaOut(BaseModel):
     id_cliente: Optional[UUID] = None
     fecha_venta: datetime
     estado: str
+    origen: Optional[str] = None
     total_venta: Decimal
     detalles: List[DetalleVentaOut] = []
     cliente: Optional[ClienteOut] = None

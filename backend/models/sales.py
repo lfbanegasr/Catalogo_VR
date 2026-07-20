@@ -11,6 +11,7 @@ from core.database import Base
 
 class EstadoVenta(str, enum.Enum):
     generada_whatsapp = "generada_whatsapp"
+    pendiente = "pendiente"
     completada = "completada"
     cancelada = "cancelada"
 
@@ -55,6 +56,7 @@ class Venta(Base):
         nullable=False,
     )
     total_venta = Column(Numeric(12, 2), nullable=False)
+    origen = Column(String(50), nullable=True, default="caja")
 
     cliente = relationship("Cliente")
     tienda = relationship("Tienda")

@@ -1,7 +1,7 @@
 import axios from "axios";
 
-// Obtener la URL base desde las variables de entorno de Vite o usar fallback de desarrollo
-const API_BASE_URL = import.meta.env.VITE_API_BASE || "";
+// Obtener la URL base desde las variables de entorno de Vite o usar fallback de desarrollo/producción
+const API_BASE_URL = import.meta.env.VITE_API_BASE || (import.meta.env.PROD ? "https://catalogovr-production.up.railway.app" : "http://localhost:8000");
 
 const axiosInstance = axios.create({
   baseURL: `${API_BASE_URL}/api`,

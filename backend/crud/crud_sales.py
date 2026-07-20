@@ -73,68 +73,73 @@ def _get_or_create_cliente(
 
 
 def create_venta(db: Session, id_tienda: UUID, payload: VentaCreate) -> Venta:
-    # cliente
-    cliente = _get_or_create_cliente(
-        db,
-        id_tienda=id_tienda,
-        id_cliente=payload.id_cliente,
-        cliente_nuevo=payload.cliente_nuevo,
-    )
-
-    venta = Venta(
-        id_tienda=id_tienda,
-        id_cliente=cliente.id_cliente if cliente else None,
-        estado=payload.estado or "pendiente_whatsapp",
-        total_venta=Decimal("0.00"),
-    )
-    db.add(venta)
-    db.flush()  # id_venta
-
-    total = Decimal("0.00")
-    detalles_creados: List[DetalleVenta] = []
-
-    for item in payload.detalles:
-        stmt = (
-            select(Producto)
-            .where(Producto.id_producto == item.id_producto)
-            .where(Producto.id_tienda == id_tienda)
-            .with_for_update()
+    try:
+        # cliente
+        cliente = _get_or_create_cliente(
+            db,
+            id_tienda=id_tienda,
+            id_cliente=payload.id_cliente,
+            cliente_nuevo=payload.cliente_nuevo,
         )
-        producto = db.execute(stmt).scalar_one_or_none()
-        if not producto:
-            raise ValueError(f"Producto no existe o no pertenece a tu tienda: {item.id_producto}")
 
-        if producto.stock_actual is None:
-            producto.stock_actual = 0
+        venta = Venta(
+            id_tienda=id_tienda,
+            id_cliente=cliente.id_cliente if cliente else None,
+            estado=payload.estado or "pendiente_whatsapp",
+            origen=payload.origen or "caja",
+            total_venta=Decimal("0.00"),
+        )
+        db.add(venta)
+        db.flush()  # id_venta
 
-        if producto.stock_actual < item.cantidad:
-            raise StockInsuficienteError(
-                f"Stock insuficiente para '{producto.nombre}'. "
-                f"Disponible={producto.stock_actual}, solicitado={item.cantidad}"
+        total = Decimal("0.00")
+        detalles_creados: List[DetalleVenta] = []
+
+        for item in payload.detalles:
+            stmt = (
+                select(Producto)
+                .where(Producto.id_producto == item.id_producto)
+                .where(Producto.id_tienda == id_tienda)
+                .with_for_update()
             )
+            producto = db.execute(stmt).scalar_one_or_none()
+            if not producto:
+                raise ValueError(f"Producto no existe o no pertenece a tu tienda: {item.id_producto}")
 
-        precio_unit = _decimal(item.precio_unitario) if item.precio_unitario is not None else _decimal(producto.precio_venta)
-        subtotal = (precio_unit * _decimal(item.cantidad)).quantize(Decimal("0.00"))
+            if producto.stock_actual is None:
+                producto.stock_actual = 0
 
-        detalle = DetalleVenta(
-            id_venta=venta.id_venta,
-            id_producto=producto.id_producto,
-            cantidad=item.cantidad,
-            precio_unitario=precio_unit,
-            subtotal=subtotal,
-        )
-        db.add(detalle)
-        detalles_creados.append(detalle)
+            if producto.stock_actual < item.cantidad:
+                raise StockInsuficienteError(
+                    f"Stock insuficiente para '{producto.nombre}'. "
+                    f"Disponible={producto.stock_actual}, solicitado={item.cantidad}"
+                )
 
-        producto.stock_actual -= item.cantidad
-        total += subtotal
+            precio_unit = _decimal(item.precio_unitario) if item.precio_unitario is not None else _decimal(producto.precio_venta)
+            subtotal = (precio_unit * _decimal(item.cantidad)).quantize(Decimal("0.00"))
 
-    venta.total_venta = total.quantize(Decimal("0.00"))
-    venta.detalles = detalles_creados
+            detalle = DetalleVenta(
+                id_venta=venta.id_venta,
+                id_producto=producto.id_producto,
+                cantidad=item.cantidad,
+                precio_unitario=precio_unit,
+                subtotal=subtotal,
+            )
+            db.add(detalle)
+            detalles_creados.append(detalle)
 
-    db.commit()
-    db.refresh(venta)
-    return venta
+            producto.stock_actual -= item.cantidad
+            total += subtotal
+
+        venta.total_venta = total.quantize(Decimal("0.00"))
+        venta.detalles = detalles_creados
+
+        db.commit()
+        db.refresh(venta)
+        return venta
+    except Exception as e:
+        db.rollback()
+        raise e
 
 
 def list_ventas(db: Session, id_tienda: UUID, limit: int = 50, offset: int = 0) -> List[Venta]:
@@ -187,9 +192,8 @@ def update_venta_estado(
     if estado_anterior == nuevo_estado:
         return venta
 
-    # Lógica de transición de stock
-    # 1. Si era activa (generada_whatsapp o completada) y pasa a cancelada -> RESTAURAR stock
-    if estado_anterior in [EstadoVenta.generada_whatsapp, EstadoVenta.completada] and nuevo_estado == EstadoVenta.cancelada:
+    # 1. Si era activa (generada_whatsapp, pendiente o completada) y pasa a cancelada -> RESTAURAR stock
+    if estado_anterior in [EstadoVenta.generada_whatsapp, EstadoVenta.pendiente, EstadoVenta.completada] and nuevo_estado == EstadoVenta.cancelada:
         for detalle in venta.detalles:
             stmt = select(Producto).where(Producto.id_producto == detalle.id_producto).with_for_update()
             prod = db.execute(stmt).scalar_one_or_none()
@@ -199,7 +203,7 @@ def update_venta_estado(
                 prod.stock_actual += detalle.cantidad
 
     # 2. Si era cancelada y pasa a activa -> DESCONTAR stock
-    elif estado_anterior == EstadoVenta.cancelada and nuevo_estado in [EstadoVenta.generada_whatsapp, EstadoVenta.completada]:
+    elif estado_anterior == EstadoVenta.cancelada and nuevo_estado in [EstadoVenta.generada_whatsapp, EstadoVenta.pendiente, EstadoVenta.completada]:
         # Primero validar si hay stock suficiente para todos
         for detalle in venta.detalles:
             stmt = select(Producto).where(Producto.id_producto == detalle.id_producto).with_for_update()

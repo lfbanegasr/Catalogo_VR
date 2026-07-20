@@ -3006,7 +3006,8 @@ function VentasScreen({ user }) {
               style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '12px', outline: 'none', background: '#ffffff' }}
             >
               <option value="all">Todos los estados</option>
-              <option value="generada_whatsapp">Pendiente WhatsApp</option>
+              <option value="pendiente">Pendiente WhatsApp</option>
+              <option value="generada_whatsapp">Pendiente WhatsApp (Legacy)</option>
               <option value="completada">Completado</option>
               <option value="cancelada">Cancelado</option>
             </select>
@@ -3051,6 +3052,8 @@ function VentasScreen({ user }) {
                                 <div style={{ fontSize: '11px', color: '#1f2937' }}>{v.cliente.nombre_completo}</div>
                                 {v.cliente.telefono && <div style={{ fontSize: '9px', color: '#6b7280', fontWeight: 'normal' }}>📱 {v.cliente.telefono}</div>}
                               </div>
+                            ) : v.origen === 'whatsapp' ? (
+                              <span style={{ color: '#059669', fontWeight: 'bold', fontSize: '10px' }}>📱 Pedido WhatsApp</span>
                             ) : (
                               <span style={{ color: '#9ca3af', fontWeight: 'normal', fontSize: '10px' }}>📦 Venta Física (Caja)</span>
                             )}
@@ -3068,9 +3071,9 @@ function VentasScreen({ user }) {
                               fontSize: '8px',
                               fontWeight: 'bold',
                               color: '#ffffff',
-                              background: v.estado === 'completada' ? '#059669' : v.estado === 'cancelada' ? '#dc2626' : '#2563eb'
+                              background: v.estado === 'completada' ? '#059669' : v.estado === 'cancelada' ? '#dc2626' : v.estado === 'pendiente' ? '#d97706' : '#2563eb'
                             }}>
-                              {v.estado === 'completada' ? 'Completado' : v.estado === 'cancelada' ? 'Cancelado' : 'Pedido WhatsApp'}
+                              {v.estado === 'completada' ? 'Completado' : v.estado === 'cancelada' ? 'Cancelado' : v.estado === 'pendiente' ? 'Pendiente' : 'Pedido WhatsApp'}
                             </span>
                           </td>
                           <td style={{ padding: '8px', textAlign: 'center' }}>

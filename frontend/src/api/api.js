@@ -1,4 +1,6 @@
-const BASE_URL = "/api";
+const isProd = import.meta.env.PROD;
+const API_BASE_URL = import.meta.env.VITE_API_BASE || (isProd ? "https://catalogovr-production.up.railway.app" : "");
+const BASE_URL = `${API_BASE_URL.replace(/\/+$/, "")}/api`;
 const DEFAULT_DEV_API_BASE = "http://127.0.0.1:8000";
 const ENV_API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
 const DEFAULT_THEME_ID = "modern_banner";

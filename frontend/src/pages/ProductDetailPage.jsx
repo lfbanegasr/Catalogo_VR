@@ -44,30 +44,7 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
   const descuentoPct = product.descuento_pct ?? product.discountPct ?? null;
   const badgeText = product.badge_text ?? product.badgeText ?? null;
 
-  const handleBuyByWhatsapp = async () => {
-    const phone = normalizeWhatsappNumber(whatsappNumber);
-    if (!phone) {
-      window.alert("Esta tienda aun no configuro su numero de WhatsApp.");
-      return;
-    }
 
-    const message = [
-      "Hola, quiero comprar este producto:",
-      `${nombre}`,
-      `Cantidad: ${quantity}`,
-      `Precio: ${formatPrice(precioFinal)}`,
-      `Tienda: ${storeName || slug || "-"}`,
-      productUrl ? `Enlace: ${productUrl}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n");
-
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-    if (onWhatsappClick) {
-      await onWhatsappClick(product.id || product.id_producto || null);
-    }
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
 
   const stockText =
     product.stock == null ? "Stock no disponible" : `Stock: ${product.stock}`;
@@ -157,35 +134,43 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
             </div>
 
             <div className="detail-actions">
-              <label className="qty-field">
-                <span>Cantidad</span>
-                <input
-                  type="number"
-                  min="1"
-                  value={quantity}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    setQuantity(Number.isFinite(next) && next > 0 ? next : 1);
-                  }}
-                />
-              </label>
+              <div className="qty-field-container">
+                <span className="qty-label">Cantidad</span>
+                <div className="qty-selector">
+                  <button
+                    type="button"
+                    className="qty-btn qty-btn-minus"
+                    onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                  >
+                    —
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    className="qty-input"
+                    value={quantity}
+                    onChange={(event) => {
+                      const next = Number(event.target.value);
+                      setQuantity(Number.isFinite(next) && next > 0 ? next : 1);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="qty-btn qty-btn-plus"
+                    onClick={() => setQuantity((prev) => prev + 1)}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
 
               <button
                 className="btn btn-primary add-btn"
                 type="button"
                 onClick={handleAddToCart}
-                style={{ backgroundColor: "#059669", borderColor: "#059669", color: "#ffffff" }}
+                style={{ backgroundColor: "var(--color-primary)", borderColor: "var(--color-primary)", color: "#ffffff" }}
               >
                 Agregar al Pedido
-              </button>
-
-              <button
-                className="btn btn-ghost"
-                type="button"
-                onClick={handleBuyByWhatsapp}
-                style={{ marginLeft: "10px" }}
-              >
-                Comprar de inmediato
               </button>
             </div>
           </div>

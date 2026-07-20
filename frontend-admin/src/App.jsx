@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import { api, clearToken, getToken, setToken } from "./api";
 import { offersApi } from "./api/offers";
 import ThemeAppearanceScreen from "./components/ThemeAppearanceScreen";
@@ -7,8 +7,8 @@ const canUseCatalog = (rol) => ["superadmin", "admin", "empleado"].includes(rol)
 
 function menuByRole(role) {
   if (role === "superadmin") return [["tiendas", "Tiendas"], ["usuarios", "Usuarios"], ["catalogo", "Catalogo"], ["tema", "Tema"], ["ofertas", "Ofertas"], ["auditoria", "Auditoria"]];
-  if (role === "admin") return [["dashboard", "Dashboard"], ["catalogo", "Catalogo"], ["tema", "Tema"], ["ofertas", "Ofertas"], ["auditoria", "Auditoria"]];
-  if (role === "empleado") return [["catalogo", "Catalogo"], ["ofertas", "Ofertas"]];
+  if (role === "admin") return [["dashboard", "Dashboard"], ["ventas", "Ventas"], ["catalogo", "Catalogo"], ["tema", "Tema"], ["ofertas", "Ofertas"], ["auditoria", "Auditoria"]];
+  if (role === "empleado") return [["dashboard", "Dashboard"], ["ventas", "Ventas"], ["catalogo", "Catalogo"], ["ofertas", "Ofertas"]];
   return [["dashboard", "Dashboard"]];
 }
 
@@ -2458,21 +2458,1017 @@ function StoreWhatsappCard() {
   );
 }
 
-function DashboardScreen({ user }) {
+function SalesChart({ data }) {
+  if (!data || data.length === 0) {
+    return <p className="muted text-center py-4" style={{ fontSize: '11px' }}>No hay suficientes datos de ventas para mostrar el gráfico.</p>;
+  }
+
+  const maxVal = Math.max(...data.map(d => Number(d.recaudado)), 100);
+  const width = 500;
+  const height = 150;
+  const padding = 20;
+
+  const points = data.map((d, index) => {
+    const x = padding + (index * (width - padding * 2)) / Math.max(data.length - 1, 1);
+    const y = height - padding - (Number(d.recaudado) * (height - padding * 2)) / maxVal;
+    return { x, y, label: d.fecha, val: Number(d.recaudado) };
+  });
+
+  const pathD = points.reduce((acc, p, i) => {
+    return i === 0 ? `M ${p.x} ${p.y}` : `${acc} L ${p.x} ${p.y}`;
+  }, "");
+
+  const areaD = points.length > 0 
+    ? `${pathD} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z` 
+    : "";
+
   return (
-    <div className="stack">
-      <Card title="Dashboard">
-        <p className="muted">Bienvenido al panel privado.</p>
-        <div className="stats">
-          <div className="stat"><span>Usuario</span><strong>{user.email}</strong></div>
-          <div className="stat"><span>Rol</span><strong>{user.rol}</strong></div>
-          <div className="stat"><span>Tienda</span><strong>{user.id_tienda}</strong></div>
-        </div>
-      </Card>
-      {canUseCatalog(user.rol) ? <StoreWhatsappCard /> : null}
+    <div className="card chart-container" style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #f3f4f6' }}>
+      <h4 className="text-xs font-bold text-gray-500 mb-2" style={{ margin: '0 0 8px 0', fontSize: '11px' }}>Tendencia de Ventas (Últimos 30 días)</h4>
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="auto" style={{ overflow: 'visible' }}>
+        <defs>
+          <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#10B981" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#10B981" stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+        <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="#f3f4f6" strokeWidth={1} />
+        <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="#f3f4f6" strokeWidth={1} />
+        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#e5e7eb" strokeWidth={1} />
+
+        {areaD && <path d={areaD} fill="url(#chartGrad)" />}
+        {pathD && <path d={pathD} fill="none" stroke="#10B981" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />}
+
+        {points.map((p, i) => (
+          <g key={i}>
+            <circle cx={p.x} cy={p.y} r={3} fill="#10B981" stroke="#ffffff" strokeWidth={1} />
+            {points.length <= 15 && p.val > 0 && (
+              <text x={p.x} y={p.y - 8} fontSize="7" fontWeight="bold" textAnchor="middle" fill="#374151">
+                {p.val.toFixed(0)} Bs
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
     </div>
   );
 }
+
+function TopProductsChart({ data }) {
+  if (!data || data.length === 0) {
+    return <p className="muted text-center py-4" style={{ fontSize: '11px' }}>No hay datos de productos vendidos.</p>;
+  }
+
+  const maxQty = Math.max(...data.map(d => d.cantidad), 1);
+
+  return (
+    <div className="card chart-container" style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #f3f4f6' }}>
+      <h4 className="text-xs font-bold text-gray-500 mb-3" style={{ margin: '0 0 12px 0', fontSize: '11px' }}>Top Productos Más Vendidos</h4>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {data.map((item, index) => {
+          const percentage = (item.cantidad / maxQty) * 100;
+          return (
+            <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold' }}>
+                <span className="text-gray-700 truncate" style={{ maxWidth: '70%' }}>{item.nombre}</span>
+                <span className="text-emerald-600">{item.cantidad} u. ({parseFloat(item.recaudado).toFixed(2)} Bs)</span>
+              </div>
+              <div style={{ height: '8px', background: '#f3f4f6', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${percentage}%`, background: '#10B981', borderRadius: '4px' }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DashboardScreen({ user, onGoToVentas }) {
+  const [metrics, setMetrics] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [allProducts, setAllProducts] = useState([]);
+
+  const loadData = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const m = await api.getMetrics(user.id_tienda);
+      setMetrics(m);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudieron cargar las métricas de la tienda.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [user.id_tienda]);
+
+  const exportInventoryCSV = async () => {
+    let prods = allProducts;
+    if (prods.length === 0) {
+      try {
+        prods = await api.listProductos();
+        setAllProducts(prods || []);
+      } catch (e) {
+        alert("Error al exportar inventario.");
+        return;
+      }
+    }
+    if (prods.length === 0) {
+      alert("No hay productos en inventario.");
+      return;
+    }
+    
+    let csv = "\uFEFFID Producto,Nombre,Stock,Precio Venta,Costo Adquisicion,Margen Esperado\n";
+    prods.forEach(p => {
+      const costo = p.costo_adquisicion || 0;
+      const margen = p.precio_venta - costo;
+      csv += `"${p.id_producto}","${p.nombre.replace(/"/g, '""')}",${p.stock_actual},${p.precio_venta},${costo},${margen.toFixed(2)}\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `inventario_${user.id_tienda.slice(0, 8)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  if (loading && !metrics) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] p-6 text-center">
+        <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+        <p className="mt-4 text-gray-500 text-sm font-medium">Cargando métricas comerciales...</p>
+      </div>
+    );
+  }
+
+  const res = metrics?.resumen || {
+    ventas_totales: "0.00",
+    pedidos_totales: 0,
+    costos_totales: "0.00",
+    margen_neto: "0.00",
+    margen_porcentaje: "0.00"
+  };
+
+  return (
+    <div className="stack dashboard-view">
+      <style>{`
+        @media print {
+          body { background: #ffffff !important; color: #000000 !important; font-size: 11px !important; }
+          .layout-sidebar, .layout-header, .btn, .direct-sale-btn, .actions, .filter-block, .store-whatsapp-card { display: none !important; }
+          .layout-content, .dashboard-view, .stack { width: 100% !important; padding: 0 !important; margin: 0 !important; }
+          .card { border: 1px solid #e5e7eb !important; box-shadow: none !important; margin-bottom: 20px !important; }
+          .card-head { border-bottom: 1px solid #e5e7eb !important; }
+          .products-grid, .stats { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 10px !important; }
+        }
+      `}</style>
+
+      {error ? <div className="error-text" style={{ padding: '12px', background: '#fee2e2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold' }}>{error}</div> : null}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h2 className="section-title" style={{ margin: 0, fontSize: '18px', fontWeight: 'extrabold', color: '#1f2937' }}>Resumen de Negocios</h2>
+          <p className="text-gray-400" style={{ margin: '2px 0 0 0', fontSize: '11px' }}>Control de inventario, costos y ventas físicas/online en tiempo real.</p>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn-primary" onClick={onGoToVentas} style={{ background: '#059669', borderColor: '#059669', color: '#ffffff', fontSize: '12px', fontWeight: 'bold' }}>
+            Ir a Gestión de Ventas
+          </button>
+          <button className="btn btn-secondary" onClick={() => window.print()} style={{ fontSize: '12px', fontWeight: 'bold' }}>
+            🖨️ Exportar PDF / Imprimir
+          </button>
+        </div>
+      </div>
+
+      {/* Grid de Metricas */}
+      <div className="stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', margin: '16px 0' }}>
+        <div style={{ background: '#ffffff', borderRadius: '16px', padding: '20px', border: '1px solid #f3f4f6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <span style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#9ca3af', tracking: '0.05em' }}>Vendido hoy</span>
+          <strong style={{ display: 'block', fontSize: '22px', color: '#059669', marginTop: '6px', fontWeight: 'black' }}>{parseFloat(res.ventas_totales).toFixed(2)} Bs</strong>
+          <span style={{ fontSize: '9px', color: '#9ca3af', marginTop: '4px', display: 'block' }}>{res.pedidos_totales} Ventas totales activas</span>
+        </div>
+
+        <div style={{ background: '#ffffff', borderRadius: '16px', padding: '20px', border: '1px solid #f3f4f6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <span style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#9ca3af', tracking: '0.05em' }}>Costo de Stock (Adq.)</span>
+          <strong style={{ display: 'block', fontSize: '22px', color: '#d97706', marginTop: '6px', fontWeight: 'black' }}>{parseFloat(res.costos_totales).toFixed(2)} Bs</strong>
+          <span style={{ fontSize: '9px', color: '#9ca3af', marginTop: '4px', display: 'block' }}>Inversión acumulada en mercancías</span>
+        </div>
+
+        <div style={{ background: '#ffffff', borderRadius: '16px', padding: '20px', border: '1px solid #f3f4f6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <span style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#9ca3af', tracking: '0.05em' }}>Ganancia Neta</span>
+          <strong style={{ display: 'block', fontSize: '22px', color: '#2563eb', marginTop: '6px', fontWeight: 'black' }}>{parseFloat(res.margen_neto).toFixed(2)} Bs</strong>
+          <span style={{ fontSize: '9px', color: '#9ca3af', marginTop: '4px', display: 'block' }}>Diferencia libre de costos</span>
+        </div>
+
+        <div style={{ background: '#ffffff', borderRadius: '16px', padding: '20px', border: '1px solid #f3f4f6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <span style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#9ca3af', tracking: '0.05em' }}>Margen Operativo</span>
+          <strong style={{ display: 'block', fontSize: '22px', color: '#7c3aed', marginTop: '6px', fontWeight: 'black' }}>{parseFloat(res.margen_porcentaje).toFixed(1)} %</strong>
+          <span style={{ fontSize: '9px', color: '#9ca3af', marginTop: '4px', display: 'block' }}>Porcentaje de utilidad bruta</span>
+        </div>
+      </div>
+
+      {/* Alertas de Reposición */}
+      {metrics?.bajo_stock && metrics.bajo_stock.length > 0 && (
+        <Card title="⚠️ Productos con Stock Bajo (Alertas de Reposición)">
+          <div style={{ padding: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <p className="text-amber-800 text-xs font-semibold" style={{ margin: 0 }}>Renovar el inventario de estos productos pronto:</p>
+              <button className="btn btn-secondary text-xs" onClick={exportInventoryCSV} style={{ fontSize: '10px', padding: '4px 8px' }}>
+                📥 Excel de Inventario
+              </button>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left', color: '#6b7280' }}>
+                    <th style={{ padding: '8px' }}>Producto</th>
+                    <th style={{ padding: '8px' }}>Precio Venta</th>
+                    <th style={{ padding: '8px' }}>Costo Adq.</th>
+                    <th style={{ padding: '8px', textAlign: 'center' }}>Stock Actual</th>
+                    <th style={{ padding: '8px', textAlign: 'center' }}>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {metrics.bajo_stock.map((p, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6', background: p.stock_actual === 0 ? '#fef2f2' : 'transparent' }}>
+                      <td style={{ padding: '8px', fontWeight: 'bold', color: '#1f2937' }}>{p.nombre}</td>
+                      <td style={{ padding: '8px' }}>{parseFloat(p.precio_venta).toFixed(2)} Bs</td>
+                      <td style={{ padding: '8px' }}>{parseFloat(p.costo_adquisicion).toFixed(2)} Bs</td>
+                      <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'black', color: p.stock_actual === 0 ? '#ef4444' : '#d97706' }}>
+                        {p.stock_actual} uds
+                      </td>
+                      <td style={{ padding: '8px', textAlign: 'center' }}>
+                        <span className={`badge ${p.stock_actual === 0 ? "badge-danger" : "badge-warning"}`} style={{
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          fontSize: '8px',
+                          fontWeight: 'bold',
+                          color: '#ffffff',
+                          background: p.stock_actual === 0 ? '#ef4444' : '#d97706'
+                        }}>
+                          {p.stock_actual === 0 ? "AGOTADO" : "STOCK BAJO"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Graficos */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+        <SalesChart data={metrics?.ventas_diarias || []} />
+        <TopProductsChart data={metrics?.productos_top || []} />
+      </div>
+    </div>
+  );
+}
+
+
+function VentasScreen({ user }) {
+  const [sales, setSales] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  
+  // Detalle expandido
+  const [expandedSaleId, setExpandedSaleId] = useState(null);
+  const [saleDetails, setSaleDetails] = useState({});
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  // Filtros
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Modal venta fisica
+  const [showSaleModal, setShowSaleModal] = useState(false);
+  const [allProducts, setAllProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState("all");
+  const [productSearchQuery, setProductSearchQuery] = useState("");
+  const [quantitiesByProduct, setQuantitiesByProduct] = useState({});
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [saleItems, setSaleItems] = useState([]);
+  const [savingSale, setSavingSale] = useState(false);
+
+  const loadSales = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await api.listVentas(user.id_tienda);
+      setSales(data || []);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo cargar el historial de ventas.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSales();
+  }, [user.id_tienda]);
+
+  const toggleDetails = async (idVenta) => {
+    if (expandedSaleId === idVenta) {
+      setExpandedSaleId(null);
+      return;
+    }
+
+    setExpandedSaleId(idVenta);
+    if (saleDetails[idVenta]) return; // ya cargados
+
+    setLoadingDetails(true);
+    try {
+      const data = await api.getVenta(idVenta, user.id_tienda);
+      setSaleDetails(prev => ({
+        ...prev,
+        [idVenta]: data
+      }));
+    } catch (err) {
+      console.error("Error al cargar detalles de la venta:", err);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const handleStatusChange = async (idVenta, nextEstado) => {
+    if (!window.confirm(`¿Estás seguro de cambiar el estado de este pedido a '${nextEstado}'?`)) return;
+    try {
+      await api.updateVentaEstado(idVenta, nextEstado);
+      alert("¡Estado del pedido actualizado!");
+      loadSales();
+      // Limpiar detalle en cache para forzar recarga si se expande
+      setSaleDetails(prev => {
+        const copy = { ...prev };
+        delete copy[idVenta];
+        return copy;
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Error al cambiar estado: " + err.message);
+    }
+  };
+
+  const openSaleModal = async () => {
+    setSaleItems([]);
+    setSelectedCategoryId("all");
+    setProductSearchQuery("");
+    setQuantitiesByProduct({});
+    setShowSaleModal(true);
+    setLoadingProducts(true);
+    try {
+      const [prodList, catList] = await Promise.all([
+        api.listProductos(),
+        api.listCategorias()
+      ]);
+      setAllProducts(prodList || []);
+      setCategories(catList || []);
+      
+      const qtys = {};
+      (prodList || []).forEach(p => {
+        qtys[p.id_producto] = 1;
+      });
+      setQuantitiesByProduct(qtys);
+    } catch (err) {
+      console.error("Error al cargar datos para venta física:", err);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const handleAddProductToSale = (prod, qty) => {
+    if (!prod) return;
+    if (prod.stock_actual < qty) {
+      alert(`Stock insuficiente para '${prod.nombre}'. Disponible: ${prod.stock_actual}`);
+      return;
+    }
+
+    const existing = saleItems.find(item => item.id_producto === prod.id_producto);
+    if (existing) {
+      const nextQty = existing.cantidad + qty;
+      if (prod.stock_actual < nextQty) {
+        alert(`Stock insuficiente. Ya agregaste ${existing.cantidad}. Disponible total: ${prod.stock_actual}`);
+        return;
+      }
+      setSaleItems(saleItems.map(item => 
+        item.id_producto === prod.id_producto 
+          ? { ...item, cantidad: nextQty, subtotal: nextQty * item.precio_unitario }
+          : item
+      ));
+    } else {
+      setSaleItems([
+        ...saleItems,
+        {
+          id_producto: prod.id_producto,
+          nombre: prod.nombre,
+          cantidad: qty,
+          precio_unitario: Number(prod.precio_venta),
+          subtotal: qty * Number(prod.precio_venta)
+        }
+      ]);
+    }
+    
+    setQuantitiesByProduct(prev => ({
+      ...prev,
+      [prod.id_producto]: 1
+    }));
+  };
+
+  const handleRemoveItem = (id) => {
+    setSaleItems(saleItems.filter(item => item.id_producto !== id));
+  };
+
+  const handleRegisterSale = async () => {
+    if (saleItems.length === 0) {
+      alert("Agrega al menos un producto a la venta.");
+      return;
+    }
+    setSavingSale(true);
+    try {
+      await api.createVentaDirecta({
+        id_cliente: null,
+        cliente_nuevo: null,
+        estado: "completada",
+        detalles: saleItems.map(item => ({
+          id_producto: item.id_producto,
+          cantidad: item.cantidad,
+          precio_unitario: item.precio_unitario
+        }))
+      });
+      alert("¡Venta directa registrada con éxito!");
+      setShowSaleModal(false);
+      loadSales();
+    } catch (err) {
+      console.error(err);
+      alert("Error al registrar la venta: " + err.message);
+    } finally {
+      setSavingSale(false);
+    }
+  };
+
+  const exportSalesCSV = () => {
+    const listToExport = filteredSales;
+    if (listToExport.length === 0) {
+      alert("No hay ventas en la lista actual para exportar.");
+      return;
+    }
+
+    let csv = "\uFEFFID Venta,Fecha,Estado,Cliente,Total Venta,ID Producto,Nombre Producto,Costo Adquisicion,Precio Unitario,Cantidad,Subtotal,Ganancia\n";
+    listToExport.forEach(v => {
+      const fecha = v.fecha_venta ? new Date(v.fecha_venta).toLocaleString("es-BO") : "";
+      const estado = v.estado || "";
+      const cliente = v.cliente ? v.cliente.nombre_completo : "Venta Directa";
+      const totalVenta = v.total_venta || 0;
+
+      if (v.detalles && v.detalles.length > 0) {
+        v.detalles.forEach(d => {
+          const prodId = d.id_producto || "";
+          const prodNombre = d.producto ? d.producto.nombre : "Producto Eliminado";
+          const costoUnit = d.producto && d.producto.costo_adquisicion !== null ? d.producto.costo_adquisicion : 0;
+          const precioUnit = d.precio_unitario || 0;
+          const cantidad = d.cantidad || 0;
+          const subtotal = d.subtotal || (precioUnit * cantidad);
+          const ganancia = (precioUnit - costoUnit) * cantidad;
+
+          csv += `"${v.id_venta}","${fecha}","${estado}","${cliente.replace(/"/g, '""')}",${totalVenta},"${prodId}","${prodNombre.replace(/"/g, '""')}",${costoUnit},${precioUnit},${cantidad},${subtotal},${ganancia}\n`;
+        });
+      } else {
+        csv += `"${v.id_venta}","${fecha}","${estado}","${cliente.replace(/"/g, '""')}",${totalVenta},"","","","","","",""\n`;
+      }
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `ventas_detallado_${user.id_tienda.slice(0, 8)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const filteredSales = sales.filter(v => {
+    // filtro por estado
+    if (filterStatus !== "all" && v.estado !== filterStatus) return false;
+    // filtro por ticket/código
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const code = v.id_venta.toLowerCase();
+      // busca si empieza por el ticket (primeros 8 caracteres) o contiene el uuid completo
+      if (!code.includes(q) && !code.slice(0, 8).includes(q)) return false;
+    }
+    return true;
+  });
+
+  return (
+    <div className="stack sales-management-view">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h2 className="section-title" style={{ margin: 0, fontSize: '18px', fontWeight: 'extrabold', color: '#1f2937' }}>Gestión de Ventas y Pedidos</h2>
+          <p className="text-gray-400" style={{ margin: '2px 0 0 0', fontSize: '11px' }}>Registra ventas en caja física y haz seguimiento a los pedidos generados por WhatsApp.</p>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn-primary" onClick={openSaleModal} style={{ background: '#059669', borderColor: '#059669', color: '#ffffff', fontSize: '12px', fontWeight: 'bold' }}>
+            + Registrar Venta Física
+          </button>
+          <button className="btn btn-secondary text-xs" onClick={exportSalesCSV} style={{ fontSize: '12px', fontWeight: 'bold' }}>
+            📥 Exportar Ventas a Excel
+          </button>
+        </div>
+      </div>
+
+      <Card title="Filtros y Búsqueda">
+        <div style={{ padding: '16px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }} className="filter-block">
+          <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '9px', fontWeight: 'extrabold', textTransform: 'uppercase', color: '#6b7280' }}>Buscar por Ticket</label>
+            <input
+              type="text"
+              placeholder="Escribe el código del ticket (ej: dc8405b0)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '12px', outline: 'none' }}
+            />
+          </div>
+          <div style={{ minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '9px', fontWeight: 'extrabold', textTransform: 'uppercase', color: '#6b7280' }}>Filtrar por Estado</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '12px', outline: 'none', background: '#ffffff' }}
+            >
+              <option value="all">Todos los estados</option>
+              <option value="generada_whatsapp">Pendiente WhatsApp</option>
+              <option value="completada">Completado</option>
+              <option value="cancelada">Cancelado</option>
+            </select>
+          </div>
+        </div>
+      </Card>
+
+      <Card title={`Ventas Registradas (${filteredSales.length})`}>
+        <div style={{ padding: '16px' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#9ca3af', fontSize: '12px' }}>Cargando ventas...</div>
+          ) : error ? (
+            <div className="error-text" style={{ padding: '12px', background: '#fee2e2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: '12px', fontSize: '12px' }}>{error}</div>
+          ) : filteredSales.length === 0 ? (
+            <p className="muted text-center py-6">No se encontraron ventas con los filtros aplicados.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left', color: '#6b7280' }}>
+                    <th style={{ padding: '8px' }}>Ticket</th>
+                    <th style={{ padding: '8px' }}>Cliente / Canal</th>
+                    <th style={{ padding: '8px' }}>Fecha y Hora</th>
+                    <th style={{ padding: '8px' }}>Monto Total</th>
+                    <th style={{ padding: '8px' }}>Estado</th>
+                    <th style={{ padding: '8px', textAlign: 'center' }}>Detalle</th>
+                    <th style={{ padding: '8px', textAlign: 'center' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSales.map((v) => {
+                    const isExpanded = expandedSaleId === v.id_venta;
+                    return (
+                      <Fragment key={v.id_venta}>
+                        <tr style={{ borderBottom: '1px solid #f3f4f6', background: isExpanded ? '#f9fafb' : 'transparent' }}>
+                          <td style={{ padding: '8px', fontFamily: 'monospace', fontWeight: 'bold', color: '#4b5563' }}>
+                            #{v.id_venta.slice(0, 8)}
+                          </td>
+                          <td style={{ padding: '8px', fontWeight: 'bold', color: '#374151' }}>
+                            {v.cliente ? (
+                              <div>
+                                <div style={{ fontSize: '11px', color: '#1f2937' }}>{v.cliente.nombre_completo}</div>
+                                {v.cliente.telefono && <div style={{ fontSize: '9px', color: '#6b7280', fontWeight: 'normal' }}>📱 {v.cliente.telefono}</div>}
+                              </div>
+                            ) : (
+                              <span style={{ color: '#9ca3af', fontWeight: 'normal', fontSize: '10px' }}>📦 Venta Física (Caja)</span>
+                            )}
+                          </td>
+                          <td style={{ padding: '8px' }}>
+                            {new Date(v.fecha_venta).toLocaleDateString()} {new Date(v.fecha_venta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                          <td style={{ padding: '8px', fontWeight: 'bold', color: '#111827' }}>
+                            {parseFloat(v.total_venta).toFixed(2)} Bs
+                          </td>
+                          <td style={{ padding: '8px' }}>
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              fontSize: '8px',
+                              fontWeight: 'bold',
+                              color: '#ffffff',
+                              background: v.estado === 'completada' ? '#059669' : v.estado === 'cancelada' ? '#dc2626' : '#2563eb'
+                            }}>
+                              {v.estado === 'completada' ? 'Completado' : v.estado === 'cancelada' ? 'Cancelado' : 'Pedido WhatsApp'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px', textAlign: 'center' }}>
+                            <button
+                              onClick={() => toggleDetails(v.id_venta)}
+                              className="btn btn-secondary"
+                              style={{ padding: '2px 8px', fontSize: '9px', fontWeight: 'bold' }}
+                            >
+                              {isExpanded ? '▲ Ocultar' : '👁 Ver Productos'}
+                            </button>
+                          </td>
+                          <td style={{ padding: '8px', textAlign: 'center', display: 'flex', justifyContent: 'center', gap: '4px' }}>
+                            {v.estado !== 'completada' && (
+                              <button
+                                onClick={() => handleStatusChange(v.id_venta, "completada")}
+                                className="btn"
+                                style={{ padding: '3px 8px', background: '#059669', color: '#ffffff', border: 'none', borderRadius: '8px', fontSize: '9px', fontWeight: 'bold', cursor: 'pointer' }}
+                              >
+                                ✔ Completar
+                              </button>
+                            )}
+                            {v.estado !== 'cancelada' && (
+                              <button
+                                onClick={() => handleStatusChange(v.id_venta, "cancelada")}
+                                className="btn"
+                                style={{ padding: '3px 8px', background: '#dc2626', color: '#ffffff', border: 'none', borderRadius: '8px', fontSize: '9px', fontWeight: 'bold', cursor: 'pointer' }}
+                              >
+                                ✖ Cancelar
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr style={{ background: '#f9fafb' }}>
+                            <td colSpan="7" style={{ padding: '12px 24px', borderBottom: '1px solid #e5e7eb' }}>
+                              <div style={{ background: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                {saleDetails[v.id_venta]?.cliente && (
+                                  <div style={{ paddingBottom: '8px', borderBottom: '1px dashed #e5e7eb', display: 'flex', flexWrap: 'wrap', gap: '20px', fontSize: '10px', color: '#374151' }}>
+                                    <div><strong>Cliente:</strong> {saleDetails[v.id_venta].cliente.nombre_completo}</div>
+                                    {saleDetails[v.id_venta].cliente.telefono && <div><strong>Teléfono:</strong> {saleDetails[v.id_venta].cliente.telefono}</div>}
+                                    {saleDetails[v.id_venta].cliente.ciudad_region && <div><strong>Ciudad / Región:</strong> {saleDetails[v.id_venta].cliente.ciudad_region}</div>}
+                                  </div>
+                                )}
+                                <div>
+                                  <h5 style={{ margin: '0 0 8px 0', fontSize: '10px', fontWeight: 'extrabold', color: '#4b5563', textTransform: 'uppercase' }}>Productos del Pedido:</h5>
+                                  {loadingDetails && !saleDetails[v.id_venta] ? (
+                                    <div style={{ fontSize: '10px', color: '#9ca3af' }}>Cargando productos del ticket...</div>
+                                  ) : saleDetails[v.id_venta] ? (
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                                      <thead>
+                                        <tr style={{ borderBottom: '1px solid #f3f4f6', textAlign: 'left', color: '#9ca3af' }}>
+                                          <th style={{ padding: '4px' }}>Producto</th>
+                                          <th style={{ padding: '4px', textAlign: 'center' }}>Cantidad</th>
+                                          <th style={{ padding: '4px', textAlign: 'right' }}>Precio Unit.</th>
+                                          <th style={{ padding: '4px', textAlign: 'right' }}>Subtotal</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {saleDetails[v.id_venta].detalles.map((d, idx) => (
+                                          <tr key={idx} style={{ borderBottom: '1px solid #fafafa' }}>
+                                            <td style={{ padding: '6px 4px', fontWeight: 'bold', color: '#374151' }}>{d.producto?.nombre || 'Producto eliminado'}</td>
+                                            <td style={{ padding: '6px 4px', textAlign: 'center' }}>{d.cantidad} u.</td>
+                                            <td style={{ padding: '6px 4px', textAlign: 'right' }}>{parseFloat(d.precio_unitario).toFixed(2)} Bs</td>
+                                            <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 'bold', color: '#059669' }}>{parseFloat(d.subtotal).toFixed(2)} Bs</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  ) : (
+                                    <div style={{ fontSize: '10px', color: '#ef4444' }}>Error al cargar los productos.</div>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* Modal de Nueva Venta Física */}
+      {showSaleModal && (
+        <div className="pos-modal-backdrop">
+          <style>{`
+            .pos-modal-backdrop {
+              position: fixed;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              background: rgba(15, 23, 42, 0.65);
+              backdrop-filter: blur(4px);
+              display: flex;
+              justify-content: center;
+              align-items: flex-start;
+              overflow-y: auto;
+              z-index: 1000;
+              padding: 20px 16px;
+            }
+            .pos-modal-container {
+              background: #ffffff;
+              border-radius: 24px;
+              padding: 24px;
+              width: 100%;
+              max-width: 950px;
+              box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15);
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+              margin: auto;
+            }
+            .pos-modal-body {
+              display: flex;
+              gap: 20px;
+              flex-direction: column;
+            }
+            .pos-modal-left {
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+            }
+            .pos-modal-right {
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+              border-top: 1px solid #f3f4f6;
+              padding-top: 16px;
+            }
+            .pos-product-list {
+              max-height: 380px;
+              overflow-y: auto;
+              border: 1px solid #f3f4f6;
+              border-radius: 16px;
+              padding: 10px;
+              background: #fafafa;
+            }
+            .pos-cart-list {
+              max-height: 280px;
+              overflow-y: auto;
+              border: 1px solid #e5e7eb;
+              border-radius: 16px;
+              padding: 12px;
+              background: #fafafa;
+            }
+            @media (min-width: 768px) {
+              .pos-modal-body {
+                flex-direction: row;
+                height: 520px;
+                overflow: hidden;
+              }
+              .pos-modal-left {
+                flex: 3;
+                height: 100%;
+                overflow: hidden;
+              }
+              .pos-modal-right {
+                flex: 2;
+                height: 100%;
+                overflow: hidden;
+                border-top: none;
+                border-left: 1px solid #f3f4f6;
+                padding-top: 0;
+                padding-left: 16px;
+              }
+              .pos-product-list {
+                flex: 1;
+                max-height: none;
+              }
+              .pos-cart-list {
+                flex: 1;
+                max-height: none;
+              }
+            }
+          `}</style>
+          <div className="pos-modal-container">
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f3f4f6', paddingBottom: '12px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 'extrabold', color: '#1f2937' }}>Registrador de Ventas Directas (Física)</h3>
+                <p className="text-gray-400" style={{ margin: '2px 0 0 0', fontSize: '10px' }}>Busca productos, filtra por categoría y regístralos al instante en caja.</p>
+              </div>
+              <button 
+                onClick={() => setShowSaleModal(false)} 
+                style={{ background: '#f3f4f6', border: 'none', borderRadius: '50%', width: '28px', height: '28px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Layout de dos columnas */}
+            <div className="pos-modal-body">
+              
+              {/* Columna Izquierda: Buscador de catálogo y selección */}
+              <div className="pos-modal-left">
+                
+                {/* Controles de Filtros */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    placeholder="🔍 Buscar por nombre o descripción..."
+                    value={productSearchQuery}
+                    onChange={(e) => setProductSearchQuery(e.target.value)}
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: '12px', border: '1px solid #e5e7eb', fontSize: '12px', outline: 'none' }}
+                  />
+                  <select
+                    value={selectedCategoryId}
+                    onChange={(e) => setSelectedCategoryId(e.target.value)}
+                    style={{ padding: '10px', borderRadius: '12px', border: '1px solid #e5e7eb', fontSize: '12px', background: '#ffffff', minWidth: '150px', outline: 'none' }}
+                  >
+                    <option value="all">Todas las categorías</option>
+                    {categories.map(c => (
+                      <option key={c.id_categoria} value={c.id_categoria}>{c.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Listado de Productos */}
+                <div className="pos-product-list">
+                  {loadingProducts ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: '#9ca3af', fontSize: '12px' }}>Cargando catálogo para ventas...</div>
+                  ) : (
+                    (() => {
+                      const filtered = allProducts.filter(p => {
+                        const matchesCategory = selectedCategoryId === "all" || String(p.id_categoria) === String(selectedCategoryId);
+                        const matchesSearch = p.nombre.toLowerCase().includes(productSearchQuery.toLowerCase()) || 
+                          (p.descripcion && p.descripcion.toLowerCase().includes(productSearchQuery.toLowerCase()));
+                        return matchesCategory && matchesSearch && p.activo;
+                      });
+
+                      if (filtered.length === 0) {
+                        return <div style={{ textAlign: 'center', padding: '30px', color: '#9ca3af', fontSize: '12px' }}>No se encontraron productos coincidentes.</div>;
+                      }
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {filtered.map(p => {
+                            const curQty = quantitiesByProduct[p.id_producto] || 1;
+                            const isOutOfStock = p.stock_actual <= 0;
+                            return (
+                              <div key={p.id_producto} style={{
+                                background: '#ffffff',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '14px',
+                                padding: '10px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                opacity: isOutOfStock ? 0.6 : 1
+                              }}>
+                                {/* Miniatura */}
+                                <div style={{ width: '40px', height: '40px', background: '#f3f4f6', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  {p.imagen_url ? (
+                                    <img src={buildAssetUrl(p.imagen_url)} alt={p.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                  ) : (
+                                    <span style={{ fontSize: '8px', color: '#9ca3af', fontWeight: 'bold' }}>Sin foto</span>
+                                  )}
+                                </div>
+
+                                {/* Info del Producto */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <h4 style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', color: '#1f2937' }} className="truncate">{p.nombre}</h4>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', fontSize: '9px', fontWeight: 'bold' }}>
+                                    <span style={{ color: '#059669' }}>{p.precio_venta} Bs</span>
+                                    <span style={{ color: isOutOfStock ? '#ef4444' : '#9ca3af' }}>
+                                      {isOutOfStock ? 'Agotado' : `Stock: ${p.stock_actual}`}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Acciones de agregar */}
+                                {!isOutOfStock && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max={p.stock_actual}
+                                      value={curQty}
+                                      onChange={(e) => {
+                                        const val = Math.max(1, Math.min(p.stock_actual, parseInt(e.target.value) || 1));
+                                        setQuantitiesByProduct(prev => ({ ...prev, [p.id_producto]: val }));
+                                      }}
+                                      style={{ width: '45px', padding: '6px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '11px', textAlign: 'center', outline: 'none' }}
+                                    />
+                                    <button
+                                      onClick={() => handleAddProductToSale(p, curQty)}
+                                      style={{
+                                        padding: '6px 12px',
+                                        background: '#059669',
+                                        color: '#ffffff',
+                                        border: '1px solid #059669',
+                                        borderRadius: '8px',
+                                        fontSize: '11px',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      + Agregar
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
+
+              {/* Columna Derecha: Detalle de venta actual y totales */}
+              <div className="pos-modal-right">
+                <h4 style={{ margin: 0, fontSize: '12px', fontWeight: 'extrabold', color: '#374151' }}>Detalle de Transacción Actual</h4>
+                
+                {/* Lista de productos agregados */}
+                <div className="pos-cart-list">
+                  {saleItems.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 10px', color: '#9ca3af', fontSize: '11px' }}>
+                      <p style={{ margin: 0 }}>El carrito de venta física está vacío.</p>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '9px' }}>Usa el buscador de la izquierda para agregar productos.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {saleItems.map(item => (
+                        <div key={item.id_producto} style={{
+                          background: '#ffffff',
+                          border: '1px solid #f3f4f6',
+                          borderRadius: '12px',
+                          padding: '8px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '8px',
+                          fontSize: '11px'
+                        }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontWeight: 'bold', color: '#1f2937' }} className="truncate">{item.nombre}</div>
+                            <div style={{ fontSize: '9px', color: '#6b7280', marginTop: '2px' }}>
+                              {item.cantidad} x {item.precio_unitario.toFixed(2)} Bs
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontWeight: 'extrabold', color: '#059669' }}>{item.subtotal.toFixed(2)} Bs</span>
+                            <button
+                              onClick={() => handleRemoveItem(item.id_producto)}
+                              style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Subtotal y Registrar */}
+                <div style={{ background: '#f9fafb', padding: '16px', borderRadius: '16px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 'black', color: '#111827' }}>
+                    <span>Total de la Venta:</span>
+                    <span>{saleItems.reduce((acc, i) => acc + i.subtotal, 0).toFixed(2)} Bs</span>
+                  </div>
+
+                  <button
+                    onClick={handleRegisterSale}
+                    disabled={savingSale || saleItems.length === 0}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      background: saleItems.length === 0 ? '#9ca3af' : '#059669',
+                      color: '#ffffff',
+                      borderRadius: '12px',
+                      border: saleItems.length === 0 ? '1px solid #9ca3af' : '1px solid #059669',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      cursor: saleItems.length === 0 ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {savingSale ? "Registrando en Caja..." : "Confirmar Venta en Físico"}
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function App() {
   const { path, go } = usePath();
@@ -2517,10 +3513,11 @@ function App() {
     return <LoginPage onLogin={login} onForgotPassword={() => go("/admin/forgot-password")} />;
   }
 
-  let content = <DashboardScreen user={user} />;
+  let content = <DashboardScreen user={user} onGoToVentas={() => go("/admin/ventas")} />;
   if (section === "tiendas" && user.rol === "superadmin") content = <TiendasScreen />;
   if (section === "usuarios" && user.rol === "superadmin") content = <UsuariosScreen />;
   if (section === "catalogo" && canUseCatalog(user.rol)) content = <CatalogoScreen isSuperadmin={user.rol === "superadmin"} />;
+  if (section === "ventas" && canUseCatalog(user.rol)) content = <VentasScreen user={user} />;
   if (section === "tema" && ["superadmin", "admin"].includes(user.rol)) content = <ThemeAppearanceScreen isSuperadmin={user.rol === "superadmin"} Card={Card} HelperText={HelperText} StoreRefPicker={StoreRefPicker} />;
   if (section === "ofertas" && canUseCatalog(user.rol)) content = <OffersScreen isSuperadmin={user.rol === "superadmin"} />;
   if (section === "auditoria" && ["superadmin", "admin"].includes(user.rol)) content = <AuditoriaScreen />;

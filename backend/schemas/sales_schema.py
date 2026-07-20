@@ -25,13 +25,38 @@ class VentaCreate(BaseModel):
     detalles: List[DetalleVentaCreate] = Field(..., min_length=1)
 
 
+class VentaEstadoUpdate(BaseModel):
+    estado: str
+
+
+class ClienteOut(BaseModel):
+    id_cliente: UUID
+    nombre_completo: str
+    telefono: Optional[str] = None
+    ciudad_region: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ProductoMiniOut(BaseModel):
+    id_producto: UUID
+    nombre: str
+    imagen_url: Optional[str] = None
+    costo_adquisicion: Optional[Decimal] = None
+
+    class Config:
+        from_attributes = True
+
+
 class DetalleVentaOut(BaseModel):
     id_detalle: UUID
     id_venta: UUID
     id_producto: UUID
     cantidad: int
-    precio_unitario: str
-    subtotal: str
+    precio_unitario: Decimal
+    subtotal: Decimal
+    producto: Optional[ProductoMiniOut] = None
 
     class Config:
         from_attributes = True
@@ -43,8 +68,9 @@ class VentaOut(BaseModel):
     id_cliente: Optional[UUID] = None
     fecha_venta: datetime
     estado: str
-    total_venta: str
+    total_venta: Decimal
     detalles: List[DetalleVentaOut] = []
+    cliente: Optional[ClienteOut] = None
 
     class Config:
         from_attributes = True

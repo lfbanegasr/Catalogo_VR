@@ -5,8 +5,15 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.deps import get_current_tienda_id, get_current_user, require_role
-from schemas.sales_schema import VentaCreate, VentaOut
-from crud.crud_sales import create_venta, list_ventas, StockInsuficienteError
+from schemas.sales_schema import VentaCreate, VentaOut, VentaEstadoUpdate
+from crud.crud_sales import (
+    create_venta,
+    list_ventas,
+    get_venta,
+    update_venta_estado,
+    get_dashboard_metrics,
+    StockInsuficienteError,
+)
 from models.tenant import Usuario
 
 router = APIRouter(prefix="/api/sales", tags=["Sales"])
@@ -87,7 +94,100 @@ def api_list_ventas(
             fecha_venta=v.fecha_venta,
             estado=v.estado,
             total_venta=v.total_venta,
-            detalles=[],
+            detalles=v.detalles,
+            cliente=v.cliente,
         )
         for v in ventas
     ]
+
+
+@router.get(
+    "/ventas/{id_venta}",
+    response_model=VentaOut,
+    dependencies=[Depends(require_role("superadmin", "admin", "empleado"))],
+)
+def api_get_venta(
+    id_venta: UUID,
+    db: Session = Depends(get_db),
+    id_tienda: UUID = Depends(get_current_tienda_id),
+    current_user: Usuario = Depends(get_current_user),
+    id_tienda_target: UUID | None = Query(default=None, alias="id_tienda"),
+):
+    target_tienda_id = _resolve_target_tienda_id(
+        current_user=current_user,
+        current_tienda_id=id_tienda,
+        requested_tienda_id=id_tienda_target,
+    )
+    venta = get_venta(db=db, id_tienda=target_tienda_id, id_venta=id_venta)
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    return VentaOut(
+        id_venta=venta.id_venta,
+        id_tienda=venta.id_tienda,
+        id_cliente=venta.id_cliente,
+        fecha_venta=venta.fecha_venta,
+        estado=venta.estado,
+        total_venta=venta.total_venta,
+        detalles=venta.detalles or [],
+        cliente=venta.cliente,
+    )
+
+
+@router.patch(
+    "/ventas/{id_venta}/estado",
+    response_model=VentaOut,
+    dependencies=[Depends(require_role("superadmin", "admin", "empleado"))],
+)
+def api_update_venta_estado(
+    id_venta: UUID,
+    payload: VentaEstadoUpdate,
+    db: Session = Depends(get_db),
+    id_tienda: UUID = Depends(get_current_tienda_id),
+    current_user: Usuario = Depends(get_current_user),
+    id_tienda_target: UUID | None = Query(default=None, alias="id_tienda"),
+):
+    target_tienda_id = _resolve_target_tienda_id(
+        current_user=current_user,
+        current_tienda_id=id_tienda,
+        requested_tienda_id=id_tienda_target,
+    )
+    try:
+        venta = update_venta_estado(
+            db=db,
+            id_tienda=target_tienda_id,
+            id_venta=id_venta,
+            nuevo_estado=payload.estado,
+        )
+        return VentaOut(
+            id_venta=venta.id_venta,
+            id_tienda=venta.id_tienda,
+            id_cliente=venta.id_cliente,
+            fecha_venta=venta.fecha_venta,
+            estado=venta.estado,
+            total_venta=venta.total_venta,
+            detalles=venta.detalles or [],
+            cliente=venta.cliente,
+        )
+    except StockInsuficienteError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get(
+    "/metrics",
+    dependencies=[Depends(require_role("superadmin", "admin", "empleado"))],
+)
+def api_get_metrics(
+    db: Session = Depends(get_db),
+    id_tienda: UUID = Depends(get_current_tienda_id),
+    current_user: Usuario = Depends(get_current_user),
+    id_tienda_target: UUID | None = Query(default=None, alias="id_tienda"),
+):
+    target_tienda_id = _resolve_target_tienda_id(
+        current_user=current_user,
+        current_tienda_id=id_tienda,
+        requested_tienda_id=id_tienda_target,
+    )
+    return get_dashboard_metrics(db=db, id_tienda=target_tienda_id)

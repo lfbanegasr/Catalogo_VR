@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from core.config import settings
 
@@ -12,15 +12,21 @@ SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    pwd_bytes = password.encode("utf-8")
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(pwd_bytes, salt)
+    return hashed.decode("utf-8")
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return pwd_context.verify(password, password_hash)
+    try:
+        pwd_bytes = password.encode("utf-8")
+        hash_bytes = password_hash.encode("utf-8")
+        return bcrypt.checkpw(pwd_bytes, hash_bytes)
+    except Exception:
+        return False
 
 
 def create_access_token(

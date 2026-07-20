@@ -145,4 +145,20 @@ export const api = {
     const path = withQuery("/catalog/theme/banner", tiendaRef ? { tienda: tiendaRef } : {});
     return request(path, { method: "POST", body: form });
   },
+  listVentas: (idTienda) =>
+    request(withQuery("/sales/ventas", { id_tienda: idTienda })),
+  getVenta: (idVenta, idTienda) =>
+    request(withQuery(`/sales/ventas/${idVenta}`, { id_tienda: idTienda })),
+  updateVentaEstado: (idVenta, estado, idTienda) =>
+    request(withQuery(`/sales/ventas/${idVenta}/estado`, { id_tienda: idTienda }), {
+      method: "PATCH",
+      body: JSON.stringify({ estado }),
+    }),
+  createVentaDirecta: (payload, idTienda) =>
+    request(withQuery("/sales/ventas", { id_tienda: idTienda }), {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getMetrics: (idTienda) =>
+    request(withQuery("/sales/metrics", { id_tienda: idTienda })),
 };

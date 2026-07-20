@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { buildAssetUrl } from "../api/api";
+import { useCart } from "../context/CartContext";
 
 function formatPrice(value) {
   return new Intl.NumberFormat("es-PE", {
@@ -14,9 +15,15 @@ function normalizeWhatsappNumber(raw) {
 }
 
 function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUrl, onWhatsappClick, onBack }) {
+  const { addToCart } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [failedImageSrc, setFailedImageSrc] = useState("");
+
+  const handleAddToCart = () => {
+    addToCart(product, quantity);
+    onBack();
+  };
 
   const nombre = product.nombre || product.name || "Producto";
   const imagenUrl = product.imagen_url || product.imageUrl || "";
@@ -166,9 +173,19 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
               <button
                 className="btn btn-primary add-btn"
                 type="button"
-                onClick={handleBuyByWhatsapp}
+                onClick={handleAddToCart}
+                style={{ backgroundColor: "#059669", borderColor: "#059669", color: "#ffffff" }}
               >
-                Comprar por WhatsApp
+                Agregar al Pedido
+              </button>
+
+              <button
+                className="btn btn-ghost"
+                type="button"
+                onClick={handleBuyByWhatsapp}
+                style={{ marginLeft: "10px" }}
+              >
+                Comprar de inmediato
               </button>
             </div>
           </div>

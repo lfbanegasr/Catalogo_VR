@@ -12,6 +12,8 @@ from crud.crud_catalog import (
 )
 from schemas.public_event_schema import PublicWhatsappClickIn
 from schemas.catalog_schema import CategoriaPublicOut, ProductoPublicOut
+from schemas.sales_schema import VentaCreate, VentaOut
+from crud.crud_sales import create_venta, StockInsuficienteError
 
 router = APIRouter(prefix="/api/public", tags=["Public Catalog"])
 
@@ -86,3 +88,34 @@ def get_public_products(
         limit=limit,
         offset=offset,
     )
+
+
+@router.post(
+    "/catalog/{slug}/checkout",
+    response_model=VentaOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def api_public_checkout(
+    slug: str,
+    payload: VentaCreate,
+    db: Session = Depends(get_db),
+):
+    tienda = _get_active_tienda_or_404(db, slug)
+    try:
+        # Forzar estado inicial para la creación
+        payload.estado = "generada_whatsapp"
+        venta = create_venta(db=db, id_tienda=tienda.id_tienda, payload=payload)
+
+        return VentaOut(
+            id_venta=venta.id_venta,
+            id_tienda=venta.id_tienda,
+            id_cliente=venta.id_cliente,
+            fecha_venta=venta.fecha_venta,
+            estado=venta.estado,
+            total_venta=venta.total_venta,
+            detalles=venta.detalles or [],
+        )
+    except StockInsuficienteError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

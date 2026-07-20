@@ -18,24 +18,25 @@ export function CartProvider({ children }) {
     localStorage.setItem("tienda_cart", JSON.stringify(cartItems));
   }, [cartItems]);
 
-  const addToCart = (product) => {
+  const addToCart = (product, quantityToAdd = 1) => {
     setCartItems((prevItems) => {
-      const existingItem = prevItems.find((item) => item.id === product.id);
+      const productId = product.id || product.id_producto;
+      const existingItem = prevItems.find((item) => item.id === productId);
       if (existingItem) {
-        // Si ya existe, incrementar la cantidad
+        // Si ya existe, incrementar la cantidad por el valor especificado
         return prevItems.map((item) =>
-          item.id === product.id ? { ...item, cantidad: item.cantidad + 1 } : item
+          item.id === productId ? { ...item, cantidad: item.cantidad + quantityToAdd } : item
         );
       }
-      // Si es nuevo, añadirlo con cantidad 1
+      // Si es nuevo, añadirlo con la cantidad especificada
       return [
         ...prevItems,
         {
-          id: product.id,
+          id: productId,
           nombre: product.nombre,
-          precio: product.precio_final || product.precio,
+          precio: product.precio_final || product.precio || product.precio_venta,
           imagen_url: product.imagen_url,
-          cantidad: 1,
+          cantidad: quantityToAdd,
         },
       ];
     });

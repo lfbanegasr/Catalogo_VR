@@ -1,35 +1,38 @@
-🟢 Fase 1: El MVP B2C (Tu Tienda Propia)
-El objetivo de esta fase es tener un sistema web básico pero robusto, donde tú eres el único administrador. Te servirá para empezar a monetizar rápidamente.
-•	Paso 1: Diseño de la Base de Datos (PostgreSQL).
-o	Crearemos el modelo de Entidad-Relación. Necesitaremos tablas centrales: Usuarios (solo tú por ahora), Productos, Categorías y Ventas.
-•	Paso 2: Desarrollo del Backend (Python).
-o	Construiremos la API REST. Usar Django (con Django REST Framework) te permitirá levantar este MVP rapidísimo gracias a su panel de administración integrado, dejándolo listo para un futuro despliegue en servicios como AWS Elastic Beanstalk.
-•	Paso 3: Desarrollo del Frontend Web (React + TypeScript).
-o	Diseñaremos un catálogo limpio y moderno. Aquí es donde subes tus primeros productos (por ejemplo, configurar un set de marcadores de arte por 100 Bs) para probar el sistema en la vida real.
-•	Paso 4: Integración con WhatsApp.
-o	En lugar de una pasarela de pagos compleja al inicio, el carrito de compras generará un mensaje predefinido con el detalle del pedido y redirigirá al cliente directamente a tu WhatsApp para cerrar la venta.
-🔵 Fase 2: Inteligencia de Negocios y Ciencia de Datos
-Una vez que el sistema esté operando y capturando datos reales de tus ventas, entraremos a tu área de toma de decisiones.
-•	Paso 1: Estructuración de Datos.
-o	Diseñaremos vistas SQL específicas en tu base de datos PostgreSQL.
-•	Paso 2: Data Marts y Cubos OLAP.
-o	Aislaremos la información transaccional para crear un pequeño entorno de Data Warehouse. Estructuraremos los datos para que el análisis sea rápido y no afecte el rendimiento de tu tienda en vivo.
-•	Paso 3: Visualización (Power BI).
-o	Conectaremos esos datos a Power BI para crear un dashboard privado. Podrás ver mapas de calor de dónde te compran más, qué categorías tienen mayor margen de ganancia y proyectar tendencias de ventas futuras.
-🟣 Fase 3: Evolución a SaaS (El Negocio B2B)
-Aquí transformamos tu herramienta personal en un producto alquilable.
-•	Paso 1: Refactorización Multi-tenant.
-o	Modificaremos la base de datos y el backend para que soporte múltiples inquilinos (otros vendedores). Cada dato deberá estar estrictamente ligado al tenant_id correspondiente por seguridad.
-•	Paso 2: Módulo de Suscripciones.
-o	Implementaremos pasarelas de pago (como Stripe o equivalentes locales) para cobrar las mensualidades a tus clientes.
-•	Paso 3: Panel de Control B2B.
-o	Crearemos un dashboard en React para que tus clientes gestionen sus propias tiendas y vean sus métricas básicas.
-🟠 Fase 4: La Aplicación Móvil
-Para coronar el ecosistema y tu portafolio.
-•	Paso 1: Consumo de API.
-o	Tu app consumirá exactamente la misma API en Python que ya construiste para la web.
-•	Paso 2: Desarrollo Frontend Móvil.
-o	Aquí desarrollaremos la interfaz nativa. Utilizar Flutter te permitirá exportar el proyecto para Android y iOS con un rendimiento excelente y animaciones muy fluidas, integrando el catálogo y la pasarela hacia WhatsApp de forma nativa.
+🟢 Fase 1: El MVP B2C (Tu Tienda Propia) - [COMPLETADO]
+El objetivo de esta fase fue construir un sistema web básico pero robusto, con aislamiento multi-inquilino (multi-tenant) desde el inicio.
+•	Paso 1: Diseño de la Base de Datos (PostgreSQL) - COMPLETADO. Tablas core de tiendas, usuarios, categorías, productos, ofertas, clientes y ventas con índices de optimización.
+•	Paso 2: Desarrollo del Backend (Python + FastAPI) - COMPLETADO. API REST robusta construida con FastAPI (en lugar de Django), utilizando Alembic para migraciones, SQLAlchemy ORM y autenticación por tokens JWT.
+•	Paso 3: Desarrollo del Frontend Web (React + Vite) - COMPLETADO. Catálogo dinámico para clientes y panel de administración privado para los dueños de tiendas (superadmin y admin).
+•	Paso 4: Integración con WhatsApp - PARCIALMENTE COMPLETADO. El carrito de compras actual redirige directamente a WhatsApp con el detalle del pedido. Falta registrar la orden en la base de datos automáticamente al momento del redireccionamiento para permitir el seguimiento en la Fase 2.
+
+🔵 Fase 2: Control de Ventas, Inventario y Dashboard Operativo - [EN DESARROLLO]
+En esta fase reestructurada, nos enfocamos en darle al propietario de la tienda y a sus empleados un control total sobre su negocio directamente desde el sistema, sin depender de herramientas externas como Power BI.
+•	Paso 1: Registro Automatizado de Ventas (Checkout).
+o	Implementar un formulario de checkout rápido en el catálogo de clientes (Nombre, Teléfono, Ciudad/Región).
+o	Crear el endpoint público `POST /api/public/catalog/{slug}/checkout` que registre al cliente, guarde la venta con estado `generada_whatsapp` y almacene los detalles de la venta en la base de datos antes de redirigir a WhatsApp.
+•	Paso 2: Dashboard Interactivo de Métricas (Para Admins y Empleados).
+o	Habilitar el acceso al Dashboard para el rol de `empleado` (actualmente restringido a `admin` y `superadmin`).
+o	Crear el endpoint `/api/sales/metrics` en el backend para calcular: ventas totales, costos totales, margen de ganancia neto, ranking de productos más vendidos, distribución por categorías e histórico de ventas diarias/mensuales.
+o	Diseñar gráficos interactivos en el frontend admin (usando componentes SVG nativos o una librería ligera de React) que permitan filtrar métricas por categoría o producto.
+•	Paso 3: Gestión de Inventario y Estados de Venta.
+o	Permitir que el dueño o empleado marque el estado de una venta como `completada` o `cancelada` en el panel de administración.
+o	Ajustar el stock automáticamente al cambiar el estado (ej: descontar el stock al completarse, y si se cancela, restaurar el stock correspondiente para evitar pérdidas).
+o	Pantalla de control de inventario con visualización de costos de adquisición, precios de venta y márgenes esperados por producto.
+•	Paso 4: Exportación de Reportes.
+o	Añadir botones para exportar el inventario y el historial de ventas a formato Excel (CSV adaptado para Excel) y reporte PDF directamente desde el Panel de Control.
+
+🟣 Fase 3: Evolución a SaaS Comercial (El Negocio B2B) - [SIGUIENTE]
+Transformamos la herramienta en una plataforma comercial distribuible de alquiler de catálogos virtuales.
+•	Paso 1: Módulo de Suscripciones y Planes.
+o	Definición de planes (Gratuito, Pro, Premium) con límites de productos o características.
+o	Integración con pasarelas de pago (Stripe u otras locales) para cobrar mensualidades de manera automatizada a los inquilinos.
+•	Paso 2: Gestión de Inquilinos Avanzada.
+o	Panel de superadmin mejorado para activar, suspender o configurar tiendas clientes de manera directa.
+
+🟠 Fase 4: La Aplicación Móvil - [FUTURO]
+Despliegue móvil para fidelización y portabilidad.
+•	Paso 1: Desarrollo en Flutter.
+o	Aplicación móvil híbrida (Android/iOS) que consume la misma API de FastAPI para cargar el catálogo dinámico y gestionar pedidos.
 ________________________________________
 Herramientas de Organización Sugeridas
 Para mantener el control del proyecto y simular un entorno laboral real:

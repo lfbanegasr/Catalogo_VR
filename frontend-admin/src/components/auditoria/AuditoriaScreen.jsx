@@ -7,14 +7,16 @@ export default function AuditoriaScreen() {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [filterRol, setFilterRol] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const loadLogs = () => {
-    api.auditLogs({ rol: filterRol || undefined }).then(setRows).catch((e) => setError(e.message));
+    api.auditLogs({ rol: filterRol || undefined, startDate, endDate }).then(setRows).catch((e) => setError(e.message));
   };
 
   useEffect(() => {
     loadLogs();
-  }, [filterRol]);
+  }, [filterRol, startDate, endDate]);
 
   const filteredRows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -36,23 +38,23 @@ export default function AuditoriaScreen() {
   return (
     <Card title="Auditoria">
       {error ? <p className="error-text">{error}</p> : null}
-      <div className="audit-filters">
+      <div className="audit-filters" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          Buscar en auditoria
+          <span style={{ fontSize: '11px', fontWeight: '600', color: '#4b5563' }}>Buscar</span>
           <input
             value={query}
             autoComplete="off"
             placeholder="Accion, usuario, tienda o IP..."
             onChange={(event) => setQuery(event.target.value)}
-            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '12px', outline: 'none' }}
+            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '12px', outline: 'none', width: '100%' }}
           />
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          Filtrar por Rol
+          <span style={{ fontSize: '11px', fontWeight: '600', color: '#4b5563' }}>Filtrar por Rol</span>
           <select
             value={filterRol}
             onChange={(e) => setFilterRol(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '12px', outline: 'none' }}
+            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '12px', outline: 'none', width: '100%' }}
           >
             <option value="">Todos los roles</option>
             <option value="superadmin">Superadmin</option>
@@ -60,34 +62,52 @@ export default function AuditoriaScreen() {
             <option value="empleado">Empleado</option>
           </select>
         </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span style={{ fontSize: '11px', fontWeight: '600', color: '#4b5563' }}>Desde fecha</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '12px', outline: 'none', width: '100%' }}
+          />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span style={{ fontSize: '11px', fontWeight: '600', color: '#4b5563' }}>Hasta fecha</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '12px', outline: 'none', width: '100%' }}
+          />
+        </label>
       </div>
-      <div className="table-wrap" style={{ marginTop: '12px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
-        <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '11px' }}>
+      <div className="table-wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%', border: '1px solid #f3f4f6', borderRadius: '8px' }}>
+        <table style={{ width: '100%', minWidth: '900px', borderCollapse: 'collapse', fontSize: '12px', whiteSpace: 'nowrap' }}>
           <thead>
-            <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left', color: '#6b7280' }}>
-              <th style={{ padding: '8px' }}>Fecha</th>
-              <th style={{ padding: '8px' }}>Accion</th>
-              <th style={{ padding: '8px' }}>Usuario</th>
-              <th style={{ padding: '8px' }}>Rol</th>
-              <th style={{ padding: '8px' }}>Tienda</th>
-              <th style={{ padding: '8px' }}>IP</th>
+            <tr style={{ borderBottom: '1px solid #e5e7eb', textAlign: 'left', color: '#6b7280', backgroundColor: '#f9fafb' }}>
+              <th style={{ padding: '12px 16px', fontWeight: '600' }}>Fecha</th>
+              <th style={{ padding: '12px 16px', fontWeight: '600' }}>Accion</th>
+              <th style={{ padding: '12px 16px', fontWeight: '600' }}>Usuario</th>
+              <th style={{ padding: '12px 16px', fontWeight: '600' }}>Rol</th>
+              <th style={{ padding: '12px 16px', fontWeight: '600' }}>Tienda</th>
+              <th style={{ padding: '12px 16px', fontWeight: '600' }}>IP</th>
             </tr>
           </thead>
           <tbody>
             {filteredRows.map((r) => (
-              <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                <td style={{ padding: '8px' }}>{new Date(r.fecha_hora.endsWith('Z') ? r.fecha_hora : r.fecha_hora + 'Z').toLocaleString()}</td>
-                <td style={{ padding: '8px', fontWeight: 'bold' }}>{r.accion}</td>
-                <td style={{ padding: '8px' }}>{r.email_usuario || "-"}</td>
-                <td style={{ padding: '8px' }}>
+              <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: '#fff' }}>
+                <td style={{ padding: '12px 16px' }}>{new Date(r.fecha_hora.endsWith('Z') ? r.fecha_hora : r.fecha_hora + 'Z').toLocaleString()}</td>
+                <td style={{ padding: '12px 16px', fontWeight: '600', color: '#111827' }}>{r.accion}</td>
+                <td style={{ padding: '12px 16px' }}>{r.email_usuario || "-"}</td>
+                <td style={{ padding: '12px 16px' }}>
                   {r.rol_usuario ? (
-                    <span style={{ padding: '2px 6px', borderRadius: '4px', background: '#e5e7eb', fontSize: '10px' }}>
+                    <span style={{ padding: '4px 8px', borderRadius: '4px', background: '#f3f4f6', fontSize: '11px', fontWeight: '500', color: '#4b5563' }}>
                       {r.rol_usuario}
                     </span>
                   ) : "-"}
                 </td>
-                <td style={{ padding: '8px', fontSize: '10px' }}>{r.id_tienda || "-"}</td>
-                <td style={{ padding: '8px', fontFamily: 'monospace' }}>{r.ip || "-"}</td>
+                <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#6b7280' }}>{r.id_tienda ? r.id_tienda.split('-')[0] + "..." : "-"}</td>
+                <td style={{ padding: '12px 16px', fontFamily: 'monospace', color: '#6b7280' }}>{r.ip || "-"}</td>
               </tr>
             ))}
             {filteredRows.length === 0 ? (

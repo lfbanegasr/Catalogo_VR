@@ -121,9 +121,15 @@ export const api = {
     request("/admin/my-store", { method: "PATCH", body: JSON.stringify(payload) }),
   meUpdateTheme: (payload) =>
     request("/me/theme", { method: "PATCH", body: JSON.stringify(payload) }),
-  auditLogs: ({ rol } = {}) => {
+  auditLogs: ({ rol, startDate, endDate } = {}) => {
     const params = new URLSearchParams({ limit: 50 });
     if (rol) params.set("rol", rol);
+    if (startDate) params.set("fecha_inicio", new Date(startDate).toISOString());
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      params.set("fecha_fin", end.toISOString());
+    }
     return request(`/admin/audit-logs?${params.toString()}`);
   },
   listProductos: (tiendaRef) =>

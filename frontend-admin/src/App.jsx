@@ -33,8 +33,7 @@ function menuByRole(role) {
       ["catalogo", "Catalogo"],
       ["tema", "Tema"],
       ["ofertas", "Ofertas"],
-      ["usuarios", "Empleados"], // Administradores pueden gestionar empleados
-      ["auditoria", "Auditoria"]
+      ["usuarios", "Empleados"] // Administradores pueden gestionar empleados
     ];
   }
   if (role === "empleado") {
@@ -193,7 +192,7 @@ function App() {
   if (section === "ofertas" && canUseCatalog(user.rol)) {
     content = <OffersScreen isSuperadmin={user.rol === "superadmin"} />;
   }
-  if (section === "auditoria" && ["superadmin", "admin"].includes(user.rol)) {
+  if (section === "auditoria" && user.rol === "superadmin") {
     content = <AuditoriaScreen />;
   }
 

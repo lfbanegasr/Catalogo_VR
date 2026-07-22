@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -61,6 +62,8 @@ def list_audit_logs(
     exito: bool | None = None,
     id_tienda=None,
     rol_usuario: str | None = None,
+    fecha_inicio: str | None = None,
+    fecha_fin: str | None = None,
 ) -> list[AuditLog]:
     query = db.query(AuditLog)
     if id_tienda is not None:
@@ -71,5 +74,17 @@ def list_audit_logs(
         query = query.filter(AuditLog.exito == exito)
     if rol_usuario is not None:
         query = query.filter(AuditLog.rol_usuario == rol_usuario)
+    if fecha_inicio:
+        try:
+            dt_inicio = datetime.fromisoformat(fecha_inicio.replace("Z", "+00:00"))
+            query = query.filter(AuditLog.fecha_hora >= dt_inicio)
+        except ValueError:
+            pass
+    if fecha_fin:
+        try:
+            dt_fin = datetime.fromisoformat(fecha_fin.replace("Z", "+00:00"))
+            query = query.filter(AuditLog.fecha_hora <= dt_fin)
+        except ValueError:
+            pass
 
     return query.order_by(AuditLog.fecha_hora.desc()).offset(offset).limit(limit).all()

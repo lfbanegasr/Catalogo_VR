@@ -119,8 +119,9 @@ textarea { min-height: 92px; resize: vertical; }
 .menu-item.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 
 .content { padding: 24px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-.stack { display: grid; gap: 16px; }
+.stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .card {
+  min-width: 0;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 14px;

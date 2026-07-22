@@ -48,7 +48,7 @@ export default function UsuariosScreen({ user }) {
 
   return (
     <div className="stack">
-      <Card title={isSuper ? "Usuarios del Sistema" : "Personal de la Tienda"}>
+      <Card title={isSuper ? "Lista de todos los usuarios" : "Lista de personal"}>
         {error ? <p className="error-text">{error}</p> : null}
         <div className="row" style={{ flexWrap: 'wrap', gap: '12px' }}>
           {isSuper && (
@@ -85,26 +85,26 @@ export default function UsuariosScreen({ user }) {
           <button className="btn btn-ghost" style={{ alignSelf: 'flex-end', height: '38px' }} onClick={() => loadUsers().catch((e) => setError(e.message))}>Filtrar</button>
         </div>
 
-        <div className="table-wrap">
-          <table>
+        <div className="table-wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+          <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '13px' }}>
             <thead>
               <tr>
-                <th>Email</th>
-                <th>Rol</th>
-                {isSuper && <th>Tienda</th>}
-                <th>Activo</th>
-                <th>Acciones</th>
+                <th style={{ padding: '14px' }}>Email</th>
+                <th style={{ padding: '14px' }}>Rol</th>
+                {isSuper && <th style={{ padding: '14px' }}>Tienda</th>}
+                <th style={{ padding: '14px' }}>Estado</th>
+                <th style={{ padding: '14px' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((u) => (
                 <tr key={u.id_usuario}>
-                  <td>{u.email}</td>
-                  <td>
+                  <td style={{ padding: '14px', fontWeight: '600', color: '#1f2937' }}>{u.email}</td>
+                  <td style={{ padding: '14px' }}>
                     <span style={{
-                      padding: '2px 8px',
+                      padding: '4px 10px',
                       borderRadius: '12px',
-                      fontSize: '9px',
+                      fontSize: '10px',
                       fontWeight: 'bold',
                       background: u.rol === 'superadmin' ? '#fee2e2' : u.rol === 'admin' ? '#e0e7ff' : '#f3f4f6',
                       color: u.rol === 'superadmin' ? '#991b1b' : u.rol === 'admin' ? '#3730a3' : '#374151'
@@ -112,22 +112,22 @@ export default function UsuariosScreen({ user }) {
                       {u.rol}
                     </span>
                   </td>
-                  {isSuper && <td>{storeMap.get(u.id_tienda) || u.id_tienda}</td>}
-                  <td>
+                  {isSuper && <td style={{ padding: '14px', color: '#6b7280' }}>{storeMap.get(u.id_tienda) || u.id_tienda}</td>}
+                  <td style={{ padding: '14px' }}>
                     <span style={{
-                      padding: '2px 8px',
+                      padding: '4px 10px',
                       borderRadius: '12px',
-                      fontSize: '9px',
+                      fontSize: '10px',
                       fontWeight: 'bold',
                       background: u.activo ? '#d1fae5' : '#fee2e2',
                       color: u.activo ? '#065f46' : '#991b1b'
                     }}>
-                      {u.activo ? "Si" : "No"}
+                      {u.activo ? "Activo" : "Inactivo"}
                     </span>
                   </td>
-                  <td className="actions-cell">
+                  <td className="actions-cell" style={{ padding: '14px' }}>
                     <button className="btn btn-ghost" onClick={() => setEditing({ ...u })}>Editar</button>
-                    <button className="btn btn-ghost" onClick={async () => {
+                    <button className={`btn ${u.activo ? 'btn-danger-ghost' : 'btn-success-ghost'}`} onClick={async () => {
                       try {
                         await api.adminUpdateUser(u.id_usuario, { activo: !u.activo });
                         await loadUsers();
@@ -160,36 +160,38 @@ export default function UsuariosScreen({ user }) {
           <div className="inline-editor">
             <h4>Editar usuario</h4>
             <div className="grid-form">
-              <label>Email<input value={editing.email || ""} onChange={(e) => setEditing((s) => ({ ...s, email: e.target.value }))} /></label>
-              {isSuper ? (
-                <label>
-                  Rol
-                  <select value={editing.rol || "admin"} onChange={(e) => setEditing((s) => ({ ...s, rol: e.target.value }))}>
-                    <option value="superadmin">superadmin</option>
-                    <option value="admin">admin</option>
-                    <option value="empleado">empleado</option>
-                    <option value="cliente">cliente</option>
-                  </select>
-                </label>
-              ) : (
-                <label>Rol<input value="empleado" disabled /></label>
-              )}
-              {isSuper && (
-                <StoreRefPicker
-                  stores={stores}
-                  value={editing.id_tienda}
-                  onChange={(v) => setEditing((s) => ({ ...s, id_tienda: v }))}
-                  required
-                  label="Tienda"
-                  placeholder="Buscar tienda..."
-                  helpText="Selecciona la tienda del usuario."
-                />
-              )}
-              <label className="check-row">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', alignItems: 'start' }}>
+                <label>Email<input type="email" value={editing.email || ""} onChange={(e) => setEditing((s) => ({ ...s, email: e.target.value }))} /></label>
+                {isSuper ? (
+                  <label>
+                    Rol
+                    <select value={editing.rol || "admin"} onChange={(e) => setEditing((s) => ({ ...s, rol: e.target.value }))}>
+                      <option value="superadmin">superadmin</option>
+                      <option value="admin">admin</option>
+                      <option value="empleado">empleado</option>
+                      <option value="cliente">cliente</option>
+                    </select>
+                  </label>
+                ) : (
+                  <label>Rol<input value="empleado" disabled style={{ background: '#f3f4f6' }} /></label>
+                )}
+                {isSuper && (
+                  <StoreRefPicker
+                    stores={stores}
+                    value={editing.id_tienda}
+                    onChange={(v) => setEditing((s) => ({ ...s, id_tienda: v }))}
+                    required
+                    label="Tienda"
+                    placeholder="Buscar tienda..."
+                    helpText="Selecciona la tienda del usuario."
+                  />
+                )}
+              </div>
+              <label className="check-row" style={{ marginTop: '8px' }}>
                 <input type="checkbox" checked={!!editing.activo} onChange={(e) => setEditing((s) => ({ ...s, activo: e.target.checked }))} />
-                Activo
+                Usuario Activo (Permitir acceso)
               </label>
-              <div className="row">
+              <div className="row" style={{ marginTop: '10px' }}>
                 <button className="btn btn-primary" onClick={async () => {
                   try {
                     await api.adminUpdateUser(editing.id_usuario, {
@@ -204,7 +206,7 @@ export default function UsuariosScreen({ user }) {
                     setError(e.message);
                   }
                 }}>
-                  Guardar
+                  Guardar Cambios
                 </button>
                 <button className="btn btn-ghost" onClick={() => setEditing(null)}>Cancelar</button>
               </div>
@@ -228,31 +230,40 @@ export default function UsuariosScreen({ user }) {
             setError(err.message);
           }
         }}>
-          {isSuper ? (
-            <StoreRefPicker
-              stores={stores}
-              value={form.id_tienda}
-              onChange={(v) => setForm((s) => ({ ...s, id_tienda: v }))}
-              required
-              label="Tienda"
-              placeholder="Buscar tienda..."
-              helpText="Asigna usuario a la tienda destino."
-            />
-          ) : null}
-          <label>Email<input type="email" value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} required /></label>
-          <label>Password<input type="password" value={form.password} onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))} required /></label>
-          <HelperText text="Minimo 6 caracteres." />
-          {isSuper ? (
-            <label>
-              Rol
-              <select value={form.rol} onChange={(e) => setForm((s) => ({ ...s, rol: e.target.value }))}>
-                <option value="admin">admin</option>
-                <option value="empleado">empleado</option>
-              </select>
-            </label>
-          ) : null}
-          <label className="check-row"><input type="checkbox" checked={form.activo} onChange={(e) => setForm((s) => ({ ...s, activo: e.target.checked }))} />Activo</label>
-          <button className="btn btn-primary">{isSuper ? "Crear usuario" : "Registrar Empleado"}</button>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', alignItems: 'start' }}>
+            {isSuper ? (
+              <StoreRefPicker
+                stores={stores}
+                value={form.id_tienda}
+                onChange={(v) => setForm((s) => ({ ...s, id_tienda: v }))}
+                required
+                label="Tienda Destino"
+                placeholder="Buscar tienda..."
+                helpText="Asigna usuario a la tienda destino."
+              />
+            ) : null}
+            <label>Email<input type="email" placeholder="Ej. empleado@tienda.com" value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} required /></label>
+            <div>
+              <label>Password<input type="password" placeholder="Contraseña segura" value={form.password} onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))} required /></label>
+              <HelperText text="Minimo 6 caracteres." />
+            </div>
+            {isSuper ? (
+              <label>
+                Rol
+                <select value={form.rol} onChange={(e) => setForm((s) => ({ ...s, rol: e.target.value }))}>
+                  <option value="admin">admin</option>
+                  <option value="empleado">empleado</option>
+                </select>
+              </label>
+            ) : null}
+          </div>
+          <label className="check-row" style={{ marginTop: '10px' }}>
+            <input type="checkbox" checked={form.activo} onChange={(e) => setForm((s) => ({ ...s, activo: e.target.checked }))} />
+            Usuario Activo (Permitir acceso)
+          </label>
+          <button className="btn btn-primary" style={{ alignSelf: 'flex-start', padding: '12px 24px' }}>
+            {isSuper ? "Crear usuario" : "Registrar Empleado"}
+          </button>
         </form>
       </Card>
     </div>

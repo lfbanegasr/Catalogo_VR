@@ -2485,7 +2485,7 @@ function SalesChart({ data }) {
   return (
     <div className="card chart-container" style={{ background: '#ffffff', borderRadius: '12px', padding: '16px', border: '1px solid #f3f4f6' }}>
       <h4 className="text-xs font-bold text-gray-500 mb-2" style={{ margin: '0 0 8px 0', fontSize: '11px' }}>Tendencia de Ventas (Últimos 30 días)</h4>
-      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="auto" style={{ overflow: 'visible' }}>
+      <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="auto" style={{ overflow: 'hidden' }}>
         <defs>
           <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#10B981" stopOpacity="0.25" />
@@ -2650,7 +2650,7 @@ function DashboardScreen({ user, onGoToVentas }) {
       </div>
 
       {/* Grid de Metricas */}
-      <div className="stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', margin: '20px 0' }}>
+      <div className="stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: '20px', margin: '20px 0' }}>
         <div style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)', borderRadius: '20px', padding: '24px', boxShadow: '0 10px 15px -3px rgba(5, 150, 105, 0.2)' }}>
           <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#d1fae5', letterSpacing: '0.05em' }}>Vendido hoy</span>
           <strong style={{ display: 'block', fontSize: '26px', color: '#ffffff', marginTop: '8px', fontWeight: '900' }}>{parseFloat(res.ventas_hoy || 0).toFixed(2)} Bs</strong>
@@ -2681,9 +2681,10 @@ function DashboardScreen({ user, onGoToVentas }) {
 
       {/* Alertas de Reposición */}
       {metrics?.bajo_stock && metrics.bajo_stock.length > 0 && (
-        <Card title="⚠️ Productos con Stock Bajo (Alertas de Reposición)">
-          <div style={{ padding: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={{ width: '100%', overflow: 'hidden' }}>
+          <Card title="⚠️ Productos con Stock Bajo (Alertas de Reposición)">
+            <div style={{ padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
               <p className="text-amber-800 text-xs font-semibold" style={{ margin: 0 }}>Renovar el inventario de estos productos pronto:</p>
               <button className="btn btn-secondary text-xs" onClick={exportInventoryCSV} style={{ fontSize: '10px', padding: '4px 8px' }}>
                 📥 Excel de Inventario
@@ -2726,12 +2727,13 @@ function DashboardScreen({ user, onGoToVentas }) {
                 </tbody>
               </table>
             </div>
-          </div>
-        </Card>
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* Graficos */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', margin: '20px 0' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '20px', margin: '20px 0' }}>
         <SalesChart data={metrics?.ventas_diarias || []} />
         <TopProductsChart data={metrics?.productos_top || []} />
       </div>

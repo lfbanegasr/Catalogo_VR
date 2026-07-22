@@ -9,6 +9,7 @@ from crud.crud_tenant import (
     create_tienda,
     create_usuario,
     get_tienda_by_id,
+    get_user_by_id,
     list_tiendas,
     list_usuarios,
     reset_usuario_password,
@@ -132,17 +133,21 @@ def admin_update_my_store(
     "/users",
     response_model=UsuarioOut,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_role("superadmin"))],
 )
 def admin_create_user(
     payload: UsuarioCreate,
+    current_user: Usuario = Depends(require_role("superadmin", "admin")),
     db: Session = Depends(get_db),
 ):
-    if payload.rol not in {"admin", "empleado"}:
-        raise HTTPException(
-            status_code=400,
-            detail="En este endpoint solo se permite crear usuarios admin o empleado",
-        )
+    if current_user.rol == "admin":
+        payload.id_tienda = current_user.id_tienda
+        payload.rol = "empleado"
+    else:
+        if payload.rol not in {"admin", "empleado"}:
+            raise HTTPException(
+                status_code=400,
+                detail="En este endpoint solo se permite crear usuarios admin o empleado",
+            )
     try:
         return create_usuario(db=db, payload=payload)
     except ValueError as exc:
@@ -152,47 +157,67 @@ def admin_create_user(
 @router.get(
     "/users",
     response_model=list[UsuarioOut],
-    dependencies=[Depends(require_role("superadmin"))],
 )
 def admin_list_users(
     tienda: UUID | None = Query(default=None),
     rol: str | None = Query(default=None),
     activo: bool | None = Query(default=None),
+    current_user: Usuario = Depends(require_role("superadmin", "admin")),
     db: Session = Depends(get_db),
 ):
+    if current_user.rol == "admin":
+        tienda = current_user.id_tienda
     return list_usuarios(db=db, id_tienda=tienda, rol=rol, activo=activo)
 
 
 @router.patch(
     "/users/{id_usuario}",
     response_model=UsuarioOut,
-    dependencies=[Depends(require_role("superadmin"))],
 )
 def admin_update_user(
     id_usuario: UUID,
     payload: UsuarioUpdate,
+    current_user: Usuario = Depends(require_role("superadmin", "admin")),
     db: Session = Depends(get_db),
 ):
+    target_user = get_user_by_id(db, id_usuario)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if current_user.rol == "admin":
+        if target_user.id_tienda != current_user.id_tienda:
+            raise HTTPException(status_code=403, detail="No autorizado para modificar este usuario")
+        if payload.id_tienda and payload.id_tienda != current_user.id_tienda:
+            raise HTTPException(status_code=403, detail="No autorizado para cambiar de tienda a este usuario")
+        if payload.rol and payload.rol != "empleado":
+            raise HTTPException(status_code=403, detail="No autorizado para asignar un rol distinto de empleado")
+        payload.id_tienda = current_user.id_tienda
+        payload.rol = "empleado"
+
     try:
         updated = update_usuario(db=db, id_usuario=id_usuario, payload=payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if not updated:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     return updated
 
 
 @router.post(
     "/users/{id_usuario}/reset-password",
     response_model=UsuarioOut,
-    dependencies=[Depends(require_role("superadmin"))],
 )
 def admin_reset_user_password(
     id_usuario: UUID,
     payload: UserResetPasswordIn,
+    current_user: Usuario = Depends(require_role("superadmin", "admin")),
     db: Session = Depends(get_db),
 ):
-    updated = reset_usuario_password(db=db, id_usuario=id_usuario, payload=payload)
-    if not updated:
+    target_user = get_user_by_id(db, id_usuario)
+    if not target_user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    if current_user.rol == "admin":
+        if target_user.id_tienda != current_user.id_tienda:
+            raise HTTPException(status_code=403, detail="No autorizado para modificar este usuario")
+
+    updated = reset_usuario_password(db=db, id_usuario=id_usuario, payload=payload)
     return updated

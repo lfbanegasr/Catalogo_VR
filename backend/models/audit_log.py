@@ -24,3 +24,4 @@ class AuditLog(Base):
     ip = Column(String(64), nullable=True)
     user_agent = Column(String(500), nullable=True)
     fecha_hora = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    rol_usuario = Column(String(50), nullable=True)

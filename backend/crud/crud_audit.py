@@ -25,6 +25,7 @@ def create_audit_log(
     exito: bool | None = None,
     email_intentado: str | None = None,
     detalle: str | None = None,
+    rol_usuario: str | None = None,
 ) -> AuditLog | None:
     try:
         log = AuditLog(
@@ -40,6 +41,7 @@ def create_audit_log(
             metodo_http=metodo_http,
             ip=ip,
             user_agent=user_agent,
+            rol_usuario=rol_usuario,
         )
         db.add(log)
         db.commit()
@@ -58,6 +60,7 @@ def list_audit_logs(
     evento: str | None = None,
     exito: bool | None = None,
     id_tienda=None,
+    rol_usuario: str | None = None,
 ) -> list[AuditLog]:
     query = db.query(AuditLog)
     if id_tienda is not None:
@@ -66,5 +69,7 @@ def list_audit_logs(
         query = query.filter(AuditLog.evento == evento)
     if exito is not None:
         query = query.filter(AuditLog.exito == exito)
+    if rol_usuario is not None:
+        query = query.filter(AuditLog.rol_usuario == rol_usuario)
 
     return query.order_by(AuditLog.fecha_hora.desc()).offset(offset).limit(limit).all()

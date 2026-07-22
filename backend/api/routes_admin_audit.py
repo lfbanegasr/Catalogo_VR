@@ -22,6 +22,7 @@ def get_audit_logs(
     offset: int = Query(0, ge=0),
     evento: str | None = Query(None),
     exito: bool | None = Query(None),
+    rol: str | None = Query(None),
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -33,6 +34,7 @@ def get_audit_logs(
         evento=evento,
         exito=exito,
         id_tienda=tenant_filter,
+        rol_usuario=rol,
     )
 
 

@@ -19,6 +19,7 @@ class AuditLogOut(BaseModel):
     ip: str | None = None
     user_agent: str | None = None
     fecha_hora: datetime
+    rol_usuario: str | None = None
 
     class Config:
         from_attributes = True

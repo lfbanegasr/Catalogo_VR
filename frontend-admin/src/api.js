@@ -121,7 +121,11 @@ export const api = {
     request("/admin/my-store", { method: "PATCH", body: JSON.stringify(payload) }),
   meUpdateTheme: (payload) =>
     request("/me/theme", { method: "PATCH", body: JSON.stringify(payload) }),
-  auditLogs: () => request("/admin/audit-logs?limit=50"),
+  auditLogs: ({ rol } = {}) => {
+    const params = new URLSearchParams({ limit: 50 });
+    if (rol) params.set("rol", rol);
+    return request(`/admin/audit-logs?${params.toString()}`);
+  },
   listProductos: (tiendaRef) =>
     request(`/catalog/products${tiendaRef ? `?tienda=${encodeURIComponent(tiendaRef)}` : ""}`),
   createProducto: (payload, tiendaRef) =>

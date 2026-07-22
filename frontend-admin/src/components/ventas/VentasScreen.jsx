@@ -192,7 +192,8 @@ export default function VentasScreen({ user }) {
 
     let csv = "\uFEFFID Venta,Fecha,Estado,Cliente,Total Venta,ID Producto,Nombre Producto,Costo Adquisicion,Precio Unitario,Cantidad,Subtotal,Ganancia\n";
     listToExport.forEach(v => {
-      const fecha = v.fecha_venta ? new Date(v.fecha_venta).toLocaleString("es-BO") : "";
+      const dStr = v.fecha_venta ? (v.fecha_venta.endsWith('Z') ? v.fecha_venta : v.fecha_venta + 'Z') : "";
+      const fecha = dStr ? new Date(dStr).toLocaleString("es-BO") : "";
       const estado = v.estado || "";
       const cliente = v.cliente ? v.cliente.nombre_completo : "Venta Directa";
       const totalVenta = v.total_venta || 0;
@@ -326,7 +327,11 @@ export default function VentasScreen({ user }) {
                             )}
                           </td>
                           <td style={{ padding: '8px' }}>
-                            {new Date(v.fecha_venta).toLocaleDateString()} {new Date(v.fecha_venta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {(() => {
+                              const dtStr = v.fecha_venta.endsWith('Z') ? v.fecha_venta : v.fecha_venta + 'Z';
+                              const dt = new Date(dtStr);
+                              return `${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                            })()}
                           </td>
                           <td style={{ padding: '8px', fontWeight: 'bold', color: '#111827' }}>
                             {parseFloat(v.total_venta).toFixed(2)} Bs

@@ -79,5 +79,11 @@ class VentaOut(BaseModel):
     detalles: List[DetalleVentaOut] = []
     cliente: Optional[ClienteOut] = None
 
+    @field_serializer("fecha_venta")
+    def serialize_fecha_venta(self, value: datetime) -> str:
+        if value.tzinfo is None:
+            return value.isoformat() + "Z"
+        return value.isoformat()
+
     class Config:
         from_attributes = True

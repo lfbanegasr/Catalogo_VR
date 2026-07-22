@@ -2612,6 +2612,8 @@ function DashboardScreen({ user, onGoToVentas }) {
   const res = metrics?.resumen || {
     ventas_totales: "0.00",
     pedidos_totales: 0,
+    ventas_hoy: "0.00",
+    pedidos_hoy: 0,
     costos_totales: "0.00",
     margen_neto: "0.00",
     margen_porcentaje: "0.00"
@@ -2648,29 +2650,32 @@ function DashboardScreen({ user, onGoToVentas }) {
       </div>
 
       {/* Grid de Metricas */}
-      <div className="stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', margin: '16px 0' }}>
-        <div style={{ background: '#ffffff', borderRadius: '16px', padding: '20px', border: '1px solid #f3f4f6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <span style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#9ca3af', tracking: '0.05em' }}>Vendido hoy</span>
-          <strong style={{ display: 'block', fontSize: '22px', color: '#059669', marginTop: '6px', fontWeight: 'black' }}>{parseFloat(res.ventas_totales).toFixed(2)} Bs</strong>
-          <span style={{ fontSize: '9px', color: '#9ca3af', marginTop: '4px', display: 'block' }}>{res.pedidos_totales} Ventas totales activas</span>
+      <div className="stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', margin: '20px 0' }}>
+        <div style={{ background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)', borderRadius: '20px', padding: '24px', boxShadow: '0 10px 15px -3px rgba(5, 150, 105, 0.2)' }}>
+          <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#d1fae5', letterSpacing: '0.05em' }}>Vendido hoy</span>
+          <strong style={{ display: 'block', fontSize: '26px', color: '#ffffff', marginTop: '8px', fontWeight: '900' }}>{parseFloat(res.ventas_hoy || 0).toFixed(2)} Bs</strong>
+          <span style={{ fontSize: '11px', color: '#a7f3d0', marginTop: '6px', display: 'block', fontWeight: '600' }}>{res.pedidos_hoy || 0} Pedidos completados hoy</span>
         </div>
 
-        <div style={{ background: '#ffffff', borderRadius: '16px', padding: '20px', border: '1px solid #f3f4f6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <span style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#9ca3af', tracking: '0.05em' }}>Costo de Stock (Adq.)</span>
-          <strong style={{ display: 'block', fontSize: '22px', color: '#d97706', marginTop: '6px', fontWeight: 'black' }}>{parseFloat(res.costos_totales).toFixed(2)} Bs</strong>
-          <span style={{ fontSize: '9px', color: '#9ca3af', marginTop: '4px', display: 'block' }}>Inversión acumulada en mercancías</span>
+        <div style={{ background: '#ffffff', borderRadius: '20px', padding: '24px', border: '1px solid #f3f4f6', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)', transition: 'transform 0.2s', cursor: 'default' }} className="hover:scale-[1.02]">
+          <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#9ca3af', letterSpacing: '0.05em' }}>Vendido Total (Histórico)</span>
+          <strong style={{ display: 'block', fontSize: '24px', color: '#111827', marginTop: '8px', fontWeight: '800' }}>{parseFloat(res.ventas_totales).toFixed(2)} Bs</strong>
+          <span style={{ fontSize: '11px', color: '#6b7280', marginTop: '6px', display: 'block' }}>{res.pedidos_totales} Ventas totales activas</span>
         </div>
 
-        <div style={{ background: '#ffffff', borderRadius: '16px', padding: '20px', border: '1px solid #f3f4f6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <span style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#9ca3af', tracking: '0.05em' }}>Ganancia Neta</span>
-          <strong style={{ display: 'block', fontSize: '22px', color: '#2563eb', marginTop: '6px', fontWeight: 'black' }}>{parseFloat(res.margen_neto).toFixed(2)} Bs</strong>
-          <span style={{ fontSize: '9px', color: '#9ca3af', marginTop: '4px', display: 'block' }}>Diferencia libre de costos</span>
+        <div style={{ background: '#ffffff', borderRadius: '20px', padding: '24px', border: '1px solid #f3f4f6', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)', transition: 'transform 0.2s', cursor: 'default' }} className="hover:scale-[1.02]">
+          <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#9ca3af', letterSpacing: '0.05em' }}>Costo de Stock (Adq.)</span>
+          <strong style={{ display: 'block', fontSize: '24px', color: '#d97706', marginTop: '8px', fontWeight: '800' }}>{parseFloat(res.costos_totales).toFixed(2)} Bs</strong>
+          <span style={{ fontSize: '11px', color: '#6b7280', marginTop: '6px', display: 'block' }}>Inversión acumulada en mercancías</span>
         </div>
 
-        <div style={{ background: '#ffffff', borderRadius: '16px', padding: '20px', border: '1px solid #f3f4f6', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-          <span style={{ fontSize: '9px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#9ca3af', tracking: '0.05em' }}>Margen Operativo</span>
-          <strong style={{ display: 'block', fontSize: '22px', color: '#7c3aed', marginTop: '6px', fontWeight: 'black' }}>{parseFloat(res.margen_porcentaje).toFixed(1)} %</strong>
-          <span style={{ fontSize: '9px', color: '#9ca3af', marginTop: '4px', display: 'block' }}>Porcentaje de utilidad bruta</span>
+        <div style={{ background: '#ffffff', borderRadius: '20px', padding: '24px', border: '1px solid #f3f4f6', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)', transition: 'transform 0.2s', cursor: 'default' }} className="hover:scale-[1.02]">
+          <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 'extrabold', color: '#9ca3af', letterSpacing: '0.05em' }}>Ganancia Neta</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+            <strong style={{ display: 'block', fontSize: '24px', color: '#2563eb', marginTop: '8px', fontWeight: '800' }}>{parseFloat(res.margen_neto).toFixed(2)} Bs</strong>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#7c3aed', background: '#ede9fe', padding: '2px 8px', borderRadius: '12px' }}>{parseFloat(res.margen_porcentaje).toFixed(1)}%</span>
+          </div>
+          <span style={{ fontSize: '11px', color: '#6b7280', marginTop: '6px', display: 'block' }}>Diferencia libre de costos</span>
         </div>
       </div>
 
@@ -2726,7 +2731,7 @@ function DashboardScreen({ user, onGoToVentas }) {
       )}
 
       {/* Graficos */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', margin: '20px 0' }}>
         <SalesChart data={metrics?.ventas_diarias || []} />
         <TopProductsChart data={metrics?.productos_top || []} />
       </div>

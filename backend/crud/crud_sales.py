@@ -244,8 +244,22 @@ def get_dashboard_metrics(db: Session, id_tienda: UUID):
         .first()
     )
 
+    active_sales_today = (
+        db.query(
+            func.coalesce(func.sum(Venta.total_venta), 0).label("total_facturado"),
+            func.count(Venta.id_venta).label("total_pedidos")
+        )
+        .filter(Venta.id_tienda == id_tienda)
+        .filter(Venta.estado != EstadoVenta.cancelada)
+        .filter(func.date(Venta.fecha_venta) == func.current_date())
+        .first()
+    )
+
     total_sales_amount = Decimal(str(active_sales.total_facturado)) if active_sales else Decimal("0.00")
     total_orders = active_sales.total_pedidos if active_sales else 0
+    today_sales_amount = Decimal(str(active_sales_today.total_facturado)) if active_sales_today else Decimal("0.00")
+    today_orders = active_sales_today.total_pedidos if active_sales_today else 0
+
 
     # 2. Costo de adquisición total (COGS) para ventas activas
     cogs_query = (
@@ -372,6 +386,8 @@ def get_dashboard_metrics(db: Session, id_tienda: UUID):
         "resumen": {
             "ventas_totales": str(total_sales_amount),
             "pedidos_totales": total_orders,
+            "ventas_hoy": str(today_sales_amount),
+            "pedidos_hoy": today_orders,
             "costos_totales": str(total_cogs),
             "margen_neto": str(net_profit),
             "margen_porcentaje": str(profit_margin)

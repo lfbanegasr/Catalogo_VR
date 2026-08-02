@@ -12,6 +12,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   const [categoriasDisponibles, setCategoriasDisponibles] = useState([]);
   const [tenantId, setTenantId] = useState("");
   const [error, setError] = useState("");
+  const [replacingImageUrl, setReplacingImageUrl] = useState(null);
   const [editing, setEditing] = useState(null);
   const [pendingImageFile, setPendingImageFile] = useState(null);
   const [busyImageProductId, setBusyImageProductId] = useState("");
@@ -137,6 +138,67 @@ export default function CatalogoScreen({ isSuperadmin }) {
         },
       }));
       return payload;
+    } finally {
+      setBusyImageProductId("");
+    }
+  };
+
+  const handleMoveImage = async (index, direction) => {
+    if (!editing || !editing.row) return;
+    const imgs = [...(editing.row.imagenes || [])];
+    if (direction === 'left' && index > 0) {
+      [imgs[index], imgs[index - 1]] = [imgs[index - 1], imgs[index]];
+    } else if (direction === 'right' && index < imgs.length - 1) {
+      [imgs[index], imgs[index + 1]] = [imgs[index + 1], imgs[index]];
+    } else {
+      return;
+    }
+    
+    try {
+      setError("");
+      setEditing((prev) => ({
+        ...prev,
+        row: { ...prev.row, imagenes: imgs, imagen_url: imgs[0] }
+      }));
+      
+      const result = await api.reorderProductoImages(editing.row.id_producto, imgs);
+      if (result) {
+        setEditing((prev) => ({
+          ...prev,
+          row: { 
+            ...prev.row, 
+            imagenes: result.imagenes || [result.imagen_url], 
+            imagen_url: result.imagen_url 
+          }
+        }));
+      }
+      await load();
+    } catch (err) {
+      setError(err.message || "Error al cambiar el orden de las imágenes");
+    }
+  };
+
+  const handleDeleteImage = async (url) => {
+    if (!editing || !editing.row) return;
+    if (!window.confirm("¿Estás seguro de que deseas eliminar esta imagen de forma permanente?")) return;
+    
+    try {
+      setError("");
+      setBusyImageProductId(editing.row.id_producto);
+      const result = await api.deleteProductoImage(editing.row.id_producto, url);
+      if (result) {
+        setEditing((prev) => ({
+          ...prev,
+          row: { 
+            ...prev.row, 
+            imagenes: result.imagenes || [result.imagen_url], 
+            imagen_url: result.imagen_url 
+          }
+        }));
+      }
+      await load();
+    } catch (err) {
+      setError(err.message || "Error al eliminar la imagen");
     } finally {
       setBusyImageProductId("");
     }
@@ -290,7 +352,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                       )}
                     </td>
                     <td className="actions-cell">
-                      <button className="btn btn-ghost" onClick={() => setEditing({ mode: "producto", row: { ...r, nombre_categoria: r.id_categoria ? (categoriaMap.get(r.id_categoria) || "") : "" } })}>Editar</button>
+                      <button className="btn btn-ghost" onClick={() => setEditing({ mode: "producto", row: { ...r, nombre_categoria: r.id_categoria ? (categoriaMap.get(r.id_categoria) || "") : "", imagenes: r.imagenes && r.imagenes.length > 0 ? r.imagenes : (r.imagen_url ? [r.imagen_url] : []) } })}>Editar</button>
                       <button className={`btn ${r.activo ? "btn-danger-ghost" : "btn-success-ghost"}`} onClick={async () => { try { assertStoreSelected(); await api.updateProducto(r.id_producto, { activo: !r.activo }, selectedStoreRef); await load(); } catch (e) { setError(e.message); } }}>{r.activo ? "Desactivar" : "Activar"}</button>
                       <ImageDropZone
                         compact
@@ -388,7 +450,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     {r.activo ? "Activo" : "Inactivo"}
                   </span>
                   <div className="card-actions">
-                    <button className="btn btn-ghost" onClick={() => setEditing({ mode: "producto", row: { ...r, nombre_categoria: r.id_categoria ? (categoriaMap.get(r.id_categoria) || "") : "" } })}>
+                    <button className="btn btn-ghost" onClick={() => setEditing({ mode: "producto", row: { ...r, nombre_categoria: r.id_categoria ? (categoriaMap.get(r.id_categoria) || "") : "", imagenes: r.imagenes && r.imagenes.length > 0 ? r.imagenes : (r.imagen_url ? [r.imagen_url] : []) } })}>
                       Editar
                     </button>
                     <button 
@@ -454,39 +516,133 @@ export default function CatalogoScreen({ isSuperadmin }) {
                 <label>Precio<input type="number" step="0.01" value={editing.row.precio_venta || 0} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, precio_venta: e.target.value } }))} /></label>
                 <label>Stock<input type="number" value={editing.row.stock_actual || 0} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, stock_actual: e.target.value } }))} /></label>
                 <label>Categoría<select value={editing.row.nombre_categoria || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, nombre_categoria: e.target.value } }))}><option value="">Sin categoría</option>{categoriasDisponibles.map((c) => <option key={c.id_categoria} value={c.nombre}>{c.nombre}</option>)}</select></label>
-                <div className="current-image-card">
-                  <p className="current-image-label">Imagen actual</p>
-                  {editing.row.imagen_url ? (
-                    <div className="current-image-content">
-                      <img
-                        src={getImageSrc(editing.row.imagen_url)}
-                        alt={editing.row.nombre || "Producto"}
-                        className="current-image-preview"
-                      />
-                      <a href={getImageSrc(editing.row.imagen_url)} target="_blank" rel="noreferrer" className="current-image-link">
-                        Ver imagen
-                      </a>
-                    </div>
-                  ) : (
-                    <p className="muted small">Este producto aún no tiene imagen.</p>
-                  )}
+                {/* --- NUEVO GESTOR DE IMÁGENES INTERACTIVO --- */}
+                <div className="image-manager-gallery-wrapper">
+                  <div className="image-manager-gallery-title">
+                    <span>Imágenes del producto ({editing.row.imagenes?.length || 0})</span>
+                    <span className="muted small">La primera imagen será la portada</span>
+                  </div>
+                  
+                  {/* File input oculto para reemplazo de imágenes específicas */}
+                  <input
+                    id="replace-image-input"
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file && replacingImageUrl) {
+                        try {
+                          setError("");
+                          setBusyImageProductId(editing.row.id_producto);
+                          const result = await api.replaceProductoImage(editing.row.id_producto, replacingImageUrl, file);
+                          if (result) {
+                            setEditing((prev) => ({
+                              ...prev,
+                              row: { 
+                                ...prev.row, 
+                                imagenes: result.imagenes || [result.imagen_url], 
+                                imagen_url: result.imagen_url 
+                              },
+                            }));
+                          }
+                          await load();
+                        } catch (err) {
+                          setError(err.message || "Error al reemplazar imagen");
+                        } finally {
+                          setBusyImageProductId("");
+                          setReplacingImageUrl(null);
+                        }
+                      }
+                    }}
+                  />
+
+                  <div className="image-manager-gallery">
+                    {editing.row.imagenes && editing.row.imagenes.length > 0 ? (
+                      editing.row.imagenes.map((url, index) => (
+                        <div key={url} className="image-manager-item">
+                          <img src={getImageSrc(url)} alt={`Imagen ${index + 1}`} />
+                          
+                          {index === 0 && (
+                            <span className="image-manager-badge">Portada</span>
+                          )}
+                          
+                          <div className="image-manager-overlay">
+                            <div className="image-manager-actions-top">
+                              <button
+                                type="button"
+                                className="image-manager-btn btn-danger"
+                                title="Eliminar imagen"
+                                onClick={() => handleDeleteImage(url)}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                            
+                            <div className="image-manager-actions-bottom">
+                              <button
+                                type="button"
+                                className="image-manager-btn"
+                                title="Mover izquierda"
+                                disabled={index === 0}
+                                onClick={() => handleMoveImage(index, 'left')}
+                              >
+                                ◀
+                              </button>
+                              
+                              <button
+                                type="button"
+                                className="image-manager-btn"
+                                title="Reemplazar imagen"
+                                onClick={() => {
+                                  setReplacingImageUrl(url);
+                                  document.getElementById('replace-image-input').click();
+                                }}
+                              >
+                                🔄
+                              </button>
+                              
+                              <button
+                                type="button"
+                                className="image-manager-btn"
+                                title="Mover derecha"
+                                disabled={index === editing.row.imagenes.length - 1}
+                                onClick={() => handleMoveImage(index, 'right')}
+                              >
+                                ▶
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="image-manager-empty">
+                        No hay imágenes en este producto.
+                      </div>
+                    )}
+                  </div>
                 </div>
+
                 <ImageDropZone
-                  title="Actualizar imagen"
-                  subtitle="Arrastra y suelta o selecciona archivo"
-                  statusText={editing.row.imagen_url ? "Imagen guardada en catálogo" : ""}
+                  title="Agregar nueva imagen"
+                  subtitle="Arrastra y suelta o selecciona archivo para añadir"
                   disabled={busyImageProductId === editing.row.id_producto}
                   onFileSelected={async (file) => {
                     try {
+                      setError("");
                       const result = await uploadImage(editing.row.id_producto, file);
-                      if (result?.imagen_url) {
+                      if (result) {
                         setEditing((prev) => ({
                           ...prev,
-                          row: { ...prev.row, imagen_url: result.imagen_url },
+                          row: { 
+                            ...prev.row, 
+                            imagenes: result.imagenes || [result.imagen_url],
+                            imagen_url: result.imagen_url 
+                          },
                         }));
                       }
                     } catch (err) {
-                      setError(err.message);
+                      setError(err.message || "Error al subir la imagen");
                     }
                   }}
                 />
@@ -539,22 +695,22 @@ export default function CatalogoScreen({ isSuperadmin }) {
               await load();
             } catch (err) { setError(err.message); }
           }}>
-            <label>Nombre<input value={form.nombre} onChange={(e) => setForm((s) => ({ ...s, nombre: e.target.value }))} required /></label>
+            <label>Nombre<input value={form.nombre || ""} onChange={(e) => setForm((s) => ({ ...s, nombre: e.target.value }))} required /></label>
             {tab === "categorias" ? (
-              <label className="check-row"><input type="checkbox" checked={form.activa} onChange={(e) => setForm((s) => ({ ...s, activa: e.target.checked }))} />Activa</label>
+              <label className="check-row"><input type="checkbox" checked={!!form.activa} onChange={(e) => setForm((s) => ({ ...s, activa: e.target.checked }))} />Activa</label>
             ) : (
               <>
-                <label>Descripción<textarea value={form.descripcion} onChange={(e) => setForm((s) => ({ ...s, descripcion: e.target.value }))} /></label>
-                <label>Precio<input type="number" step="0.01" value={form.precio_venta} onChange={(e) => setForm((s) => ({ ...s, precio_venta: e.target.value }))} required /></label>
-                <label>Stock<input type="number" value={form.stock_actual} onChange={(e) => setForm((s) => ({ ...s, stock_actual: e.target.value }))} /></label>
-                <label>Categoría<select value={form.nombre_categoria} onChange={(e) => setForm((s) => ({ ...s, nombre_categoria: e.target.value }))}><option value="">Sin categoría</option>{categoriasDisponibles.map((c) => <option key={c.id_categoria} value={c.nombre}>{c.nombre}</option>)}</select></label>
+                <label>Descripción<textarea value={form.descripcion || ""} onChange={(e) => setForm((s) => ({ ...s, descripcion: e.target.value }))} /></label>
+                <label>Precio<input type="number" step="0.01" value={form.precio_venta || 0} onChange={(e) => setForm((s) => ({ ...s, precio_venta: e.target.value }))} required /></label>
+                <label>Stock<input type="number" value={form.stock_actual || 0} onChange={(e) => setForm((s) => ({ ...s, stock_actual: e.target.value }))} /></label>
+                <label>Categoría<select value={form.nombre_categoria || ""} onChange={(e) => setForm((s) => ({ ...s, nombre_categoria: e.target.value }))}><option value="">Sin categoría</option>{categoriasDisponibles.map((c) => <option key={c.id_categoria} value={c.nombre}>{c.nombre}</option>)}</select></label>
                 <ImageDropZone
                   title="Imagen del producto"
                   subtitle="La imagen se sube al guardar el producto"
                   selectedFileName={pendingImageFile?.name || ""}
                   onFileSelected={setPendingImageFile}
                 />
-                <label className="check-row"><input type="checkbox" checked={form.activo} onChange={(e) => setForm((s) => ({ ...s, activo: e.target.checked }))} />Activo</label>
+                <label className="check-row"><input type="checkbox" checked={!!form.activo} onChange={(e) => setForm((s) => ({ ...s, activo: e.target.checked }))} />Activo</label>
               </>
             )}
             <button className="btn btn-primary">Crear</button>

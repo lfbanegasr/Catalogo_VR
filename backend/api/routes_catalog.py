@@ -2,6 +2,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
+import os
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
@@ -22,10 +23,12 @@ from crud.crud_catalog import (
     get_tienda_by_slug,
     list_categorias,
     list_productos,
+    list_product_images,
     set_product_image,
     update_categoria,
     update_producto,
 )
+from models.catalog import ProductoImagen
 from crud.crud_offers import (
     attach_categories_to_offer,
     attach_products_to_offer,
@@ -159,6 +162,77 @@ def _ensure_user_can_access_tenant(current_user: Usuario, target_tienda_id: UUID
 def _ensure_resource_matches_target_tienda(resource_tienda_id: UUID, target_tienda_id: UUID) -> None:
     if resource_tienda_id != target_tienda_id:
         raise HTTPException(status_code=403, detail="El recurso no pertenece a la tienda objetivo")
+
+
+def _ensure_product_images_sync(db: Session, producto) -> list[ProductoImagen]:
+    db_images = (
+        db.query(ProductoImagen)
+        .filter(ProductoImagen.id_producto == producto.id_producto)
+        .order_by(ProductoImagen.orden.asc())
+        .all()
+    )
+    if producto.imagen_url:
+        # Extraemos el path del asset si viene con dominio
+        cleaned_url = producto.imagen_url
+        if cleaned_url.startswith("http://") or cleaned_url.startswith("https://"):
+            # Obtenemos la ruta relativa extrayendo la parte del path
+            from urllib.parse import urlparse
+            cleaned_url = urlparse(cleaned_url).path
+            if cleaned_url.startswith("/uploads/"):
+                cleaned_url = cleaned_url[len("/uploads/"):]
+            elif cleaned_url.startswith("uploads/"):
+                cleaned_url = cleaned_url[len("uploads/"):]
+
+        urls = [item.imagen_url for item in db_images]
+        # También comprobamos con las urls de la DB sin prefijos
+        cleaned_db_urls = []
+        for item in db_images:
+            db_u = item.imagen_url
+            if db_u.startswith("/uploads/"):
+                db_u = db_u[len("/uploads/"):]
+            elif db_u.startswith("uploads/"):
+                db_u = db_u[len("uploads/"):]
+            cleaned_db_urls.append(db_u)
+
+        if cleaned_url not in cleaned_db_urls and producto.imagen_url not in urls:
+            # Creamos un registro ProductoImagen para la imagen actual si no existe
+            new_img = ProductoImagen(
+                id_producto=producto.id_producto,
+                imagen_url=producto.imagen_url,
+                orden=0
+            )
+            db.add(new_img)
+            # Incrementamos el orden de las demás imágenes
+            for db_img in db_images:
+                db_img.orden += 1
+            db.commit()
+            db.refresh(producto)
+            db_images = [new_img] + db_images
+    return db_images
+
+
+def _delete_physical_image_file(imagen_url: str) -> None:
+    try:
+        path_str = imagen_url
+        # Si es una URL completa, extraemos la ruta
+        if path_str.startswith("http://") or path_str.startswith("https://"):
+            from urllib.parse import urlparse
+            path_str = urlparse(path_str).path
+
+        if path_str.startswith("/uploads/"):
+            path_str = path_str[len("/uploads/"):]
+        elif path_str.startswith("uploads/"):
+            path_str = path_str[len("uploads/"):]
+            
+        uploads_base_path = settings.UPLOADS_PATH
+        target_file = (uploads_base_path / path_str).resolve()
+        
+        if str(target_file).startswith(str(uploads_base_path)):
+            if target_file.exists() and target_file.is_file():
+                os.remove(target_file)
+                print(f"[storage] deleted physical file: {target_file}", flush=True)
+    except Exception as e:
+        print(f"[storage] error deleting physical file {imagen_url}: {e}", flush=True)
 
 
 def _get_target_tienda_id_for_catalog(
@@ -865,3 +939,203 @@ def api_upload_theme_banner(
         "hero_image_url": build_public_asset_url(banner_url),
         "url": build_public_asset_url(banner_url),
     }
+
+
+@router.delete(
+    "/products/{id_producto}/images",
+    response_model=ProductoOut,
+    dependencies=[Depends(require_role("superadmin", "admin", "empleado"))],
+    summary="Eliminar una imagen específica del producto",
+)
+def api_delete_product_image(
+    id_producto: UUID,
+    imagen_url: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    producto = get_producto_by_id(db=db, id_producto=id_producto)
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    if current_user.rol not in {"superadmin", "admin", "empleado"}:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    if current_user.rol != "superadmin" and producto.id_tienda != current_user.id_tienda:
+        raise HTTPException(status_code=403, detail="No autorizado para este producto")
+
+    db_images = _ensure_product_images_sync(db, producto)
+
+    target_filename = imagen_url.split("/")[-1].split("\\")[-1]
+
+    matched = None
+    for db_img in db_images:
+        db_filename = db_img.imagen_url.split("/")[-1].split("\\")[-1]
+        if db_filename == target_filename:
+            matched = db_img
+            break
+
+    if not matched:
+        # Si no la encuentra en la tabla de imágenes, pero coincide con la imagen principal
+        if producto.imagen_url:
+            main_filename = producto.imagen_url.split("/")[-1].split("\\")[-1]
+            if main_filename == target_filename:
+                _delete_physical_image_file(producto.imagen_url)
+                producto.imagen_url = None
+                db.commit()
+                db.refresh(producto)
+                return producto
+        raise HTTPException(status_code=404, detail="Imagen no encontrada en el producto")
+
+    # Borramos físicamente el archivo
+    _delete_physical_image_file(matched.imagen_url)
+
+    # Borramos de la base de datos
+    db.delete(matched)
+    db.flush()
+
+    # Reordenamos las restantes
+    remaining = (
+        db.query(ProductoImagen)
+        .filter(ProductoImagen.id_producto == id_producto)
+        .order_by(ProductoImagen.orden.asc())
+        .all()
+    )
+    for index, img in enumerate(remaining):
+        img.orden = index
+
+    # Si era la imagen principal, la actualizamos con la primera restante
+    if producto.imagen_url:
+        main_filename = producto.imagen_url.split("/")[-1].split("\\")[-1]
+        if main_filename == target_filename:
+            if remaining:
+                producto.imagen_url = remaining[0].imagen_url
+            else:
+                producto.imagen_url = None
+
+    db.commit()
+    db.refresh(producto)
+    return producto
+
+
+@router.post(
+    "/products/{id_producto}/images/reorder",
+    response_model=ProductoOut,
+    dependencies=[Depends(require_role("superadmin", "admin", "empleado"))],
+    summary="Reordenar las imágenes del producto",
+)
+def api_reorder_product_images(
+    id_producto: UUID,
+    imagenes_urls: list[str],
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    producto = get_producto_by_id(db=db, id_producto=id_producto)
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    if current_user.rol not in {"superadmin", "admin", "empleado"}:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    if current_user.rol != "superadmin" and producto.id_tienda != current_user.id_tienda:
+        raise HTTPException(status_code=403, detail="No autorizado para este producto")
+
+    db_images = _ensure_product_images_sync(db, producto)
+
+    # Creamos un mapa de filename -> ProductoImagen para búsqueda rápida
+    image_map = {}
+    for db_img in db_images:
+        filename = db_img.imagen_url.split("/")[-1].split("\\")[-1]
+        image_map[filename] = db_img
+
+    ordered_db_images = []
+    for url in imagenes_urls:
+        filename = url.split("/")[-1].split("\\")[-1]
+        if filename in image_map:
+            matched = image_map[filename]
+            if matched not in ordered_db_images:
+                ordered_db_images.append(matched)
+
+    # Si por alguna razón faltan imágenes en el reorden, las dejamos al final
+    for db_img in db_images:
+        if db_img not in ordered_db_images:
+            ordered_db_images.append(db_img)
+
+    # Actualizamos el orden en la base de datos
+    for index, db_img in enumerate(ordered_db_images):
+        db_img.orden = index
+
+    # Actualizamos la imagen principal del producto
+    if ordered_db_images:
+        producto.imagen_url = ordered_db_images[0].imagen_url
+    else:
+        producto.imagen_url = None
+
+    db.commit()
+    db.refresh(producto)
+    return producto
+
+
+@router.put(
+    "/products/{id_producto}/images/replace",
+    response_model=ProductoOut,
+    dependencies=[Depends(require_role("superadmin", "admin", "empleado"))],
+    summary="Reemplazar una imagen específica del producto",
+)
+def api_replace_product_image(
+    id_producto: UUID,
+    target_url: str = Query(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    producto = get_producto_by_id(db=db, id_producto=id_producto)
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    if current_user.rol not in {"superadmin", "admin", "empleado"}:
+        raise HTTPException(status_code=403, detail="No autorizado")
+
+    if current_user.rol != "superadmin" and producto.id_tienda != current_user.id_tienda:
+        raise HTTPException(status_code=403, detail="No autorizado para este producto")
+
+    db_images = _ensure_product_images_sync(db, producto)
+
+    target_filename = target_url.split("/")[-1].split("\\")[-1]
+
+    matched = None
+    for db_img in db_images:
+        db_filename = db_img.imagen_url.split("/")[-1].split("\\")[-1]
+        if db_filename == target_filename:
+            matched = db_img
+            break
+
+    # Subimos y guardamos el nuevo archivo
+    new_imagen_url = _save_product_image_file(id_producto=id_producto, file=file)
+
+    if not matched:
+        if producto.imagen_url:
+            main_filename = producto.imagen_url.split("/")[-1].split("\\")[-1]
+            if main_filename == target_filename:
+                _delete_physical_image_file(producto.imagen_url)
+                producto.imagen_url = new_imagen_url
+                db.commit()
+                db.refresh(producto)
+                return producto
+        raise HTTPException(status_code=404, detail="Imagen objetivo no encontrada en el producto")
+
+    # Borramos físicamente la imagen anterior
+    _delete_physical_image_file(matched.imagen_url)
+
+    # Actualizamos la URL en la base de datos
+    old_url = matched.imagen_url
+    matched.imagen_url = new_imagen_url
+
+    # Si era la imagen principal, la actualizamos
+    if producto.imagen_url:
+        main_filename = producto.imagen_url.split("/")[-1].split("\\")[-1]
+        if main_filename == target_filename:
+            producto.imagen_url = new_imagen_url
+
+    db.commit()
+    db.refresh(producto)
+    return producto

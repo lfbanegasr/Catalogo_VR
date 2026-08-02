@@ -159,6 +159,21 @@ export const api = {
     form.append("file", file);
     return request(`/catalog/products/${idProducto}/image`, { method: "POST", body: form });
   },
+  deleteProductoImage: (idProducto, imageUrl) =>
+    request(withQuery(`/catalog/products/${idProducto}/images`, { imagen_url: imageUrl }), { method: "DELETE" }),
+  reorderProductoImages: (idProducto, imageUrls) =>
+    request(`/catalog/products/${idProducto}/images/reorder`, {
+      method: "POST",
+      body: JSON.stringify(imageUrls),
+    }),
+  replaceProductoImage: (idProducto, targetUrl, file) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request(withQuery(`/catalog/products/${idProducto}/images/replace`, { target_url: targetUrl }), {
+      method: "PUT",
+      body: form,
+    });
+  },
   uploadThemeBanner: (file, tiendaRef) => {
     const form = new FormData();
     form.append("file", file);

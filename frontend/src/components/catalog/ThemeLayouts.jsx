@@ -4,6 +4,7 @@ import ProductCard from "../ProductCard";
 
 function formatCategoryIcon(name = "") {
   const normalized = String(name).toLowerCase();
+  if (normalized.includes("oferta")) return "%";
   if (normalized.includes("ropa")) return "R";
   if (normalized.includes("belleza")) return "B";
   if (normalized.includes("hogar")) return "H";
@@ -13,16 +14,35 @@ function formatCategoryIcon(name = "") {
   return "•";
 }
 
-function ThemeHeader({ storeName, slug, title, subtitle, heroImageUrl, compact = false }) {
+function ThemeHeader({ storeName, slug, title, subtitle, heroImageUrl, config = {}, compact = false }) {
+  const layout = config.hero_layout || "text_image";
+  const logoUrl = config.hero_logo_url || "";
+  const showCopy = layout !== "image_only" && layout !== "logo_only";
+  const showMedia = Boolean(heroImageUrl) && layout !== "logo_only";
+  const kicker = config.hero_kicker || slug;
+  const heading = config.hero_title || title || storeName || "Catalogo";
+  const description = layout === "offer"
+    ? (config.hero_offer_text || config.hero_subtitle || subtitle)
+    : (config.hero_subtitle || subtitle);
   return (
-    <section className={`catalog-hero ${compact ? "compact" : ""}`}>
-      <div className="catalog-hero-copy">
-        <span className="catalog-kicker">{slug}</span>
-        <h1>{title || storeName || "Catalogo"}</h1>
-        <p>{subtitle}</p>
-      </div>
-      {heroImageUrl ? (
-        <div className="catalog-hero-media">
+    <section className={`catalog-hero hero-${layout} ${showMedia ? "has-media" : "no-media"} ${logoUrl ? "has-logo" : ""} align-${config.hero_alignment || "left"} ${compact ? "compact" : ""}`}>
+      {layout === "logo_only" ? (
+        <div className="catalog-hero-logo-only">
+          {logoUrl ? <img src={buildAssetUrl(logoUrl)} alt={`Logo de ${storeName || "la tienda"}`} /> : <h1>{heading}</h1>}
+        </div>
+      ) : null}
+      {showCopy ? (
+        <div className={`catalog-hero-copy ${logoUrl ? "has-logo" : ""}`}>
+          {logoUrl ? <img className="catalog-hero-logo" src={buildAssetUrl(logoUrl)} alt={`Logo de ${storeName || "la tienda"}`} /> : null}
+          <div className="catalog-hero-copy-text">
+            {kicker ? <span className="catalog-kicker">{kicker}</span> : null}
+            <h1>{heading}</h1>
+            {description ? <p>{description}</p> : null}
+          </div>
+        </div>
+      ) : null}
+      {showMedia ? (
+        <div className={`catalog-hero-media fit-${config.hero_image_fit || "cover"}`}>
           <img src={buildAssetUrl(heroImageUrl)} alt={storeName || "Banner de tienda"} />
         </div>
       ) : null}
@@ -111,19 +131,35 @@ function AttributeFilters({
   return (
     <div className="attribute-filter-bar" aria-label="Filtros de productos">
       {filters.map((filter) => (
-        <label key={filter.codigo} className="attribute-filter">
+        <div key={filter.codigo} className={`attribute-filter ${values[filter.codigo] ? "active" : ""}`}>
           <span>{filter.nombre}</span>
-          <select
-            value={values[filter.codigo] || ""}
-            onChange={(event) => onChange(filter.codigo, event.target.value)}
-          >
-            <option value="">Todos</option>
-            {filter.values.map((value) => <option key={value} value={value}>{value}</option>)}
-          </select>
-        </label>
+          <details className="filter-dropdown">
+            <summary>{values[filter.codigo] || "Todos"}</summary>
+            <div className="filter-dropdown-menu" role="listbox" aria-label={filter.nombre}>
+              {["", ...filter.values].map((value) => {
+                const selected = (values[filter.codigo] || "") === value;
+                return (
+                  <button
+                    key={value || "all"}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    className={selected ? "active" : ""}
+                    onClick={(event) => {
+                      onChange(filter.codigo, value);
+                      event.currentTarget.closest("details")?.removeAttribute("open");
+                    }}
+                  >
+                    {value || "Todos"}
+                  </button>
+                );
+              })}
+            </div>
+          </details>
+        </div>
       ))}
       {hasActiveFilters ? (
-        <button type="button" className="btn btn-ghost" onClick={onClear}>
+        <button type="button" className="btn btn-ghost clear-filters-btn" onClick={onClear}>
           Limpiar filtros
         </button>
       ) : null}
@@ -300,6 +336,7 @@ export function ModernBannerTheme(props) {
           title={storeName}
           subtitle="Coleccion destacada, categorias visuales y ofertas activas."
           heroImageUrl={themeConfig.hero_image_url}
+          config={themeConfig}
         />
         <section className="catalog-section toolbar">
           <SearchBar value={searchQuery} onChange={onSearchQueryChange} />

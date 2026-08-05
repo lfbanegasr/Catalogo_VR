@@ -21,6 +21,11 @@ function normalizeSearchText(value) {
     .trim();
 }
 
+function isOfferProduct(product) {
+  return product.id_oferta_aplicada != null
+    || Number(product.precio_original || 0) > Number(product.precio_final || 0);
+}
+
 function CatalogPage({
   slug,
   storeName,
@@ -39,8 +44,15 @@ function CatalogPage({
   const [attributeFilters, setAttributeFilters] = useState({});
   const trackedSearches = useRef(new Set());
   const resolvedTheme = resolveTheme(theme);
+  const offerProducts = useMemo(() => products.filter(isOfferProduct), [products]);
+  const catalogCategories = useMemo(
+    () => offerProducts.length
+      ? [{ id: "offers", nombre: "Ofertas", virtual: true }, ...categories]
+      : categories,
+    [categories, offerProducts.length],
+  );
   const selectedCategoryIds = useMemo(() => {
-    if (selectedCategoryId === "all") return null;
+    if (selectedCategoryId === "all" || selectedCategoryId === "offers") return null;
     const childrenByParent = new Map();
     categories.forEach((category) => {
       const parentId = category.id_categoria_padre || null;
@@ -75,10 +87,11 @@ function CatalogPage({
 
   const categoryProducts = useMemo(
     () => products.filter((product) => (
-      !selectedCategoryIds
-      || selectedCategoryIds.has(String(product?.categoria_id ?? ""))
+      selectedCategoryId === "offers"
+        ? isOfferProduct(product)
+        : (!selectedCategoryIds || selectedCategoryIds.has(String(product?.categoria_id ?? "")))
     )),
-    [products, selectedCategoryIds],
+    [products, selectedCategoryId, selectedCategoryIds],
   );
   const availableAttributeFilters = useMemo(() => {
     const filters = new Map();
@@ -155,23 +168,13 @@ function CatalogPage({
     [filteredProducts],
   );
 
-  const offerProducts = useMemo(
-    () =>
-      products.filter(
-        (product) =>
-          product.id_oferta_aplicada != null ||
-          (product.precio_original || 0) > (product.precio_final || 0),
-      ),
-    [products],
-  );
-
   const ThemeComponent = THEME_COMPONENTS[resolvedTheme.themeId] || ModernBannerTheme;
 
   return (
     <ThemeComponent
       slug={slug}
       storeName={storeName}
-      categories={categories}
+      categories={catalogCategories}
       products={products}
       offers={offers}
       themeConfig={resolvedTheme.config}

@@ -13,6 +13,14 @@ const THEME_PRESETS = {
       muted: "#6B7280",
       radius: 16,
       hero_image_url: "",
+      hero_logo_url: "",
+      hero_layout: "text_image",
+      hero_kicker: "",
+      hero_title: "",
+      hero_subtitle: "Coleccion destacada, categorias visuales y ofertas activas.",
+      hero_offer_text: "",
+      hero_alignment: "left",
+      hero_image_fit: "cover",
       category_images: {},
       show_offers: true,
       show_featured: true,
@@ -62,6 +70,48 @@ const PREVIEW_PRODUCTS = [
   { id: "p1", nombre: "Producto estrella", precio: "S/ 29.90", badge: "Nuevo" },
   { id: "p2", nombre: "Oferta del dia", precio: "S/ 19.90", badge: "20% OFF" },
 ];
+
+const toHex = ({ r, g, b }) => `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+const mix = (a, b, amount) => toHex({
+  r: a.r + (b.r - a.r) * amount,
+  g: a.g + (b.g - a.g) * amount,
+  b: a.b + (b.b - a.b) * amount,
+});
+
+async function buildPaletteSuggestions(file) {
+  const image = await createImageBitmap(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = 48;
+  canvas.height = 48;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, 0, 48, 48);
+  image.close?.();
+  const data = context.getImageData(0, 0, 48, 48).data;
+  const buckets = new Map();
+  for (let i = 0; i < data.length; i += 16) {
+    if (data[i + 3] < 160) continue;
+    const values = [data[i], data[i + 1], data[i + 2]].map((v) => Math.round(v / 24) * 24);
+    const light = (Math.max(...values) + Math.min(...values)) / 510;
+    if (light > 0.96) continue;
+    const key = values.join(",");
+    buckets.set(key, (buckets.get(key) || 0) + 1);
+  }
+  const colors = [...buckets].map(([key, count]) => {
+    const [r, g, b] = key.split(",").map(Number);
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    return { r, g, b, count, saturation: max ? (max - min) / max : 0, light: (max + min) / 510 };
+  }).sort((a, b) => b.count * (0.55 + b.saturation) - a.count * (0.55 + a.saturation));
+  if (!colors.length) throw new Error("La imagen no contiene colores utilizables");
+  const accent = colors.find((c) => c.saturation > 0.22 && c.light > 0.12 && c.light < 0.88) || colors[0];
+  const white = { r: 255, g: 255, b: 255 };
+  const black = { r: 12, g: 16, b: 24 };
+  return [
+    { name: "Equilibrada", description: "Conserva el color principal.", colors: { primary: toHex(accent), secondary: mix(accent, white, .65), background: mix(accent, white, .93), text: mix(accent, black, .82), muted: "#64748b" } },
+    { name: "Suave", description: "Fondo claro y marca sutil.", colors: { primary: mix(accent, black, .12), secondary: mix(accent, white, .78), background: mix(accent, white, .97), text: "#1f2937", muted: "#6b7280" } },
+    { name: "Contraste", description: "Base oscura y elegante.", colors: { primary: mix(accent, white, accent.light < .4 ? .38 : .08), secondary: mix(accent, black, .5), background: mix(accent, black, .82), text: "#f8fafc", muted: "#cbd5e1" } },
+  ];
+}
 
 function normalizeThemeConfig(themeId, themeConfig) {
   const preset = THEME_PRESETS[themeId] || THEME_PRESETS.modern_banner;
@@ -150,21 +200,31 @@ function LiveThemePreview({ storeName, form, categories }) {
   };
   const previewCategories = categories.slice(0, 4);
   const activeCategoryId = previewCategories[previewCategories.length - 1]?.id;
+  const heroLayout = form.theme_config.hero_layout || "text_image";
+  const logoUrl = form.theme_config.hero_logo_url || "";
 
   return (
     <section className="live-preview-card" style={previewStyle}>
       <div className={`live-preview-shell ${form.theme_id}`}>
-        <div className="live-preview-head">
-          <div>
-            <small>{storeName || "Tienda Demo"}</small>
-            <h4>Vista previa</h4>
-            <p>Asi se vera antes de guardar.</p>
-          </div>
-          {form.theme_id === "modern_banner" && form.theme_config.hero_image_url ? (
+        <div className={`live-preview-head hero-${heroLayout} align-${form.theme_config.hero_alignment || "left"}`}>
+          {heroLayout === "logo_only" ? (
+            <div className="live-preview-logo-only">
+              {logoUrl ? <img src={buildAssetUrl(logoUrl)} alt="Logo" /> : <h4>{storeName || "Tienda Demo"}</h4>}
+            </div>
+          ) : null}
+          {heroLayout !== "image_only" && heroLayout !== "logo_only" ? (
+            <div>
+              {logoUrl ? <img className="live-preview-logo" src={buildAssetUrl(logoUrl)} alt="Logo" /> : null}
+              <small>{form.theme_config.hero_kicker || storeName || "Tienda Demo"}</small>
+              <h4>{form.theme_config.hero_title || storeName || "Vista previa"}</h4>
+              <p>{heroLayout === "offer" ? (form.theme_config.hero_offer_text || "Oferta especial") : (form.theme_config.hero_subtitle || "Asi se vera antes de guardar.")}</p>
+            </div>
+          ) : null}
+          {form.theme_id === "modern_banner" && form.theme_config.hero_image_url && heroLayout !== "logo_only" ? (
             <img
               src={buildAssetUrl(form.theme_config.hero_image_url)}
               alt="Banner"
-              className="live-preview-hero"
+              className={`live-preview-hero fit-${form.theme_config.hero_image_fit || "cover"}`}
             />
           ) : null}
         </div>
@@ -215,6 +275,9 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [analyzingPalette, setAnalyzingPalette] = useState(false);
+  const [paletteSuggestions, setPaletteSuggestions] = useState([]);
   const [iconUploadingFor, setIconUploadingFor] = useState("");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
@@ -352,9 +415,37 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
   };
 
   const handleBannerUpload = async (file) => {
+    if (!file) return;
     setUploading(true);
+    setAnalyzingPalette(true);
+    const analysis = buildPaletteSuggestions(file)
+      .then(setPaletteSuggestions)
+      .catch(() => setPaletteSuggestions([]))
+      .finally(() => setAnalyzingPalette(false));
     await handleThemeAssetUpload(file, (url) => updateConfig("hero_image_url", url), "Banner");
+    await analysis;
     setUploading(false);
+  };
+
+  const handleLogoUpload = async (file) => {
+    if (!file) return;
+    setLogoUploading(true);
+    setAnalyzingPalette(true);
+    const analysis = buildPaletteSuggestions(file)
+      .then(setPaletteSuggestions)
+      .catch(() => setPaletteSuggestions([]))
+      .finally(() => setAnalyzingPalette(false));
+    await handleThemeAssetUpload(file, (url) => updateConfig("hero_logo_url", url), "Logo");
+    await analysis;
+    setLogoUploading(false);
+  };
+
+  const applyPalette = (colors) => {
+    setForm((current) => ({
+      ...current,
+      theme_config: { ...current.theme_config, ...colors },
+    }));
+    setOk("Paleta aplicada en la vista previa. Guarda el tema para publicarla.");
   };
 
   const handleCategoryIconUpload = async (categoryId, file) => {
@@ -387,6 +478,10 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
         {ok ? <p className="ok-text">{ok}</p> : null}
         {!loading && store ? (
           <form className="grid-form theme-form" onSubmit={saveTheme}>
+            <div className="theme-section-head">
+              <div><span>Paso 1</span><h3>Elige una plantilla</h3></div>
+              <p>Puedes personalizarla después sin perder la vista previa.</p>
+            </div>
             <div className="theme-preview-grid">
               {Object.keys(THEME_PRESETS).map((themeId) => (
                 <ThemePreviewCard
@@ -398,17 +493,23 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
               ))}
             </div>
 
-            <LiveThemePreview
-              storeName={store?.nombre_tienda}
-              form={form}
-              categories={categories.map((category) => ({
-                id: category.id_categoria || category.id,
-                nombre: category.nombre,
-              }))}
-            />
+            <div className="theme-preview-stage">
+              <div className="theme-section-head compact">
+                <div><span>Vista previa</span><h3>Así verá tu tienda el cliente</h3></div>
+                <p>Los cambios aparecen aquí antes de guardarlos.</p>
+              </div>
+              <LiveThemePreview
+                storeName={store?.nombre_tienda}
+                form={form}
+                categories={categories.map((category) => ({
+                  id: category.id_categoria || category.id,
+                  nombre: category.nombre,
+                }))}
+              />
+            </div>
 
             <label>
-              Theme activo
+              Plantilla activa
               <select
                 value={form.theme_id}
                 onChange={(event) => updateThemeId(event.target.value)}
@@ -430,7 +531,7 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
 
             <div className="theme-grid-2">
               <label>
-                Primary
+                Color principal
                 <input
                   type="color"
                   value={form.theme_config.primary}
@@ -438,7 +539,7 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
                 />
               </label>
               <label>
-                Secondary
+                Color secundario
                 <input
                   type="color"
                   value={form.theme_config.secondary}
@@ -446,7 +547,7 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
                 />
               </label>
               <label>
-                Background
+                Fondo
                 <input
                   type="color"
                   value={form.theme_config.background}
@@ -454,7 +555,7 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
                 />
               </label>
               <label>
-                Text
+                Texto principal
                 <input
                   type="color"
                   value={form.theme_config.text}
@@ -462,7 +563,7 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
                 />
               </label>
               <label>
-                Muted
+                Texto secundario
                 <input
                   type="color"
                   value={form.theme_config.muted}
@@ -470,7 +571,7 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
                 />
               </label>
               <label>
-                Radius
+                Redondeado de tarjetas: {form.theme_config.radius}px
                 <input
                   type="range"
                   min="8"
@@ -484,24 +585,24 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
 
             <div className="theme-grid-2">
               <label>
-                Font scale
+                Tamaño de texto
                 <select
                   value={form.theme_config.font_scale}
                   onChange={(event) => updateConfig("font_scale", event.target.value)}
                 >
-                  <option value="sm">sm</option>
-                  <option value="md">md</option>
-                  <option value="lg">lg</option>
+                  <option value="sm">Pequeño</option>
+                  <option value="md">Normal</option>
+                  <option value="lg">Grande</option>
                 </select>
               </label>
               <label>
-                Category style
+                Diseño de categorías
                 <select
                   value={form.theme_config.category_style}
                   onChange={(event) => updateConfig("category_style", event.target.value)}
                 >
-                  <option value="chips">chips</option>
-                  <option value="round_icons">round_icons</option>
+                  <option value="chips">Botones simples</option>
+                  <option value="round_icons">Íconos redondos</option>
                 </select>
               </label>
             </div>
@@ -526,35 +627,100 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
             </div>
 
             {form.theme_id === "modern_banner" ? (
-              <div className="theme-banner-tools">
-                <label>
-                  Hero image URL
-                  <input
-                    value={form.theme_config.hero_image_url || ""}
-                    autoComplete="off"
-                    placeholder="/uploads/theme/hero.jpg"
-                    onChange={(event) => updateConfig("hero_image_url", event.target.value)}
-                  />
-                </label>
-                <label className="btn btn-ghost file-btn">
-                  {uploading ? "Subiendo..." : "Subir banner"}
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    disabled={uploading}
-                    onChange={(event) => handleBannerUpload(event.target.files?.[0])}
-                  />
-                </label>
-                {form.theme_config.hero_image_url ? (
-                  <a
-                    href={buildAssetUrl(form.theme_config.hero_image_url)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="current-image-link"
-                  >
-                    Abrir banner actual
-                  </a>
+              <div className="theme-editor-section">
+                <div className="theme-section-head compact">
+                  <div><span>Paso 2</span><h3>Encabezado y banner</h3></div>
+                  <p>Elige una composición y luego agrega solamente el contenido que necesites.</p>
+                </div>
+
+                <div className="hero-layout-picker" role="radiogroup" aria-label="Diseño del encabezado">
+                  {[
+                    ["text_image", "Texto + imagen", "Presentación completa"],
+                    ["logo_only", "Solo logo", "Encabezado limpio"],
+                    ["image_only", "Solo banner", "Imagen a todo el ancho"],
+                    ["offer", "Oferta", "Promoción destacada"],
+                  ].map(([value, label, help]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={form.theme_config.hero_layout === value ? "active" : ""}
+                      onClick={() => updateConfig("hero_layout", value)}
+                      aria-pressed={form.theme_config.hero_layout === value}
+                    >
+                      <strong>{label}</strong><span>{help}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="theme-grid-2">
+                  <label>
+                    Alineación
+                    <select value={form.theme_config.hero_alignment || "left"} onChange={(event) => updateConfig("hero_alignment", event.target.value)}>
+                      <option value="left">Izquierda</option>
+                      <option value="center">Centrada</option>
+                    </select>
+                  </label>
+                  <label>
+                    Ajuste de la imagen
+                    <select value={form.theme_config.hero_image_fit || "cover"} onChange={(event) => updateConfig("hero_image_fit", event.target.value)}>
+                      <option value="cover">Llenar el espacio</option>
+                      <option value="contain">Mostrar imagen completa</option>
+                    </select>
+                  </label>
+                </div>
+
+                {!["logo_only", "image_only"].includes(form.theme_config.hero_layout) ? (
+                  <div className="theme-grid-2">
+                    <label>Texto pequeño<input value={form.theme_config.hero_kicker || ""} placeholder={store?.slug || "Mi tienda"} onChange={(event) => updateConfig("hero_kicker", event.target.value)} /></label>
+                    <label>Título principal<input value={form.theme_config.hero_title || ""} placeholder={store?.nombre_tienda || "Nombre de la tienda"} onChange={(event) => updateConfig("hero_title", event.target.value)} /></label>
+                    {form.theme_config.hero_layout === "offer" ? (
+                      <label className="theme-field-wide">Texto de la oferta<input value={form.theme_config.hero_offer_text || ""} placeholder="20% de descuento esta semana" onChange={(event) => updateConfig("hero_offer_text", event.target.value)} /></label>
+                    ) : (
+                      <label className="theme-field-wide">Descripción<input value={form.theme_config.hero_subtitle || ""} placeholder="Cuenta brevemente qué ofrece tu tienda" onChange={(event) => updateConfig("hero_subtitle", event.target.value)} /></label>
+                    )}
+                  </div>
                 ) : null}
+
+                <div className="theme-assets-grid">
+                  <div className="theme-asset-card">
+                    <strong>Logo</strong><span>PNG o WEBP transparente recomendado.</span>
+                    {form.theme_config.hero_logo_url ? <img src={buildAssetUrl(form.theme_config.hero_logo_url)} alt="Logo actual" /> : <div className="theme-asset-empty">Sin logo</div>}
+                    <label className="btn btn-ghost file-btn">{logoUploading ? "Subiendo..." : "Elegir logo"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={logoUploading} onChange={(event) => handleLogoUpload(event.target.files?.[0])} /></label>
+                    {form.theme_config.hero_logo_url ? <button type="button" className="theme-remove-asset" onClick={() => updateConfig("hero_logo_url", "")}>Quitar logo</button> : null}
+                  </div>
+                  <div className="theme-asset-card">
+                    <strong>Imagen del banner</strong><span>Recomendado: 1600 × 700 px.</span>
+                    {form.theme_config.hero_image_url ? <img src={buildAssetUrl(form.theme_config.hero_image_url)} alt="Banner actual" /> : <div className="theme-asset-empty">Sin imagen</div>}
+                    <label className="btn btn-ghost file-btn">{uploading ? "Subiendo..." : "Elegir banner"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(event) => handleBannerUpload(event.target.files?.[0])} /></label>
+                    {form.theme_config.hero_image_url ? <button type="button" className="theme-remove-asset" onClick={() => updateConfig("hero_image_url", "")}>Quitar banner</button> : null}
+                  </div>
+                </div>
+
+                <div className="theme-palette-assistant">
+                  <div className="theme-section-head compact">
+                    <div><span>Color inteligente</span><h3>Paletas basadas en tu imagen</h3></div>
+                    <p>{analyzingPalette ? "Analizando colores…" : "Al elegir un logo o banner aparecerán sugerencias aquí."}</p>
+                  </div>
+                  {paletteSuggestions.length ? (
+                    <div className="theme-palette-grid">
+                      {paletteSuggestions.map((palette) => (
+                        <button type="button" key={palette.name} onClick={() => applyPalette(palette.colors)}>
+                          <div className="theme-palette-swatches" aria-hidden="true">
+                            {Object.values(palette.colors).map((color, index) => <span key={index} style={{ background: color }} />)}
+                          </div>
+                          <strong>{palette.name}</strong>
+                          <small>{palette.description}</small>
+                          <em>Aplicar esta paleta</em>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="theme-palette-empty">
+                      <span>Color</span>
+                      <p>Sube o vuelve a elegir una imagen para obtener tres combinaciones adecuadas automáticamente.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : null}
 
@@ -606,10 +772,13 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
               </div>
             ) : null}
 
-            <HelperText text="La vista previa responde en vivo a colores, plantilla y category_style antes de guardar." />
-            <button className="btn btn-primary" disabled={saving || (isSuperadmin && !tenantId)}>
-              {saving ? "Guardando..." : "Guardar tema"}
-            </button>
+            <HelperText text="La vista previa responde en vivo. Los clientes verán los cambios solamente después de guardar." />
+            <div className="theme-save-bar">
+              <span>Revisa la vista previa antes de publicar.</span>
+              <button className="btn btn-primary" disabled={saving || (isSuperadmin && !tenantId)}>
+                {saving ? "Guardando..." : "Guardar y publicar tema"}
+              </button>
+            </div>
           </form>
         ) : null}
       </Card>

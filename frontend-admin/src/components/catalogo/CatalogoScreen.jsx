@@ -136,7 +136,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
     if (isActive) {
       const label = isCategory ? "categoria" : "producto";
       const confirmed = window.confirm(
-        `¿Quitar este ${label} del catálogo? Podrás recuperarlo usando "Mostrar eliminados".`,
+        `¿Ocultar esta ${label} del catálogo público? No se eliminarán sus datos y podrás volver a mostrarla cuando quieras.`,
       );
       if (!confirmed) return;
     }
@@ -636,7 +636,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
               checked={showRemoved}
               onChange={(event) => setShowRemoved(event.target.checked)}
             />
-            Mostrar eliminados
+            Mostrar ocultos
           </label>
         </div>
       </div>
@@ -721,7 +721,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     </td>
                     <td className="actions-cell">
                       <button className="btn btn-ghost" onClick={() => setEditing({ mode: "categoria", row: r })}>Editar</button>
-                      <button className={`btn ${r.activa ? "btn-danger-ghost" : "btn-success-ghost"}`} onClick={() => toggleRowVisibility(r, "categoria").catch((e) => setError(e.message))}>{r.activa ? "Quitar" : "Restaurar"}</button>
+                      <button className={`btn ${r.activa ? "btn-danger-ghost" : "btn-success-ghost"}`} onClick={() => toggleRowVisibility(r, "categoria").catch((e) => setError(e.message))}>{r.activa ? "Ocultar" : "Mostrar"}</button>
                     </td>
                   </tr>
                 );
@@ -753,7 +753,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     </td>
                     <td className="actions-cell">
                       <button className="btn btn-ghost" onClick={() => openProductEditor(r)}>Editar</button>
-                      <button className={`btn ${r.activo ? "btn-danger-ghost" : "btn-success-ghost"}`} onClick={() => toggleRowVisibility(r, "producto").catch((e) => setError(e.message))}>{r.activo ? "Quitar" : "Restaurar"}</button>
+                      <button className={`btn ${r.activo ? "btn-danger-ghost" : "btn-success-ghost"}`} onClick={() => toggleRowVisibility(r, "producto").catch((e) => setError(e.message))}>{r.activo ? "Ocultar" : "Mostrar"}</button>
                       <ImageDropZone
                         compact
                         title={busyImageProductId === r.id_producto ? "Subiendo..." : "Imagen"}
@@ -808,7 +808,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     className={`btn ${r.activa ? "btn-danger-ghost" : "btn-success-ghost"}`} 
                     onClick={() => toggleRowVisibility(r, "categoria").catch((e) => setError(e.message))}
                   >
-                    {r.activa ? "Quitar" : "Restaurar"}
+                    {r.activa ? "Ocultar" : "Mostrar"}
                   </button>
                 </div>
               </div>
@@ -851,7 +851,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                       className={`btn ${r.activo ? "btn-danger-ghost" : "btn-success-ghost"}`} 
                       onClick={() => toggleRowVisibility(r, "producto").catch((e) => setError(e.message))}
                     >
-                      {r.activo ? "Quitar" : "Restaurar"}
+                      {r.activo ? "Ocultar" : "Mostrar"}
                     </button>
                   </div>
                 </div>

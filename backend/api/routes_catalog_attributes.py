@@ -238,4 +238,3 @@ def api_replace_product_attributes(
         return replace_product_attributes(db, product=product, payload=payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-

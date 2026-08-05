@@ -112,4 +112,3 @@ class ProductAttributeValueOut(BaseModel):
     unidad: Optional[str] = None
     id_opcion: Optional[UUID] = None
     valor: str | Decimal | bool
-

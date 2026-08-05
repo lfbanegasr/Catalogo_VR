@@ -61,4 +61,3 @@ class VariantOut(BaseModel):
     @field_serializer("imagen_url")
     def serialize_image(self, value: Optional[str]) -> Optional[str]:
         return build_public_asset_url(value)
-

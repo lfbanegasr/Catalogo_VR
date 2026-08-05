@@ -1,30 +1,35 @@
 import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 from api import api_router
 from core.config import settings
 from middleware.audit_middleware import AuditMiddleware
+from middleware.security_middleware import RateLimitMiddleware, SecurityHeadersMiddleware
+from sqlalchemy import text
+
+from core.database import SessionLocal
+
+settings.validate_runtime_security()
 
 app = FastAPI(title="Backend Tienda SaaS")
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "https://catalogo-vr.vercel.app",
-        "https://catalogo-vr-skr5.vercel.app",
-        "https://catalogovr-production.up.railway.app",
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.CORS_ALLOW_ORIGIN_REGEX or None,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "If-None-Match"],
+    expose_headers=["ETag", "Retry-After"],
 )
 
 app.add_middleware(AuditMiddleware)
@@ -58,3 +63,23 @@ app.include_router(api_router)
 @app.get("/")
 def root():
     return {"status": "ok"}
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.get("/ready")
+def readiness():
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ready", "database": "ok"}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database unavailable",
+        ) from exc
+    finally:
+        db.close()

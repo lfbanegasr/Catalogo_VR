@@ -276,7 +276,10 @@ def api_create_categoria(
         tienda_ref=tienda_ref,
         nombre_tienda_target=nombre_tienda_target,
     )
-    return create_categoria(db=db, id_tienda=target_tienda_id, data=data)
+    try:
+        return create_categoria(db=db, id_tienda=target_tienda_id, data=data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get(
@@ -331,7 +334,10 @@ def api_update_categoria(
     )
     _ensure_user_can_access_tenant(current_user, target_tienda_id)
     _ensure_resource_matches_target_tienda(categoria.id_tienda, target_tienda_id)
-    updated = update_categoria(db=db, id_categoria=id_categoria, data=data)
+    try:
+        updated = update_categoria(db=db, id_categoria=id_categoria, data=data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not updated:
         raise HTTPException(status_code=404, detail="Categoria no encontrada")
     return updated
@@ -393,13 +399,21 @@ def api_create_producto(
         nombre_tienda_target=nombre_tienda_target,
     )
     create_payload = data.model_dump()
+    legacy_category_id = create_payload.get("id_categoria")
+    primary_category_id = create_payload.get("id_categoria_principal")
+    if legacy_category_id and primary_category_id and legacy_category_id != primary_category_id:
+        raise HTTPException(
+            status_code=400,
+            detail="id_categoria e id_categoria_principal no coinciden",
+        )
     categoria_id = _resolve_categoria_id_for_tienda(
         db=db,
         target_tienda_id=target_tienda_id,
-        requested_categoria_id=create_payload.get("id_categoria"),
+        requested_categoria_id=primary_category_id or legacy_category_id,
         requested_categoria_name=create_payload.get("nombre_categoria"),
     )
     create_payload["id_categoria"] = categoria_id
+    create_payload["id_categoria_principal"] = categoria_id
     create_payload.pop("nombre_categoria", None)
     normalized_data = ProductoCreate(**create_payload)
     return create_producto(db=db, id_tienda=target_tienda_id, data=normalized_data)
@@ -458,17 +472,32 @@ def api_update_producto(
     _ensure_user_can_access_tenant(current_user, target_tienda_id)
     _ensure_resource_matches_target_tienda(producto.id_tienda, target_tienda_id)
     update_payload = data.model_dump(exclude_unset=True)
-    if "id_categoria" in update_payload or "nombre_categoria" in update_payload:
+    legacy_category_id = update_payload.get("id_categoria")
+    primary_category_id = update_payload.get("id_categoria_principal")
+    if legacy_category_id and primary_category_id and legacy_category_id != primary_category_id:
+        raise HTTPException(
+            status_code=400,
+            detail="id_categoria e id_categoria_principal no coinciden",
+        )
+    if (
+        "id_categoria" in update_payload
+        or "id_categoria_principal" in update_payload
+        or "nombre_categoria" in update_payload
+    ):
         categoria_id = _resolve_categoria_id_for_tienda(
             db=db,
             target_tienda_id=target_tienda_id,
-            requested_categoria_id=update_payload.get("id_categoria"),
+            requested_categoria_id=primary_category_id or legacy_category_id,
             requested_categoria_name=update_payload.get("nombre_categoria"),
         )
         update_payload["id_categoria"] = categoria_id
+        update_payload["id_categoria_principal"] = categoria_id
     update_payload.pop("nombre_categoria", None)
     normalized_data = ProductoUpdate(**update_payload)
-    updated = update_producto(db=db, id_producto=id_producto, data=normalized_data)
+    try:
+        updated = update_producto(db=db, id_producto=id_producto, data=normalized_data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not updated:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     return updated

@@ -9,6 +9,7 @@ import TiendasScreen from "./components/tiendas/TiendasScreen";
 import UsuariosScreen from "./components/usuarios/UsuariosScreen";
 import CatalogoScreen from "./components/catalogo/CatalogoScreen";
 import VentasScreen from "./components/ventas/VentasScreen";
+import ClientesScreen from "./components/clientes/ClientesScreen";
 import OffersScreen from "./components/catalogo/OffersScreen";
 import AuditoriaScreen from "./components/auditoria/AuditoriaScreen";
 import DashboardScreen from "./components/dashboard/DashboardScreen";
@@ -30,6 +31,7 @@ function menuByRole(role) {
     return [
       ["dashboard", "Dashboard"],
       ["ventas", "Ventas"],
+      ["clientes", "Clientes"],
       ["catalogo", "Catalogo"],
       ["tema", "Tema"],
       ["ofertas", "Ofertas"],
@@ -40,6 +42,7 @@ function menuByRole(role) {
     return [
       ["dashboard", "Dashboard"],
       ["ventas", "Ventas"],
+      ["clientes", "Clientes"],
       ["catalogo", "Catalogo"],
       ["ofertas", "Ofertas"]
     ];
@@ -175,6 +178,9 @@ function App() {
   }
   if (section === "ventas" && canUseCatalog(user.rol)) {
     content = <VentasScreen user={user} />;
+  }
+  if (section === "clientes" && ["admin", "empleado"].includes(user.rol)) {
+    content = <ClientesScreen user={user} />;
   }
   if (section === "tema" && ["superadmin", "admin"].includes(user.rol)) {
     content = (

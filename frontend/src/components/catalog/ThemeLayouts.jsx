@@ -52,6 +52,20 @@ function CategoryNav({
   categoryImages = {},
 }) {
   const items = [{ id: "all", nombre: "Todas" }, ...categories];
+  const categoryById = new Map(categories.map((category) => [String(category.id), category]));
+  const categoryLabel = (category) => {
+    if (category.id === "all") return category.nombre;
+    const names = [category.nombre];
+    const visited = new Set([String(category.id)]);
+    let parentId = category.id_categoria_padre;
+    while (parentId && categoryById.has(String(parentId)) && !visited.has(String(parentId))) {
+      visited.add(String(parentId));
+      const parent = categoryById.get(String(parentId));
+      names.unshift(parent.nombre);
+      parentId = parent.id_categoria_padre;
+    }
+    return names.join(" > ");
+  };
   return (
     <div className={`category-nav ${style}`} role="tablist" aria-label="Categorias">
       {items.map((category) => {
@@ -78,10 +92,41 @@ function CategoryNav({
                 )}
               </span>
             ) : null}
-            <span>{category.nombre}</span>
+            <span>{categoryLabel(category)}</span>
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function AttributeFilters({
+  filters,
+  values,
+  onChange,
+  onClear,
+}) {
+  if (!filters.length) return null;
+  const hasActiveFilters = Object.values(values).some(Boolean);
+  return (
+    <div className="attribute-filter-bar" aria-label="Filtros de productos">
+      {filters.map((filter) => (
+        <label key={filter.codigo} className="attribute-filter">
+          <span>{filter.nombre}</span>
+          <select
+            value={values[filter.codigo] || ""}
+            onChange={(event) => onChange(filter.codigo, event.target.value)}
+          >
+            <option value="">Todos</option>
+            {filter.values.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+      ))}
+      {hasActiveFilters ? (
+        <button type="button" className="btn btn-ghost" onClick={onClear}>
+          Limpiar filtros
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -232,6 +277,10 @@ export function ModernBannerTheme(props) {
     onSelectCategoryId,
     searchQuery,
     onSearchQueryChange,
+    availableAttributeFilters,
+    attributeFilters,
+    onAttributeFilterChange,
+    onClearAttributeFilters,
     filteredProducts,
     featuredProducts,
     offerProducts,
@@ -260,6 +309,12 @@ export function ModernBannerTheme(props) {
             onSelectCategoryId={onSelectCategoryId}
             style={themeConfig.category_style}
             categoryImages={themeConfig.category_images}
+          />
+          <AttributeFilters
+            filters={availableAttributeFilters}
+            values={attributeFilters}
+            onChange={onAttributeFilterChange}
+            onClear={onClearAttributeFilters}
           />
         </section>
         <CatalogState loading={loading} error={error} onRetry={onRetry} />
@@ -293,6 +348,10 @@ export function SoftBeigeTheme(props) {
     onSelectCategoryId,
     searchQuery,
     onSearchQueryChange,
+    availableAttributeFilters,
+    attributeFilters,
+    onAttributeFilterChange,
+    onClearAttributeFilters,
     filteredProducts,
     offerProducts,
     offers,
@@ -321,6 +380,12 @@ export function SoftBeigeTheme(props) {
             style={themeConfig.category_style}
             categoryImages={themeConfig.category_images}
           />
+          <AttributeFilters
+            filters={availableAttributeFilters}
+            values={attributeFilters}
+            onChange={onAttributeFilterChange}
+            onClear={onClearAttributeFilters}
+          />
         </section>
         <CatalogState loading={loading} error={error} onRetry={onRetry} />
         {!loading && !error ? (
@@ -348,6 +413,10 @@ export function MinimalCleanTheme(props) {
     onSelectCategoryId,
     searchQuery,
     onSearchQueryChange,
+    availableAttributeFilters,
+    attributeFilters,
+    onAttributeFilterChange,
+    onClearAttributeFilters,
     filteredProducts,
     offerProducts,
     offers,
@@ -373,6 +442,12 @@ export function MinimalCleanTheme(props) {
           onSelectCategoryId={onSelectCategoryId}
           style={themeConfig.category_style}
           categoryImages={themeConfig.category_images}
+        />
+        <AttributeFilters
+          filters={availableAttributeFilters}
+          values={attributeFilters}
+          onChange={onAttributeFilterChange}
+          onClear={onClearAttributeFilters}
         />
         <CatalogState loading={loading} error={error} onRetry={onRetry} />
         {!loading && !error ? (

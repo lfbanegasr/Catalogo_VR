@@ -7,11 +7,14 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
+    func,
+    text,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -23,9 +26,6 @@ OFFER_TYPES = ("PERCENT", "PRICE_OVERRIDE")
 
 class Categoria(Base):
     __tablename__ = "categorias"
-    __table_args__ = (
-        UniqueConstraint("id_tienda", "nombre", name="uq_categorias_tienda_nombre"),
-    )
 
     id_categoria = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_tienda = Column(
@@ -35,11 +35,40 @@ class Categoria(Base):
     )
 
     nombre = Column(String(100), nullable=False)
+    id_categoria_padre = Column(
+        UUID(as_uuid=True),
+        ForeignKey("categorias.id_categoria", ondelete="SET NULL"),
+        nullable=True,
+    )
+    slug = Column(String(120), nullable=False)
+    orden = Column(Integer, nullable=False, default=0)
     activa = Column(Boolean, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
 
     # Relaciones
     tienda = relationship("Tienda", back_populates="categorias")
-    productos = relationship("Producto", back_populates="categoria")
+    productos = relationship(
+        "Producto",
+        back_populates="categoria",
+        foreign_keys="Producto.id_categoria",
+    )
+    productos_principales = relationship(
+        "Producto",
+        back_populates="categoria_principal",
+        foreign_keys="Producto.id_categoria_principal",
+    )
+    categoria_padre = relationship(
+        "Categoria",
+        remote_side=[id_categoria],
+        back_populates="subcategorias",
+    )
+    subcategorias = relationship("Categoria", back_populates="categoria_padre")
     ofertas_rel = relationship(
         "OfertaCategoria",
         back_populates="categoria",
@@ -64,6 +93,11 @@ class Producto(Base):
         ForeignKey("categorias.id_categoria", ondelete="SET NULL"),
         nullable=True,
     )
+    id_categoria_principal = Column(
+        UUID(as_uuid=True),
+        ForeignKey("categorias.id_categoria", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     nombre = Column(String(150), nullable=False)
     descripcion = Column(Text, nullable=True)
@@ -79,7 +113,16 @@ class Producto(Base):
 
     # Relaciones
     tienda = relationship("Tienda", back_populates="productos")
-    categoria = relationship("Categoria", back_populates="productos")
+    categoria = relationship(
+        "Categoria",
+        back_populates="productos",
+        foreign_keys=[id_categoria],
+    )
+    categoria_principal = relationship(
+        "Categoria",
+        back_populates="productos_principales",
+        foreign_keys=[id_categoria_principal],
+    )
     imagenes_rel = relationship(
         "ProductoImagen",
         back_populates="producto",
@@ -98,6 +141,41 @@ class Producto(Base):
         if self.imagen_url and self.imagen_url not in urls:
             return [self.imagen_url, *urls]
         return urls
+
+
+Index(
+    "ix_categorias_tienda_padre_orden",
+    Categoria.id_tienda,
+    Categoria.id_categoria_padre,
+    Categoria.orden,
+)
+Index(
+    "uq_categorias_raiz_tienda_nombre",
+    Categoria.id_tienda,
+    func.lower(Categoria.nombre),
+    unique=True,
+    postgresql_where=text("id_categoria_padre IS NULL"),
+)
+Index(
+    "uq_categorias_hija_tienda_padre_nombre",
+    Categoria.id_tienda,
+    Categoria.id_categoria_padre,
+    func.lower(Categoria.nombre),
+    unique=True,
+    postgresql_where=text("id_categoria_padre IS NOT NULL"),
+)
+Index(
+    "uq_categorias_tienda_slug",
+    Categoria.id_tienda,
+    Categoria.slug,
+    unique=True,
+)
+Index(
+    "ix_productos_tienda_categoria_principal_activo",
+    Producto.id_tienda,
+    Producto.id_categoria_principal,
+    Producto.activo,
+)
 
 
 class ProductoImagen(Base):

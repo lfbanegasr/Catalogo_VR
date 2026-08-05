@@ -19,6 +19,8 @@ from core.database import Base  # noqa: E402
 # Importar modelos explícitamente para poblar Base.metadata
 import models.tenant  # noqa: F401,E402
 import models.catalog  # noqa: F401,E402
+import models.catalog_attribute  # noqa: F401,E402
+import models.catalog_variant  # noqa: F401,E402
 import models.sales  # noqa: F401,E402
 import models.audit_log  # noqa: F401,E402
 import models.public_event  # noqa: F401,E402

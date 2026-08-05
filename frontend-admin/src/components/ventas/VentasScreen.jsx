@@ -2,6 +2,27 @@ import React, { useState, useEffect, Fragment } from 'react';
 import { api, buildAssetUrl } from '../../api';
 import { Card } from '../Card';
 
+const ORDER_STATUS_LABELS = {
+  generada_whatsapp: "Recibido",
+  pendiente: "Pendiente",
+  confirmada: "Confirmado",
+  preparando: "Preparando",
+  lista: "Listo",
+  enviada: "Enviado",
+  completada: "Completado",
+  cancelada: "Cancelado",
+};
+
+const ORDER_STATUS_OPTIONS = [
+  "pendiente",
+  "confirmada",
+  "preparando",
+  "lista",
+  "enviada",
+  "completada",
+  "cancelada",
+];
+
 export default function VentasScreen({ user }) {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +44,7 @@ export default function VentasScreen({ user }) {
   const [selectedCategoryId, setSelectedCategoryId] = useState("all");
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const [quantitiesByProduct, setQuantitiesByProduct] = useState({});
+  const [selectedVariantByProduct, setSelectedVariantByProduct] = useState({});
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [saleItems, setSaleItems] = useState([]);
   const [savingSale, setSavingSale] = useState(false);
@@ -70,8 +92,9 @@ export default function VentasScreen({ user }) {
 
   const handleStatusChange = async (idVenta, nextEstado) => {
     if (!window.confirm(`¿Estás seguro de cambiar el estado de este pedido a '${nextEstado}'?`)) return;
+    const nota = window.prompt("Nota opcional para el cliente") || null;
     try {
-      await api.updateVentaEstado(idVenta, nextEstado);
+      await api.updateVentaEstado(idVenta, nextEstado, user.id_tienda, nota);
       alert("¡Estado del pedido actualizado!");
       loadSales();
       // Limpiar detalle en cache para forzar recarga si se expande
@@ -91,14 +114,25 @@ export default function VentasScreen({ user }) {
     setSelectedCategoryId("all");
     setProductSearchQuery("");
     setQuantitiesByProduct({});
+    setSelectedVariantByProduct({});
     setShowSaleModal(true);
     setLoadingProducts(true);
     try {
-      const [prodList, catList] = await Promise.all([
+      const [prodList, catList, variantList] = await Promise.all([
         api.listProductos(),
-        api.listCategorias()
+        api.listCategorias(),
+        api.listVariantesTienda(),
       ]);
-      setAllProducts(prodList || []);
+      const variantsByProduct = {};
+      (variantList || []).forEach((variant) => {
+        if (!variantsByProduct[variant.id_producto]) variantsByProduct[variant.id_producto] = [];
+        variantsByProduct[variant.id_producto].push(variant);
+      });
+      const productsWithVariants = (prodList || []).map((product) => ({
+        ...product,
+        variantes: variantsByProduct[product.id_producto] || [],
+      }));
+      setAllProducts(productsWithVariants);
       setCategories(catList || []);
       
       const qtys = {};
@@ -106,6 +140,14 @@ export default function VentasScreen({ user }) {
         qtys[p.id_producto] = 1;
       });
       setQuantitiesByProduct(qtys);
+      const defaults = {};
+      productsWithVariants.forEach((product) => {
+        const activeVariants = product.variantes.filter((variant) => variant.activa);
+        const selected = activeVariants.find((variant) => variant.es_predeterminada)
+          || activeVariants[0];
+        if (selected) defaults[product.id_producto] = selected.id_variante;
+      });
+      setSelectedVariantByProduct(defaults);
     } catch (err) {
       console.error("Error al cargar datos para venta física:", err);
     } finally {
@@ -113,34 +155,40 @@ export default function VentasScreen({ user }) {
     }
   };
 
-  const handleAddProductToSale = (prod, qty) => {
+  const handleAddProductToSale = (prod, qty, variant = null) => {
     if (!prod) return;
-    if (prod.stock_actual < qty) {
-      alert(`Stock insuficiente para '${prod.nombre}'. Disponible: ${prod.stock_actual}`);
+    const availableStock = Number(variant?.stock_actual ?? prod.stock_actual ?? 0);
+    if (availableStock < qty) {
+      alert(`Stock insuficiente para '${prod.nombre}'. Disponible: ${availableStock}`);
       return;
     }
 
-    const existing = saleItems.find(item => item.id_producto === prod.id_producto);
+    const cartKey = String(prod.id_producto) + "::" + (variant?.id_variante || "simple");
+    const existing = saleItems.find(item => item.cart_key === cartKey);
     if (existing) {
       const nextQty = existing.cantidad + qty;
-      if (prod.stock_actual < nextQty) {
-        alert(`Stock insuficiente. Ya agregaste ${existing.cantidad}. Disponible total: ${prod.stock_actual}`);
+      if (availableStock < nextQty) {
+        alert(`Stock insuficiente. Ya agregaste ${existing.cantidad}. Disponible total: ${availableStock}`);
         return;
       }
       setSaleItems(saleItems.map(item => 
-        item.id_producto === prod.id_producto 
+        item.cart_key === cartKey
           ? { ...item, cantidad: nextQty, subtotal: nextQty * item.precio_unitario }
           : item
       ));
     } else {
+      const price = Number(variant?.precio_venta ?? prod.precio_venta);
       setSaleItems([
         ...saleItems,
         {
+          cart_key: cartKey,
           id_producto: prod.id_producto,
+          id_variante: variant?.id_variante || null,
+          nombre_variante: (variant?.atributos || []).map((item) => item.valor).join(" / "),
           nombre: prod.nombre,
           cantidad: qty,
-          precio_unitario: Number(prod.precio_venta),
-          subtotal: qty * Number(prod.precio_venta)
+          precio_unitario: price,
+          subtotal: qty * price,
         }
       ]);
     }
@@ -151,8 +199,8 @@ export default function VentasScreen({ user }) {
     }));
   };
 
-  const handleRemoveItem = (id) => {
-    setSaleItems(saleItems.filter(item => item.id_producto !== id));
+  const handleRemoveItem = (cartKey) => {
+    setSaleItems(saleItems.filter(item => item.cart_key !== cartKey));
   };
 
   const handleRegisterSale = async () => {
@@ -168,6 +216,7 @@ export default function VentasScreen({ user }) {
         estado: "completada",
         detalles: saleItems.map(item => ({
           id_producto: item.id_producto,
+          id_variante: item.id_variante || null,
           cantidad: item.cantidad,
           precio_unitario: item.precio_unitario
         }))
@@ -276,6 +325,10 @@ export default function VentasScreen({ user }) {
               <option value="all">Todos los estados</option>
               <option value="pendiente">Pendiente WhatsApp</option>
               <option value="generada_whatsapp">Pendiente WhatsApp (Legacy)</option>
+              <option value="confirmada">Confirmado</option>
+              <option value="preparando">Preparando</option>
+              <option value="lista">Listo</option>
+              <option value="enviada">Enviado</option>
               <option value="completada">Completado</option>
               <option value="cancelada">Cancelado</option>
             </select>
@@ -345,7 +398,7 @@ export default function VentasScreen({ user }) {
                               color: '#ffffff',
                               background: v.estado === 'completada' ? '#059669' : v.estado === 'cancelada' ? '#dc2626' : v.estado === 'pendiente' ? '#d97706' : '#2563eb'
                             }}>
-                              {v.estado === 'completada' ? 'Completado' : v.estado === 'cancelada' ? 'Cancelado' : v.estado === 'pendiente' ? 'Pendiente' : 'Pedido WhatsApp'}
+                              {ORDER_STATUS_LABELS[v.estado] || v.estado}
                             </span>
                           </td>
                           <td style={{ padding: '8px', textAlign: 'center' }}>
@@ -358,7 +411,31 @@ export default function VentasScreen({ user }) {
                             </button>
                           </td>
                           <td style={{ padding: '8px', textAlign: 'center', display: 'flex', justifyContent: 'center', gap: '4px' }}>
-                            {v.estado !== 'completada' && (
+                            <select
+                              value={v.estado}
+                              onChange={(e) => {
+                                if (e.target.value !== v.estado) {
+                                  handleStatusChange(v.id_venta, e.target.value);
+                                }
+                              }}
+                              style={{ padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '9px', background: '#fff' }}
+                            >
+                              {v.estado === "generada_whatsapp" ? (
+                                <option value="generada_whatsapp">Recibido</option>
+                              ) : null}
+                              {(v.estado === "cancelada"
+                                ? ["cancelada", "pendiente"]
+                                : ORDER_STATUS_OPTIONS.filter((status) =>
+                                    status === "cancelada"
+                                    || ORDER_STATUS_OPTIONS.indexOf(status)
+                                      >= Math.max(0, ORDER_STATUS_OPTIONS.indexOf(v.estado))))
+                                .map((status) => (
+                                  <option key={status} value={status}>
+                                    {ORDER_STATUS_LABELS[status]}
+                                  </option>
+                                ))}
+                            </select>
+                            {false && (
                               <button
                                 onClick={() => handleStatusChange(v.id_venta, "completada")}
                                 className="btn"
@@ -367,7 +444,7 @@ export default function VentasScreen({ user }) {
                                 ✔ Completar
                               </button>
                             )}
-                            {v.estado !== 'cancelada' && (
+                            {false && (
                               <button
                                 onClick={() => handleStatusChange(v.id_venta, "cancelada")}
                                 className="btn"
@@ -382,6 +459,42 @@ export default function VentasScreen({ user }) {
                           <tr style={{ background: '#f9fafb' }}>
                             <td colSpan="7" style={{ padding: '12px 24px', borderBottom: '1px solid #e5e7eb' }}>
                               <div style={{ background: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                {saleDetails[v.id_venta] ? (
+                                  <div style={{ display: 'grid', gap: '8px', paddingBottom: '8px', borderBottom: '1px dashed #e5e7eb', fontSize: '10px', color: '#374151' }}>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+                                      <div><strong>Seguimiento:</strong> #{saleDetails[v.id_venta].codigo_seguimiento}</div>
+                                      <div><strong>Entrega:</strong> {saleDetails[v.id_venta].metodo_entrega === "delivery" ? "Delivery" : "Retiro"}</div>
+                                      {saleDetails[v.id_venta].metodo_pago ? <div><strong>Pago:</strong> {saleDetails[v.id_venta].metodo_pago}</div> : null}
+                                    </div>
+                                    {saleDetails[v.id_venta].direccion_snapshot ? (
+                                      <div>
+                                        <strong>Direccion:</strong>{" "}
+                                        {saleDetails[v.id_venta].direccion_snapshot.linea1},{" "}
+                                        {saleDetails[v.id_venta].direccion_snapshot.ciudad}
+                                        {saleDetails[v.id_venta].direccion_snapshot.referencia
+                                          ? " - " + saleDetails[v.id_venta].direccion_snapshot.referencia
+                                          : ""}
+                                      </div>
+                                    ) : null}
+                                    {saleDetails[v.id_venta].notas_cliente ? (
+                                      <div><strong>Notas:</strong> {saleDetails[v.id_venta].notas_cliente}</div>
+                                    ) : null}
+                                    {(saleDetails[v.id_venta].historial_estados || []).length > 0 ? (
+                                      <div>
+                                        <strong>Historial:</strong>
+                                        <ul style={{ margin: '5px 0 0', paddingLeft: '16px' }}>
+                                          {[...saleDetails[v.id_venta].historial_estados].reverse().map((event, eventIndex) => (
+                                            <li key={event.fecha_evento + String(eventIndex)}>
+                                              {ORDER_STATUS_LABELS[event.estado_nuevo] || event.estado_nuevo}
+                                              {" - " + new Date(event.fecha_evento).toLocaleString("es-BO")}
+                                              {event.nota ? " - " + event.nota : ""}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
                                 {saleDetails[v.id_venta]?.cliente && (
                                   <div style={{ paddingBottom: '8px', borderBottom: '1px dashed #e5e7eb', display: 'flex', flexWrap: 'wrap', gap: '20px', fontSize: '10px', color: '#374151' }}>
                                     <div><strong>Cliente:</strong> {saleDetails[v.id_venta].cliente.nombre_completo}</div>
@@ -406,7 +519,10 @@ export default function VentasScreen({ user }) {
                                       <tbody>
                                         {saleDetails[v.id_venta].detalles.map((d, idx) => (
                                           <tr key={idx} style={{ borderBottom: '1px solid #fafafa' }}>
-                                            <td style={{ padding: '6px 4px', fontWeight: 'bold', color: '#374151' }}>{d.producto?.nombre || 'Producto eliminado'}</td>
+                                            <td style={{ padding: '6px 4px', fontWeight: 'bold', color: '#374151' }}>
+                                              {d.producto?.nombre || 'Producto eliminado'}
+                                              {d.nombre_variante ? <div style={{ fontSize: '9px', color: '#6b7280' }}>{d.nombre_variante}</div> : null}
+                                            </td>
                                             <td style={{ padding: '6px 4px', textAlign: 'center' }}>{d.cantidad} u.</td>
                                             <td style={{ padding: '6px 4px', textAlign: 'right' }}>{parseFloat(d.precio_unitario).toFixed(2)} Bs</td>
                                             <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 'bold', color: '#059669' }}>{parseFloat(d.subtotal).toFixed(2)} Bs</td>
@@ -575,7 +691,8 @@ export default function VentasScreen({ user }) {
                   ) : (
                     (() => {
                       const filtered = allProducts.filter(p => {
-                        const matchesCategory = selectedCategoryId === "all" || String(p.id_categoria) === String(selectedCategoryId);
+                        const productCategoryId = p.id_categoria_principal || p.id_categoria;
+                        const matchesCategory = selectedCategoryId === "all" || String(productCategoryId) === String(selectedCategoryId);
                         const matchesSearch = p.nombre.toLowerCase().includes(productSearchQuery.toLowerCase()) || 
                           (p.descripcion && p.descripcion.toLowerCase().includes(productSearchQuery.toLowerCase()));
                         return matchesCategory && matchesSearch && p.activo;
@@ -589,7 +706,16 @@ export default function VentasScreen({ user }) {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           {filtered.map(p => {
                             const curQty = quantitiesByProduct[p.id_producto] || 1;
-                            const isOutOfStock = p.stock_actual <= 0;
+                            const activeVariants = (p.variantes || []).filter((variant) => variant.activa);
+                            const selectedVariantId = selectedVariantByProduct[p.id_producto];
+                            const selectedVariant = activeVariants.find(
+                              (variant) => variant.id_variante === selectedVariantId,
+                            ) || null;
+                            const availableStock = Number(selectedVariant?.stock_actual ?? p.stock_actual ?? 0);
+                            const effectivePrice = Number(selectedVariant?.precio_venta ?? p.precio_venta);
+                            const isOutOfStock = activeVariants.length > 0
+                              ? !selectedVariant || availableStock <= 0
+                              : availableStock <= 0;
                             return (
                               <div key={p.id_producto} style={{
                                 background: '#ffffff',
@@ -613,10 +739,33 @@ export default function VentasScreen({ user }) {
                                 {/* Info del Producto */}
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <h4 style={{ margin: 0, fontSize: '11px', fontWeight: 'bold', color: '#1f2937' }} className="truncate">{p.nombre}</h4>
+                                  {activeVariants.length > 0 ? (
+                                    <select
+                                      value={selectedVariantId || ""}
+                                      onChange={(e) => {
+                                        setSelectedVariantByProduct((current) => ({
+                                          ...current,
+                                          [p.id_producto]: e.target.value,
+                                        }));
+                                        setQuantitiesByProduct((current) => ({
+                                          ...current,
+                                          [p.id_producto]: 1,
+                                        }));
+                                      }}
+                                      style={{ width: '100%', marginTop: '4px', padding: '4px', borderRadius: '7px', border: '1px solid #d1d5db', fontSize: '9px', background: '#fff' }}
+                                    >
+                                      {activeVariants.map((variant) => (
+                                        <option key={variant.id_variante} value={variant.id_variante}>
+                                          {(variant.atributos || []).map((item) => item.valor).join(" / ") || variant.sku}
+                                          {" - stock " + variant.stock_actual}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : null}
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', fontSize: '9px', fontWeight: 'bold' }}>
-                                    <span style={{ color: '#059669' }}>{p.precio_venta} Bs</span>
+                                    <span style={{ color: '#059669' }}>{effectivePrice} Bs</span>
                                     <span style={{ color: isOutOfStock ? '#ef4444' : '#9ca3af' }}>
-                                      {isOutOfStock ? 'Agotado' : `Stock: ${p.stock_actual}`}
+                                      {isOutOfStock ? 'Agotado' : `Stock: ${availableStock}`}
                                     </span>
                                   </div>
                                 </div>
@@ -627,16 +776,16 @@ export default function VentasScreen({ user }) {
                                     <input
                                       type="number"
                                       min="1"
-                                      max={p.stock_actual}
+                                      max={availableStock}
                                       value={curQty}
                                       onChange={(e) => {
-                                        const val = Math.max(1, Math.min(p.stock_actual, parseInt(e.target.value) || 1));
+                                        const val = Math.max(1, Math.min(availableStock, parseInt(e.target.value) || 1));
                                         setQuantitiesByProduct(prev => ({ ...prev, [p.id_producto]: val }));
                                       }}
                                       style={{ width: '45px', padding: '6px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '11px', textAlign: 'center', outline: 'none' }}
                                     />
                                     <button
-                                      onClick={() => handleAddProductToSale(p, curQty)}
+                                      onClick={() => handleAddProductToSale(p, curQty, selectedVariant)}
                                       style={{
                                         padding: '6px 12px',
                                         background: '#059669',
@@ -676,7 +825,7 @@ export default function VentasScreen({ user }) {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       {saleItems.map(item => (
-                        <div key={item.id_producto} style={{
+                        <div key={item.cart_key} style={{
                           background: '#ffffff',
                           border: '1px solid #f3f4f6',
                           borderRadius: '12px',
@@ -689,6 +838,9 @@ export default function VentasScreen({ user }) {
                         }}>
                           <div style={{ minWidth: 0, flex: 1 }}>
                             <div style={{ fontWeight: 'bold', color: '#1f2937' }} className="truncate">{item.nombre}</div>
+                            {item.nombre_variante ? (
+                              <div style={{ fontSize: '9px', color: '#6b7280', marginTop: '2px' }}>{item.nombre_variante}</div>
+                            ) : null}
                             <div style={{ fontSize: '9px', color: '#6b7280', marginTop: '2px' }}>
                               {item.cantidad} x {item.precio_unitario.toFixed(2)} Bs
                             </div>
@@ -696,7 +848,7 @@ export default function VentasScreen({ user }) {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <span style={{ fontWeight: 'extrabold', color: '#059669' }}>{item.subtotal.toFixed(2)} Bs</span>
                             <button
-                              onClick={() => handleRemoveItem(item.id_producto)}
+                              onClick={() => handleRemoveItem(item.cart_key)}
                               style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
                             >
                               ✕

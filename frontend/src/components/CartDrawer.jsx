@@ -17,11 +17,35 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
   const { cartItems, updateQuantity, removeFromCart, cartTotal, clearCart } = useCart();
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(null);
+  const [checkout, setCheckout] = useState({
+    nombre_completo: "",
+    telefono: "",
+    email: "",
+    metodo_entrega: "retiro",
+    linea1: "",
+    ciudad: "",
+    region: "",
+    referencia: "",
+    metodo_pago: "acordar",
+    notas_cliente: "",
+  });
 
   if (!isOpen) return null;
 
   const handleCheckout = async () => {
     if (cartItems.length === 0 || isSubmitting) return;
+    if (!checkout.nombre_completo.trim() || !checkout.telefono.trim()) {
+      setError("Ingresa tu nombre y telefono para continuar.");
+      return;
+    }
+    if (
+      checkout.metodo_entrega === "delivery"
+      && (!checkout.linea1.trim() || !checkout.ciudad.trim())
+    ) {
+      setError("Ingresa la direccion y ciudad para el delivery.");
+      return;
+    }
 
     setError("");
     setIsSubmitting(true);
@@ -30,6 +54,7 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
       // Formatear detalles de venta para el endpoint del backend
       const detalles = cartItems.map((item) => ({
         id_producto: item.id,
+        id_variante: item.id_variante || null,
         cantidad: item.cantidad,
         precio_unitario: item.precio,
       }));
@@ -37,17 +62,40 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
       // Registrar venta silenciosa en base de datos
       const res = await axiosInstance.post(`/public/catalog/${slug}/checkout`, {
         id_cliente: null,
-        cliente_nuevo: null,
+        cliente_nuevo: {
+          nombre_completo: checkout.nombre_completo.trim(),
+          telefono: checkout.telefono.trim(),
+          email: checkout.email.trim() || null,
+          ciudad_region: checkout.ciudad.trim() || checkout.region.trim() || null,
+        },
         estado: "pendiente",
+        entrega: {
+          metodo: checkout.metodo_entrega,
+          destinatario: checkout.nombre_completo.trim(),
+          telefono: checkout.telefono.trim(),
+          linea1: checkout.linea1.trim() || null,
+          ciudad: checkout.ciudad.trim() || null,
+          region: checkout.region.trim() || null,
+          referencia: checkout.referencia.trim() || null,
+        },
+        metodo_pago: checkout.metodo_pago,
+        notas_cliente: checkout.notas_cliente.trim() || null,
         detalles: detalles,
       });
       if (res && res.data && res.data.id_venta) {
         ticketNum = String(res.data.id_venta).split("-")[0] || String(res.data.id_venta).substring(0, 8);
         
         // Redireccionar al WhatsApp de la tienda con el ticket y el slug
-        redirectToWhatsappOrder(whatsappNumber || "59170000000", cartItems, ticketNum, slug);
+        const trackingCode = res.data.codigo_seguimiento || ticketNum;
+        redirectToWhatsappOrder(
+          whatsappNumber || "59170000000",
+          cartItems,
+          ticketNum,
+          slug,
+          trackingCode,
+        );
         clearCart();
-        onClose();
+        setOrderSuccess({ ticketNum, trackingCode });
       } else {
         throw new Error("No se pudo obtener el número de ticket de venta.");
       }
@@ -180,6 +228,12 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
           overflow: hidden;
           text-overflow: ellipsis;
         }
+        .cart-item-variant {
+          margin: 3px 0 0;
+          color: var(--color-muted, #6b7280);
+          font-size: 0.72rem;
+          line-height: 1.3;
+        }
         .cart-item-price {
           font-size: 0.8rem;
           font-weight: 800;
@@ -244,6 +298,52 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
           display: flex;
           flex-direction: column;
           gap: 16px;
+          max-height: 68vh;
+          overflow-y: auto;
+        }
+        .checkout-form {
+          display: grid;
+          gap: 9px;
+        }
+        .checkout-form label {
+          display: grid;
+          gap: 4px;
+          color: var(--color-muted, #6b7280);
+          font-size: 0.7rem;
+          font-weight: 700;
+        }
+        .checkout-form input,
+        .checkout-form select,
+        .checkout-form textarea {
+          width: 100%;
+          box-sizing: border-box;
+          padding: 9px 10px;
+          border: 1px solid var(--border-soft, #e5e7eb);
+          border-radius: 10px;
+          background: #fff;
+          color: var(--color-text, #1f2937);
+          font: inherit;
+        }
+        .checkout-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+        .cart-success {
+          display: grid;
+          justify-items: center;
+          gap: 12px;
+          margin: auto 0;
+          padding: 24px;
+          text-align: center;
+        }
+        .cart-success-code {
+          padding: 10px 14px;
+          border-radius: 10px;
+          background: var(--color-background, #fff7fa);
+          font-size: 1.1rem;
+          font-weight: 900;
+          letter-spacing: 0.08em;
         }
         .cart-total-row {
           display: flex;
@@ -334,7 +434,31 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
 
         {/* Content list */}
         <div className="cart-items-container">
-          {cartItems.length === 0 ? (
+          {orderSuccess ? (
+            <div className="cart-success">
+              <div className="cart-success-code">#{orderSuccess.trackingCode}</div>
+              <h3>Pedido registrado</h3>
+              <p className="muted">
+                Guarda este codigo. Tambien incluimos el enlace de seguimiento en WhatsApp.
+              </p>
+              <a
+                className="btn btn-primary"
+                href={`?slug=${encodeURIComponent(slug)}&pedido=${encodeURIComponent(orderSuccess.trackingCode)}`}
+              >
+                Ver seguimiento
+              </a>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setOrderSuccess(null);
+                  onClose();
+                }}
+              >
+                Seguir comprando
+              </button>
+            </div>
+          ) : cartItems.length === 0 ? (
             <div className="cart-empty-state">
               <svg xmlns="http://www.w3.org/2000/svg" className="cart-icon-svg" style={{ width: '48px', height: '48px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -344,23 +468,27 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
             </div>
           ) : (
             cartItems.map((item) => (
-              <div key={item.id} className="cart-item">
+              <div key={item.cart_key || item.id} className="cart-item">
                 <div className="cart-item-details">
                   <h4 className="cart-item-name">{item.nombre}</h4>
+                  {item.nombre_variante ? (
+                    <p className="cart-item-variant">{item.nombre_variante}</p>
+                  ) : null}
                   <p className="cart-item-price">{formatPrice(item.precio)}</p>
                 </div>
 
                 {/* Controles de cantidad */}
                 <div className="cart-qty-controls">
                   <button
-                    onClick={() => updateQuantity(item.id, item.cantidad - 1)}
+                    onClick={() => updateQuantity(item.cart_key || item.id, item.cantidad - 1)}
                     className="cart-qty-btn"
                   >
                     -
                   </button>
                   <span className="cart-qty-number">{item.cantidad}</span>
                   <button
-                    onClick={() => updateQuantity(item.id, item.cantidad + 1)}
+                    onClick={() => updateQuantity(item.cart_key || item.id, item.cantidad + 1)}
+                    disabled={item.stock != null && item.cantidad >= Number(item.stock)}
                     className="cart-qty-btn"
                   >
                     +
@@ -369,7 +497,7 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
 
                 {/* Botón de eliminar */}
                 <button
-                  onClick={() => removeFromCart(item.id)}
+                  onClick={() => removeFromCart(item.cart_key || item.id)}
                   className="cart-delete-btn"
                   title="Eliminar producto"
                 >
@@ -383,11 +511,105 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
         </div>
 
         {/* Footer */}
-        {cartItems.length > 0 && (
+        {cartItems.length > 0 && !orderSuccess && (
           <footer className="cart-footer">
             <div className="cart-total-row">
               <span className="cart-total-label">Subtotal del pedido</span>
               <span className="cart-total-value">{formatPrice(cartTotal)}</span>
+            </div>
+
+            <div className="checkout-form">
+              <div className="checkout-grid">
+                <label>Nombre completo
+                  <input
+                    value={checkout.nombre_completo}
+                    onChange={(e) => setCheckout((current) => ({ ...current, nombre_completo: e.target.value }))}
+                    autoComplete="name"
+                    required
+                  />
+                </label>
+                <label>Telefono
+                  <input
+                    value={checkout.telefono}
+                    onChange={(e) => setCheckout((current) => ({ ...current, telefono: e.target.value }))}
+                    autoComplete="tel"
+                    inputMode="tel"
+                    required
+                  />
+                </label>
+              </div>
+              <label>Correo opcional
+                <input
+                  type="email"
+                  value={checkout.email}
+                  onChange={(e) => setCheckout((current) => ({ ...current, email: e.target.value }))}
+                  autoComplete="email"
+                />
+              </label>
+              <div className="checkout-grid">
+                <label>Forma de entrega
+                  <select
+                    value={checkout.metodo_entrega}
+                    onChange={(e) => setCheckout((current) => ({ ...current, metodo_entrega: e.target.value }))}
+                  >
+                    <option value="retiro">Retiro en tienda</option>
+                    <option value="delivery">Delivery</option>
+                  </select>
+                </label>
+                <label>Forma de pago
+                  <select
+                    value={checkout.metodo_pago}
+                    onChange={(e) => setCheckout((current) => ({ ...current, metodo_pago: e.target.value }))}
+                  >
+                    <option value="acordar">Acordar por WhatsApp</option>
+                    <option value="efectivo">Efectivo</option>
+                    <option value="transferencia">Transferencia</option>
+                  </select>
+                </label>
+              </div>
+              {checkout.metodo_entrega === "delivery" ? (
+                <>
+                  <label>Direccion
+                    <input
+                      value={checkout.linea1}
+                      onChange={(e) => setCheckout((current) => ({ ...current, linea1: e.target.value }))}
+                      autoComplete="street-address"
+                      required
+                    />
+                  </label>
+                  <div className="checkout-grid">
+                    <label>Ciudad
+                      <input
+                        value={checkout.ciudad}
+                        onChange={(e) => setCheckout((current) => ({ ...current, ciudad: e.target.value }))}
+                        autoComplete="address-level2"
+                        required
+                      />
+                    </label>
+                    <label>Zona o region
+                      <input
+                        value={checkout.region}
+                        onChange={(e) => setCheckout((current) => ({ ...current, region: e.target.value }))}
+                        autoComplete="address-level1"
+                      />
+                    </label>
+                  </div>
+                  <label>Referencia opcional
+                    <input
+                      value={checkout.referencia}
+                      onChange={(e) => setCheckout((current) => ({ ...current, referencia: e.target.value }))}
+                    />
+                  </label>
+                </>
+              ) : null}
+              <label>Notas opcionales
+                <textarea
+                  rows="2"
+                  value={checkout.notas_cliente}
+                  onChange={(e) => setCheckout((current) => ({ ...current, notas_cliente: e.target.value }))}
+                  placeholder="Indicaciones para preparar o entregar tu pedido"
+                />
+              </label>
             </div>
 
             {error && (

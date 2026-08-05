@@ -5,18 +5,31 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.deps import get_current_tienda_id, get_current_user, require_role
-from schemas.sales_schema import VentaCreate, VentaOut, VentaEstadoUpdate
+from schemas.sales_schema import (
+    ClienteAdminOut,
+    ClienteUpdate,
+    VentaCreate,
+    VentaEstadoUpdate,
+    VentaOut,
+)
 from crud.crud_sales import (
     create_venta,
+    get_cliente_detail,
     list_ventas,
+    list_clientes,
     get_venta,
     update_venta_estado,
+    update_cliente,
     get_dashboard_metrics,
     StockInsuficienteError,
 )
 from models.tenant import Usuario
 
 router = APIRouter(prefix="/api/sales", tags=["Sales"])
+
+
+def _venta_out(venta) -> VentaOut:
+    return VentaOut.model_validate(venta)
 
 
 def _resolve_target_tienda_id(
@@ -28,6 +41,88 @@ def _resolve_target_tienda_id(
     if current_user.rol == "superadmin":
         return requested_tienda_id or current_tienda_id
     return current_tienda_id
+
+
+@router.get(
+    "/clientes",
+    response_model=List[ClienteAdminOut],
+    dependencies=[Depends(require_role("superadmin", "admin", "empleado"))],
+)
+def api_list_clientes(
+    search: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=100, ge=1, le=200),
+    db: Session = Depends(get_db),
+    id_tienda: UUID = Depends(get_current_tienda_id),
+    current_user: Usuario = Depends(get_current_user),
+    id_tienda_target: UUID | None = Query(default=None, alias="id_tienda"),
+):
+    target_tienda_id = _resolve_target_tienda_id(
+        current_user=current_user,
+        current_tienda_id=id_tienda,
+        requested_tienda_id=id_tienda_target,
+    )
+    return list_clientes(
+        db,
+        id_tienda=target_tienda_id,
+        search=search,
+        limit=limit,
+    )
+
+
+@router.get(
+    "/clientes/{id_cliente}",
+    response_model=ClienteAdminOut,
+    dependencies=[Depends(require_role("superadmin", "admin", "empleado"))],
+)
+def api_get_cliente(
+    id_cliente: UUID,
+    db: Session = Depends(get_db),
+    id_tienda: UUID = Depends(get_current_tienda_id),
+    current_user: Usuario = Depends(get_current_user),
+    id_tienda_target: UUID | None = Query(default=None, alias="id_tienda"),
+):
+    target_tienda_id = _resolve_target_tienda_id(
+        current_user=current_user,
+        current_tienda_id=id_tienda,
+        requested_tienda_id=id_tienda_target,
+    )
+    cliente = get_cliente_detail(
+        db,
+        id_tienda=target_tienda_id,
+        id_cliente=id_cliente,
+    )
+    if cliente is None:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    return cliente
+
+
+@router.patch(
+    "/clientes/{id_cliente}",
+    response_model=ClienteAdminOut,
+    dependencies=[Depends(require_role("superadmin", "admin"))],
+)
+def api_update_cliente(
+    id_cliente: UUID,
+    payload: ClienteUpdate,
+    db: Session = Depends(get_db),
+    id_tienda: UUID = Depends(get_current_tienda_id),
+    current_user: Usuario = Depends(get_current_user),
+    id_tienda_target: UUID | None = Query(default=None, alias="id_tienda"),
+):
+    target_tienda_id = _resolve_target_tienda_id(
+        current_user=current_user,
+        current_tienda_id=id_tienda,
+        requested_tienda_id=id_tienda_target,
+    )
+    cliente = update_cliente(
+        db,
+        id_tienda=target_tienda_id,
+        id_cliente=id_cliente,
+        payload=payload,
+    )
+    if cliente is None:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    return cliente
 
 
 @router.post(
@@ -51,15 +146,7 @@ def api_create_venta(
         )
         venta = create_venta(db=db, id_tienda=target_tienda_id, payload=payload)
 
-        return VentaOut(
-            id_venta=venta.id_venta,
-            id_tienda=venta.id_tienda,
-            id_cliente=venta.id_cliente,
-            fecha_venta=venta.fecha_venta,
-            estado=venta.estado,
-            total_venta=venta.total_venta,
-            detalles=venta.detalles or [],
-        )
+        return _venta_out(venta)
     except StockInsuficienteError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
@@ -87,16 +174,7 @@ def api_list_ventas(
     ventas = list_ventas(db=db, id_tienda=target_tienda_id, limit=limit, offset=offset)
 
     return [
-        VentaOut(
-            id_venta=v.id_venta,
-            id_tienda=v.id_tienda,
-            id_cliente=v.id_cliente,
-            fecha_venta=v.fecha_venta,
-            estado=v.estado,
-            total_venta=v.total_venta,
-            detalles=v.detalles,
-            cliente=v.cliente,
-        )
+        _venta_out(v)
         for v in ventas
     ]
 
@@ -122,16 +200,7 @@ def api_get_venta(
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
-    return VentaOut(
-        id_venta=venta.id_venta,
-        id_tienda=venta.id_tienda,
-        id_cliente=venta.id_cliente,
-        fecha_venta=venta.fecha_venta,
-        estado=venta.estado,
-        total_venta=venta.total_venta,
-        detalles=venta.detalles or [],
-        cliente=venta.cliente,
-    )
+    return _venta_out(venta)
 
 
 @router.patch(
@@ -158,17 +227,10 @@ def api_update_venta_estado(
             id_tienda=target_tienda_id,
             id_venta=id_venta,
             nuevo_estado=payload.estado,
+            id_usuario=current_user.id_usuario,
+            nota=payload.nota,
         )
-        return VentaOut(
-            id_venta=venta.id_venta,
-            id_tienda=venta.id_tienda,
-            id_cliente=venta.id_cliente,
-            fecha_venta=venta.fecha_venta,
-            estado=venta.estado,
-            total_venta=venta.total_venta,
-            detalles=venta.detalles or [],
-            cliente=venta.cliente,
-        )
+        return _venta_out(venta)
     except StockInsuficienteError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:

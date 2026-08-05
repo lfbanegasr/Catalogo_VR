@@ -5,7 +5,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import inspect, or_, select
+from sqlalchemy import and_, inspect, or_, select
 from sqlalchemy.orm import Session
 
 from models.catalog import Categoria, Oferta, OfertaCategoria, OfertaProducto, Producto
@@ -290,15 +290,125 @@ def apply_offer_to_products(
     products: list[dict[str, Any]],
     now: datetime | None = None,
 ) -> tuple[list[dict[str, Any]], list[Oferta]]:
+    context = load_offer_pricing_context(
+        db=db,
+        id_tienda=id_tienda,
+        products=products,
+        now=now,
+    )
+    return apply_offer_pricing_context(products=products, context=context), context["active_offers"]
+
+
+def load_offer_pricing_context(
+    db: Session,
+    *,
+    id_tienda: UUID,
+    products: list[dict[str, Any]],
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Load offer rules once so products and variants can reuse them."""
     if not products:
-        return products, []
+        return {"active_offers": [], "product_rows": [], "category_rows": []}
 
     now = now or datetime.utcnow()
-    product_ids = [UUID(str(item["id"])) for item in products if item.get("id")]
+    product_ids = list({UUID(str(item["id"])) for item in products if item.get("id")})
     if not product_ids:
-        return products, []
+        return {"active_offers": [], "product_rows": [], "category_rows": []}
 
-    active_offers = get_active_offers_for_tienda(db=db, id_tienda=id_tienda, now=now)
+    target_rows = db.execute(
+        select(
+            Oferta,
+            OfertaProducto.id_producto,
+            OfertaProducto.precio_override,
+            OfertaCategoria.id_categoria,
+        )
+        .outerjoin(
+            OfertaProducto,
+            and_(
+                OfertaProducto.id_oferta == Oferta.id_oferta,
+                OfertaProducto.activo.is_(True),
+            ),
+        )
+        .outerjoin(
+            OfertaCategoria,
+            and_(
+                OfertaCategoria.id_oferta == Oferta.id_oferta,
+                OfertaCategoria.activo.is_(True),
+            ),
+        )
+        .where(
+            Oferta.id_tienda == id_tienda,
+            Oferta.activa.is_(True),
+            or_(Oferta.fecha_inicio.is_(None), Oferta.fecha_inicio <= now),
+            or_(Oferta.fecha_fin.is_(None), Oferta.fecha_fin >= now),
+        )
+        .order_by(Oferta.prioridad.desc(), Oferta.created_at.desc())
+    ).all()
+
+    active_offers: list[Oferta] = []
+    seen_offer_ids = set()
+    product_rows = []
+    seen_product_targets = set()
+    category_rows = []
+    seen_category_targets = set()
+    for offer, product_id, price_override, category_id in target_rows:
+        if offer.id_oferta not in seen_offer_ids:
+            active_offers.append(offer)
+            seen_offer_ids.add(offer.id_oferta)
+        if product_id is not None:
+            product_key = (offer.id_oferta, product_id)
+            if product_key not in seen_product_targets:
+                product_rows.append(
+                    (
+                        product_id,
+                        offer.id_oferta,
+                        offer.nombre,
+                        offer.tipo,
+                        offer.porcentaje,
+                        offer.prioridad,
+                        offer.banner_url,
+                        offer.badge_text,
+                        offer.fecha_inicio,
+                        offer.fecha_fin,
+                        price_override,
+                    ),
+                )
+                seen_product_targets.add(product_key)
+        if category_id is not None:
+            category_key = (offer.id_oferta, category_id)
+            if category_key not in seen_category_targets:
+                category_rows.append(
+                    (
+                        category_id,
+                        offer.id_oferta,
+                        offer.nombre,
+                        offer.tipo,
+                        offer.porcentaje,
+                        offer.prioridad,
+                        offer.banner_url,
+                        offer.badge_text,
+                        offer.fecha_inicio,
+                        offer.fecha_fin,
+                    ),
+                )
+                seen_category_targets.add(category_key)
+
+    return {
+        "active_offers": active_offers,
+        "product_rows": product_rows,
+        "category_rows": category_rows,
+    }
+
+
+def apply_offer_pricing_context(
+    *,
+    products: list[dict[str, Any]],
+    context: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Apply preloaded offer rules without additional database queries."""
+    active_offers = context["active_offers"]
+    product_rows = context["product_rows"]
+    category_rows = context["category_rows"]
     if not active_offers:
         for item in products:
             original = _round_money(item["precio"])
@@ -307,62 +417,13 @@ def apply_offer_to_products(
             item["descuento_pct"] = None
             item["badge_text"] = None
             item["id_oferta_aplicada"] = None
-        return products, []
+        return products
 
-    active_offer_ids = [offer.id_oferta for offer in active_offers]
-    product_rows = db.execute(
-        select(
-            OfertaProducto.id_producto,
-            Oferta.id_oferta,
-            Oferta.nombre,
-            Oferta.tipo,
-            Oferta.porcentaje,
-            Oferta.prioridad,
-            Oferta.banner_url,
-            Oferta.badge_text,
-            Oferta.fecha_inicio,
-            Oferta.fecha_fin,
-            OfertaProducto.precio_override,
-        )
-        .join(Oferta, Oferta.id_oferta == OfertaProducto.id_oferta)
-        .where(
-            OfertaProducto.id_producto.in_(product_ids),
-            OfertaProducto.id_oferta.in_(active_offer_ids),
-            OfertaProducto.activo.is_(True),
-        )
-    ).all()
-    category_ids = list(
-        {
-            UUID(str(item["categoria_id"]))
-            for item in products
-            if item.get("categoria_id")
-        },
-    )
-    category_rows = []
-    if category_ids and _offer_categories_table_exists(db):
-        category_rows = db.execute(
-            select(
-                OfertaCategoria.id_categoria,
-                Oferta.id_oferta,
-                Oferta.nombre,
-                Oferta.tipo,
-                Oferta.porcentaje,
-                Oferta.prioridad,
-                Oferta.banner_url,
-                Oferta.badge_text,
-                Oferta.fecha_inicio,
-                Oferta.fecha_fin,
-            )
-            .join(Oferta, Oferta.id_oferta == OfertaCategoria.id_oferta)
-            .where(
-                OfertaCategoria.id_categoria.in_(category_ids),
-                OfertaCategoria.id_oferta.in_(active_offer_ids),
-                OfertaCategoria.activo.is_(True),
-            )
-        ).all()
-
-    products_by_id = {UUID(str(item["id"])): item for item in products if item.get("id")}
-    winners: dict[UUID, dict[str, Any]] = {}
+    products_by_id: dict[UUID, list[tuple[int, dict[str, Any]]]] = {}
+    for item_index, item in enumerate(products):
+        if item.get("id"):
+            products_by_id.setdefault(UUID(str(item["id"])), []).append((item_index, item))
+    winners: dict[int, dict[str, Any]] = {}
     for (
         id_producto,
         id_oferta,
@@ -376,41 +437,39 @@ def apply_offer_to_products(
         fecha_fin,
         precio_override,
     ) in product_rows:
-        product = products_by_id.get(id_producto)
-        if not product:
-            continue
-        base_price = _round_money(product["precio"])
-        final_price, discount_pct = _calculate_final_price(
-            base_price=base_price,
-            offer_type=tipo,
-            porcentaje=porcentaje,
-            precio_override=precio_override,
-        )
-        if final_price is None:
-            continue
-        candidate = {
-            "id_oferta": id_oferta,
-            "nombre": nombre,
-            "tipo": tipo,
-            "porcentaje": porcentaje,
-            "prioridad": prioridad,
-            "banner_url": banner_url,
-            "badge_text": badge_text,
-            "fecha_inicio": fecha_inicio,
-            "fecha_fin": fecha_fin,
-            "precio_final": final_price,
-            "descuento_pct": discount_pct,
-            "scope_rank": 3,
-        }
-        current = winners.get(id_producto)
-        if _is_better_candidate(current, candidate):
-            winners[id_producto] = candidate
+        for item_index, product in products_by_id.get(id_producto, []):
+            base_price = _round_money(product["precio"])
+            final_price, discount_pct = _calculate_final_price(
+                base_price=base_price,
+                offer_type=tipo,
+                porcentaje=porcentaje,
+                precio_override=precio_override,
+            )
+            if final_price is None:
+                continue
+            candidate = {
+                "id_oferta": id_oferta,
+                "nombre": nombre,
+                "tipo": tipo,
+                "porcentaje": porcentaje,
+                "prioridad": prioridad,
+                "banner_url": banner_url,
+                "badge_text": badge_text,
+                "fecha_inicio": fecha_inicio,
+                "fecha_fin": fecha_fin,
+                "precio_final": final_price,
+                "descuento_pct": discount_pct,
+                "scope_rank": 3,
+            }
+            current = winners.get(item_index)
+            if _is_better_candidate(current, candidate):
+                winners[item_index] = candidate
 
     category_offers_by_category: dict[UUID, list[tuple[Any, ...]]] = {}
     for row in category_rows:
         category_offers_by_category.setdefault(row[0], []).append(row)
 
-    for item in products:
+    for item_index, item in enumerate(products):
         categoria_id = item.get("categoria_id")
         if not categoria_id:
             continue
@@ -451,10 +510,9 @@ def apply_offer_to_products(
                 "descuento_pct": discount_pct,
                 "scope_rank": 2,
             }
-            product_id = UUID(str(item["id"]))
-            current = winners.get(product_id)
+            current = winners.get(item_index)
             if _is_better_candidate(current, candidate):
-                winners[product_id] = candidate
+                winners[item_index] = candidate
 
     offers_with_category_target = {
         row[1] for row in category_rows
@@ -465,8 +523,7 @@ def apply_offer_to_products(
         and offer.id_oferta not in offers_with_category_target
     ]
 
-    for item in products:
-        product_id = UUID(str(item["id"]))
+    for item_index, item in enumerate(products):
         for offer in global_offers:
             base_price = _round_money(item["precio"])
             final_price, discount_pct = _calculate_final_price(
@@ -491,17 +548,17 @@ def apply_offer_to_products(
                 "descuento_pct": discount_pct,
                 "scope_rank": 1,
             }
-            current = winners.get(product_id)
+            current = winners.get(item_index)
             if _is_better_candidate(current, candidate):
-                winners[product_id] = candidate
+                winners[item_index] = candidate
 
-    for item in products:
+    for item_index, item in enumerate(products):
         base_price = _round_money(item["precio"])
-        winner = winners.get(UUID(item["id"]))
+        winner = winners.get(item_index)
         item["precio_original"] = float(base_price)
         item["precio_final"] = float(winner["precio_final"]) if winner else float(base_price)
         item["descuento_pct"] = float(winner["descuento_pct"]) if winner and winner["descuento_pct"] is not None else None
         item["badge_text"] = winner["badge_text"] if winner else None
         item["id_oferta_aplicada"] = str(winner["id_oferta"]) if winner else None
 
-    return products, active_offers
+    return products

@@ -62,6 +62,9 @@ def save_upload_file(file: UploadFile, subfolder: str, entity_id: UUID) -> str:
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
     filename = f"{entity_id}_{timestamp}{ext}"
 
+    if settings.STORAGE_BACKEND.strip().lower() == "r2":
+        return _save_upload_to_r2(file, subfolder, filename, content_type, size)
+
     # 5. Resolve target directory and final path
     uploads_base_path = settings.UPLOADS_PATH
     target_dir = uploads_base_path / subfolder
@@ -102,6 +105,51 @@ def save_upload_file(file: UploadFile, subfolder: str, entity_id: UUID) -> str:
     print(f"[storage] public_path={public_path}", flush=True)
 
     return public_path
+
+
+def _save_upload_to_r2(
+    file: UploadFile,
+    subfolder: str,
+    filename: str,
+    content_type: str,
+    size: int,
+) -> str:
+    object_key = f"{subfolder.strip('/')}/{filename}"
+    try:
+        import boto3
+        from botocore.config import Config
+
+        client = boto3.client(
+            "s3",
+            endpoint_url=settings.R2_ENDPOINT_URL.rstrip("/"),
+            aws_access_key_id=settings.R2_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
+            region_name="auto",
+            config=Config(signature_version="s3v4"),
+        )
+        file.file.seek(0)
+        client.upload_fileobj(
+            file.file,
+            settings.R2_BUCKET_NAME,
+            object_key,
+            ExtraArgs={
+                "ContentType": content_type,
+                "CacheControl": "public, max-age=31536000, immutable",
+            },
+        )
+    except Exception as exc:
+        logger.exception("No se pudo guardar la imagen en R2")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="No se pudo guardar la imagen en el almacenamiento externo.",
+        ) from exc
+    finally:
+        file.file.close()
+
+    public_url = f"{settings.R2_PUBLIC_BASE_URL.rstrip('/')}/{object_key}"
+    print(f"[storage] backend=r2 key={object_key}", flush=True)
+    print(f"[storage] size={size}", flush=True)
+    return public_url
 
 
 def build_public_asset_url(path: Optional[str]) -> Optional[str]:

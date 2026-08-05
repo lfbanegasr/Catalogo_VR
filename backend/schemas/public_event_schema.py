@@ -1,10 +1,16 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 
 class PublicWhatsappClickIn(BaseModel):
+    id_producto: UUID | None = Field(default=None)
+
+
+class PublicEventIn(BaseModel):
+    evento: Literal["catalog_view", "product_view", "search", "whatsapp_click"]
     id_producto: UUID | None = Field(default=None)
 
 

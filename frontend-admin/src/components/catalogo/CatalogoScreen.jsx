@@ -20,10 +20,52 @@ export default function CatalogoScreen({ isSuperadmin }) {
   const [productQuery, setProductQuery] = useState("");
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
-  const [form, setForm] = useState(tab === "categorias" ? { nombre: "", activa: true } : { nombre: "", descripcion: "", precio_venta: 0, stock_actual: 0, nombre_categoria: "", activo: true });
+  const [attributeForm, setAttributeForm] = useState({
+    nombre: "",
+    tipo_dato: "OPTION",
+    unidad: "",
+    permite_multiples: false,
+    usable_en_variantes: false,
+    activo: true,
+  });
+  const [attributeCategoryId, setAttributeCategoryId] = useState("");
+  const [selectedCategoryAttributeIds, setSelectedCategoryAttributeIds] = useState([]);
+  const [variantCategoryAttributeIds, setVariantCategoryAttributeIds] = useState([]);
+  const [editingProductAttributeConfig, setEditingProductAttributeConfig] = useState([]);
+  const [editingProductAttributeValues, setEditingProductAttributeValues] = useState({});
+  const [editingVariants, setEditingVariants] = useState([]);
+  const [variantBusy, setVariantBusy] = useState(false);
+  const [variantForm, setVariantForm] = useState({
+    sku: "",
+    precio_venta: "",
+    costo_adquisicion: "",
+    stock_actual: 0,
+    es_predeterminada: false,
+    atributos: {},
+  });
+  const [form, setForm] = useState(tab === "categorias" ? { nombre: "", id_categoria_padre: "", orden: 0, activa: true } : { nombre: "", descripcion: "", precio_venta: 0, stock_actual: 0, id_categoria_principal: "", activo: true });
+  const categoryOptions = useMemo(() => {
+    const byId = new Map(categoriasDisponibles.map((category) => [category.id_categoria, category]));
+    const labelFor = (category) => {
+      const names = [category.nombre];
+      const visited = new Set([category.id_categoria]);
+      let parentId = category.id_categoria_padre;
+      while (parentId && byId.has(parentId) && !visited.has(parentId)) {
+        visited.add(parentId);
+        const parent = byId.get(parentId);
+        names.unshift(parent.nombre);
+        parentId = parent.id_categoria_padre;
+      }
+      return names.join(" > ");
+    };
+    return categoriasDisponibles.map((category) => ({
+      ...category,
+      label: labelFor(category),
+    }));
+  }, [categoriasDisponibles]);
   const categoriaMap = useMemo(
-    () => new Map(categoriasDisponibles.map((c) => [c.id_categoria, c.nombre])),
-    [categoriasDisponibles],
+    () => new Map(categoryOptions.map((c) => [c.id_categoria, c.label])),
+    [categoryOptions],
   );
   const selectedStore = useMemo(
     () => stores.find((store) => store.id_tienda === tenantId) || null,
@@ -36,7 +78,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
     const query = productQuery.trim().toLowerCase();
     return rows.filter((product) => {
       if (categoriaFiltro) {
-        const categoriaId = String(product.id_categoria || "");
+        const categoriaId = String(product.id_categoria_principal || product.id_categoria || "");
         if (categoriaId !== categoriaFiltro) return false;
       }
       if (!query) return true;
@@ -67,17 +109,146 @@ export default function CatalogoScreen({ isSuperadmin }) {
     }
     return matches;
   }, [rows, productQuery]);
+  const variantAttributeConfig = useMemo(
+    () => editingProductAttributeConfig.filter(
+      (config) =>
+        config.usado_en_variantes
+        && config.atributo?.usable_en_variantes
+        && config.atributo?.tipo_dato === "OPTION",
+    ),
+    [editingProductAttributeConfig],
+  );
   const assertStoreSelected = () => {
     if (isSuperadmin && !selectedStoreRef) {
       throw new Error("Selecciona una tienda");
+    }
+  };
+  const openProductEditor = async (product) => {
+    const categoryId = product.id_categoria_principal || product.id_categoria || "";
+    setEditing({
+      mode: "producto",
+      row: {
+        ...product,
+        id_categoria_principal: categoryId,
+        imagenes: product.imagenes && product.imagenes.length > 0
+          ? product.imagenes
+          : (product.imagen_url ? [product.imagen_url] : []),
+      },
+    });
+    setEditingProductAttributeConfig([]);
+    setEditingProductAttributeValues({});
+    setEditingVariants([]);
+    setVariantForm({
+      sku: "",
+      precio_venta: "",
+      costo_adquisicion: "",
+      stock_actual: 0,
+      es_predeterminada: false,
+      atributos: {},
+    });
+    try {
+      const variantsPromise = api.listVariantes(product.id_producto);
+      if (!categoryId) {
+        setEditingVariants(await variantsPromise);
+        return;
+      }
+      const [config, values, variants] = await Promise.all([
+        api.listCategoriaAtributos(categoryId),
+        api.listProductoAtributos(product.id_producto),
+        variantsPromise,
+      ]);
+      setEditingProductAttributeConfig(config);
+      setEditingVariants(variants);
+      const valueMap = {};
+      values.forEach((item) => {
+        valueMap[item.id_atributo] = item.id_opcion || item.valor;
+      });
+      setEditingProductAttributeValues(valueMap);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  const buildProductAttributePayload = () =>
+    editingProductAttributeConfig
+      .filter((config) => {
+        const value = editingProductAttributeValues[config.id_atributo];
+        return value !== undefined && value !== null && value !== "";
+      })
+      .map((config) => {
+        const attribute = config.atributo;
+        const value = editingProductAttributeValues[config.id_atributo];
+        if (attribute.tipo_dato === "OPTION") {
+          return { id_atributo: attribute.id_atributo, id_opcion: value };
+        }
+        if (attribute.tipo_dato === "NUMBER") {
+          return { id_atributo: attribute.id_atributo, valor_numero: Number(value) };
+        }
+        if (attribute.tipo_dato === "BOOLEAN") {
+          return {
+            id_atributo: attribute.id_atributo,
+            valor_booleano: value === true || value === "true",
+          };
+        }
+        return { id_atributo: attribute.id_atributo, valor_texto: String(value) };
+      });
+
+  const createEditingVariant = async () => {
+    if (!editing?.row?.id_producto) return;
+    const atributos = variantAttributeConfig.map((config) => ({
+      id_atributo: config.id_atributo,
+      id_opcion: variantForm.atributos[config.id_atributo],
+    }));
+    if (atributos.length === 0 || atributos.some((item) => !item.id_opcion)) {
+      throw new Error("Selecciona una opcion para cada atributo de la variante.");
+    }
+    const optionalNumber = (value) => value === "" || value == null ? null : Number(value);
+    setVariantBusy(true);
+    try {
+      await api.createVariante(editing.row.id_producto, {
+        sku: variantForm.sku.trim() || null,
+        precio_venta: optionalNumber(variantForm.precio_venta),
+        costo_adquisicion: optionalNumber(variantForm.costo_adquisicion),
+        stock_actual: Number(variantForm.stock_actual || 0),
+        es_predeterminada: variantForm.es_predeterminada,
+        atributos,
+      });
+      setEditingVariants(await api.listVariantes(editing.row.id_producto));
+      setVariantForm({
+        sku: "",
+        precio_venta: "",
+        costo_adquisicion: "",
+        stock_actual: 0,
+        es_predeterminada: false,
+        atributos: {},
+      });
+    } finally {
+      setVariantBusy(false);
+    }
+  };
+
+  const saveEditingVariant = async (variant) => {
+    const optionalNumber = (value) => value === "" || value == null ? null : Number(value);
+    setVariantBusy(true);
+    try {
+      await api.updateVariante(variant.id_variante, {
+        sku: variant.sku,
+        precio_venta: optionalNumber(variant.precio_venta),
+        costo_adquisicion: optionalNumber(variant.costo_adquisicion),
+        stock_actual: Number(variant.stock_actual || 0),
+        activa: Boolean(variant.activa),
+        es_predeterminada: Boolean(variant.es_predeterminada),
+      });
+      setEditingVariants(await api.listVariantes(editing.row.id_producto));
+    } finally {
+      setVariantBusy(false);
     }
   };
 
   const resetFormForTab = (nextTab) =>
     setForm(
       nextTab === "categorias"
-        ? { nombre: "", activa: true }
-        : { nombre: "", descripcion: "", precio_venta: 0, stock_actual: 0, nombre_categoria: "", activo: true },
+        ? { nombre: "", id_categoria_padre: "", orden: 0, activa: true }
+        : { nombre: "", descripcion: "", precio_venta: 0, stock_actual: 0, id_categoria_principal: "", activo: true },
     );
 
   const loadStores = async () => {
@@ -97,10 +268,17 @@ export default function CatalogoScreen({ isSuperadmin }) {
     }
     const data = tab === "categorias"
       ? await api.listCategorias(selectedStoreRef)
-      : await api.listProductos(selectedStoreRef);
+      : tab === "atributos"
+        ? await api.listAtributos(selectedStoreRef)
+        : await api.listProductos(selectedStoreRef);
     setRows(data);
     if (tab === "categorias") {
       setCategoriasDisponibles(data);
+      return;
+    }
+    if (tab === "atributos") {
+      const categorias = await api.listCategorias(selectedStoreRef);
+      setCategoriasDisponibles(categorias);
       return;
     }
     const categorias = await api.listCategorias(selectedStoreRef);
@@ -220,6 +398,171 @@ export default function CatalogoScreen({ isSuperadmin }) {
       setProductSearchOpen(false);
     }
   }, [tab, selectedStoreRef]);
+  useEffect(() => {
+    if (tab !== "atributos" || !attributeCategoryId) {
+      setSelectedCategoryAttributeIds([]);
+      setVariantCategoryAttributeIds([]);
+      return;
+    }
+    api.listCategoriaAtributos(attributeCategoryId)
+      .then((items) => {
+        setSelectedCategoryAttributeIds(items.map((item) => item.id_atributo));
+        setVariantCategoryAttributeIds(
+          items.filter((item) => item.usado_en_variantes).map((item) => item.id_atributo),
+        );
+      })
+      .catch((e) => setError(e.message));
+  }, [tab, attributeCategoryId, selectedStoreRef]);
+
+  if (tab === "atributos") {
+    return (
+      <Card title="Atributos del catalogo" className="catalog-compact">
+        <div className="catalog-toolbar">
+          <div className="catalog-tabs">
+            <button className="tab-btn" onClick={() => setTab("categorias")}>Categorias</button>
+            <button className="tab-btn" onClick={() => setTab("productos")}>Productos</button>
+            <button className="tab-btn active" onClick={() => setTab("atributos")}>Atributos</button>
+          </div>
+          <div className="catalog-controls">
+            {isSuperadmin ? (
+              <StoreRefPicker stores={stores} value={tenantId} onChange={setTenantId} required />
+            ) : <div className="catalog-controls-spacer" />}
+            <button className="btn btn-ghost" onClick={() => handleReload().catch((e) => setError(e.message))}>Recargar</button>
+          </div>
+        </div>
+        {error ? <p className="error-text">{error}</p> : null}
+
+        <div className="inline-editor">
+          <h4>Crear atributo</h4>
+          <form className="grid-form" onSubmit={async (event) => {
+            event.preventDefault();
+            try {
+              assertStoreSelected();
+              await api.createAtributo({
+                ...attributeForm,
+                unidad: attributeForm.unidad || null,
+              }, selectedStoreRef);
+              setAttributeForm({
+                nombre: "",
+                tipo_dato: "OPTION",
+                unidad: "",
+                permite_multiples: false,
+                usable_en_variantes: false,
+                activo: true,
+              });
+              await load();
+            } catch (e) { setError(e.message); }
+          }}>
+            <label>Nombre<input required value={attributeForm.nombre} onChange={(e) => setAttributeForm((current) => ({ ...current, nombre: e.target.value }))} /></label>
+            <label>Tipo<select value={attributeForm.tipo_dato} onChange={(e) => setAttributeForm((current) => ({ ...current, tipo_dato: e.target.value }))}>
+              <option value="OPTION">Lista de opciones</option>
+              <option value="TEXT">Texto</option>
+              <option value="NUMBER">Numero</option>
+              <option value="BOOLEAN">Si / No</option>
+            </select></label>
+            <label>Unidad opcional<input value={attributeForm.unidad} placeholder="cm, GB, kt..." onChange={(e) => setAttributeForm((current) => ({ ...current, unidad: e.target.value }))} /></label>
+            <label className="check-row"><input type="checkbox" checked={attributeForm.permite_multiples} onChange={(e) => setAttributeForm((current) => ({ ...current, permite_multiples: e.target.checked }))} />Permitir varios valores</label>
+            <label className="check-row"><input type="checkbox" checked={attributeForm.usable_en_variantes} onChange={(e) => setAttributeForm((current) => ({ ...current, usable_en_variantes: e.target.checked }))} />Usable en variantes</label>
+            <button className="btn btn-primary">Crear atributo</button>
+          </form>
+        </div>
+
+        <div className="table-wrap desktop-only">
+          <table className="data-table">
+            <thead><tr><th>Nombre</th><th>Tipo</th><th>Opciones</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody>
+              {rows.map((attribute) => (
+                <tr key={attribute.id_atributo}>
+                  <td className="font-semibold">{attribute.nombre}</td>
+                  <td>{attribute.tipo_dato}</td>
+                  <td>{(attribute.opciones || []).map((option) => option.valor).join(", ") || "-"}</td>
+                  <td><span className={attribute.activo ? "status-badge active" : "status-badge inactive"}>{attribute.activo ? "Activo" : "Inactivo"}</span></td>
+                  <td className="actions-cell">
+                    {attribute.tipo_dato === "OPTION" ? (
+                      <button className="btn btn-ghost" onClick={async () => {
+                        const value = window.prompt("Nueva opcion");
+                        if (!value || !value.trim()) return;
+                        try {
+                          await api.createAtributoOpcion(attribute.id_atributo, { valor: value.trim() });
+                          await load();
+                        } catch (e) { setError(e.message); }
+                      }}>Agregar opcion</button>
+                    ) : null}
+                    <button className="btn btn-ghost" onClick={async () => {
+                      try {
+                        await api.updateAtributo(attribute.id_atributo, { activo: !attribute.activo });
+                        await load();
+                      } catch (e) { setError(e.message); }
+                    }}>{attribute.activo ? "Desactivar" : "Activar"}</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="inline-editor">
+          <h4>Configurar atributos por categoria</h4>
+          <label>Categoria<select value={attributeCategoryId} onChange={(e) => setAttributeCategoryId(e.target.value)}>
+            <option value="">Selecciona una categoria</option>
+            {categoryOptions.map((category) => <option key={category.id_categoria} value={category.id_categoria}>{category.label}</option>)}
+          </select></label>
+          {attributeCategoryId ? (
+            <div className="grid-form">
+              {rows.filter((attribute) => attribute.activo).map((attribute) => {
+                const selected = selectedCategoryAttributeIds.includes(attribute.id_atributo);
+                const canBeVariant = attribute.usable_en_variantes && attribute.tipo_dato === "OPTION";
+                return (
+                  <div key={attribute.id_atributo}>
+                    <label className="check-row">
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(e) => {
+                          setSelectedCategoryAttributeIds((current) => e.target.checked
+                            ? [...current, attribute.id_atributo]
+                            : current.filter((id) => id !== attribute.id_atributo));
+                          if (!e.target.checked) {
+                            setVariantCategoryAttributeIds((current) =>
+                              current.filter((id) => id !== attribute.id_atributo));
+                          }
+                        }}
+                      />
+                      {attribute.nombre}
+                    </label>
+                    {selected && canBeVariant ? (
+                      <label className="check-row muted small">
+                        <input
+                          type="checkbox"
+                          checked={variantCategoryAttributeIds.includes(attribute.id_atributo)}
+                          onChange={(e) => setVariantCategoryAttributeIds((current) => e.target.checked
+                            ? [...current, attribute.id_atributo]
+                            : current.filter((id) => id !== attribute.id_atributo))}
+                        />
+                        Usar para crear variantes
+                      </label>
+                    ) : null}
+                  </div>
+                );
+              })}
+              <button className="btn btn-primary" type="button" onClick={async () => {
+                try {
+                  const selected = selectedCategoryAttributeIds.map((id, index) => ({
+                    id_atributo: id,
+                    requerido: false,
+                    filtrable: true,
+                    usado_en_variantes: variantCategoryAttributeIds.includes(id),
+                    orden: index,
+                  }));
+                  await api.replaceCategoriaAtributos(attributeCategoryId, selected);
+                } catch (e) { setError(e.message); }
+              }}>Guardar configuracion</button>
+            </div>
+          ) : <p className="muted">Selecciona una categoria para indicar sus caracteristicas.</p>}
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card title="Catálogo privado" className="catalog-compact">
@@ -227,6 +570,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
         <div className="catalog-tabs">
           <button className={`tab-btn ${tab === "categorias" ? "active" : ""}`} onClick={() => setTab("categorias")}>Categorías</button>
           <button className={`tab-btn ${tab === "productos" ? "active" : ""}`} onClick={() => setTab("productos")}>Productos</button>
+          <button className="tab-btn" onClick={() => setTab("atributos")}>Atributos</button>
         </div>
         <div className="catalog-controls">
           {isSuperadmin ? (
@@ -352,7 +696,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                       )}
                     </td>
                     <td className="actions-cell">
-                      <button className="btn btn-ghost" onClick={() => setEditing({ mode: "producto", row: { ...r, nombre_categoria: r.id_categoria ? (categoriaMap.get(r.id_categoria) || "") : "", imagenes: r.imagenes && r.imagenes.length > 0 ? r.imagenes : (r.imagen_url ? [r.imagen_url] : []) } })}>Editar</button>
+                      <button className="btn btn-ghost" onClick={() => openProductEditor(r)}>Editar</button>
                       <button className={`btn ${r.activo ? "btn-danger-ghost" : "btn-success-ghost"}`} onClick={async () => { try { assertStoreSelected(); await api.updateProducto(r.id_producto, { activo: !r.activo }, selectedStoreRef); await load(); } catch (e) { setError(e.message); } }}>{r.activo ? "Desactivar" : "Activar"}</button>
                       <ImageDropZone
                         compact
@@ -450,7 +794,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     {r.activo ? "Activo" : "Inactivo"}
                   </span>
                   <div className="card-actions">
-                    <button className="btn btn-ghost" onClick={() => setEditing({ mode: "producto", row: { ...r, nombre_categoria: r.id_categoria ? (categoriaMap.get(r.id_categoria) || "") : "", imagenes: r.imagenes && r.imagenes.length > 0 ? r.imagenes : (r.imagen_url ? [r.imagen_url] : []) } })}>
+                    <button className="btn btn-ghost" onClick={() => openProductEditor(r)}>
                       Editar
                     </button>
                     <button 
@@ -509,14 +853,243 @@ export default function CatalogoScreen({ isSuperadmin }) {
           <div className="grid-form">
             <label>Nombre<input value={editing.row.nombre || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, nombre: e.target.value } }))} /></label>
             {editing.mode === "categoria" ? (
-              <label className="check-row"><input type="checkbox" checked={!!editing.row.activa} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, activa: e.target.checked } }))} />Activa</label>
+              <>
+                <label>Categoría padre<select value={editing.row.id_categoria_padre || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, id_categoria_padre: e.target.value || null } }))}><option value="">Categoría raíz</option>{categoryOptions.filter((c) => c.id_categoria !== editing.row.id_categoria).map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
+                <label>Orden<input type="number" min="0" value={editing.row.orden || 0} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, orden: Number(e.target.value || 0) } }))} /></label>
+                <label className="check-row"><input type="checkbox" checked={!!editing.row.activa} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, activa: e.target.checked } }))} />Activa</label>
+              </>
             ) : (
               <>
                 <label>Descripción<textarea value={editing.row.descripcion || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, descripcion: e.target.value } }))} /></label>
                 <label>Precio<input type="number" step="0.01" value={editing.row.precio_venta || 0} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, precio_venta: e.target.value } }))} /></label>
                 <label>Stock<input type="number" value={editing.row.stock_actual || 0} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, stock_actual: e.target.value } }))} /></label>
-                <label>Categoría<select value={editing.row.nombre_categoria || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, nombre_categoria: e.target.value } }))}><option value="">Sin categoría</option>{categoriasDisponibles.map((c) => <option key={c.id_categoria} value={c.nombre}>{c.nombre}</option>)}</select></label>
+                <label>Categoría<select value={editing.row.id_categoria_principal || editing.row.id_categoria || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, id_categoria_principal: e.target.value || null } }))}><option value="">Sin categoría</option>{categoryOptions.map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
+                {editingProductAttributeConfig.length > 0 ? (
+                  <div className="grid-form">
+                    <strong>Caracteristicas del producto</strong>
+                    {editingProductAttributeConfig.map((config) => {
+                      const attribute = config.atributo;
+                      const value = editingProductAttributeValues[attribute.id_atributo] ?? "";
+                      if (attribute.tipo_dato === "OPTION") {
+                        return (
+                          <label key={attribute.id_atributo}>{attribute.nombre}
+                            <select value={value} onChange={(e) => setEditingProductAttributeValues((current) => ({ ...current, [attribute.id_atributo]: e.target.value }))}>
+                              <option value="">Sin especificar</option>
+                              {(attribute.opciones || []).filter((option) => option.activo).map((option) => <option key={option.id_opcion} value={option.id_opcion}>{option.valor}</option>)}
+                            </select>
+                          </label>
+                        );
+                      }
+                      if (attribute.tipo_dato === "BOOLEAN") {
+                        return (
+                          <label key={attribute.id_atributo}>{attribute.nombre}
+                            <select value={String(value)} onChange={(e) => setEditingProductAttributeValues((current) => ({ ...current, [attribute.id_atributo]: e.target.value }))}>
+                              <option value="">Sin especificar</option>
+                              <option value="true">Si</option>
+                              <option value="false">No</option>
+                            </select>
+                          </label>
+                        );
+                      }
+                      return (
+                        <label key={attribute.id_atributo}>{attribute.nombre}
+                          <input
+                            type={attribute.tipo_dato === "NUMBER" ? "number" : "text"}
+                            step={attribute.tipo_dato === "NUMBER" ? "any" : undefined}
+                            value={value}
+                            onChange={(e) => setEditingProductAttributeValues((current) => ({ ...current, [attribute.id_atributo]: e.target.value }))}
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 {/* --- NUEVO GESTOR DE IMÁGENES INTERACTIVO --- */}
+                <div className="variant-manager">
+                  <div className="image-manager-gallery-title">
+                    <span>Variantes e inventario ({editingVariants.length})</span>
+                    <span className="muted small">Cada combinacion mantiene su propio precio y stock</span>
+                  </div>
+
+                  {variantAttributeConfig.length > 0 ? (
+                    <div className="grid-form">
+                      <strong>Nueva variante</strong>
+                      {variantAttributeConfig.map((config) => (
+                        <label key={config.id_atributo}>{config.atributo.nombre}
+                          <select
+                            value={variantForm.atributos[config.id_atributo] || ""}
+                            onChange={(e) => setVariantForm((current) => ({
+                              ...current,
+                              atributos: {
+                                ...current.atributos,
+                                [config.id_atributo]: e.target.value,
+                              },
+                            }))}
+                          >
+                            <option value="">Selecciona una opcion</option>
+                            {(config.atributo.opciones || [])
+                              .filter((option) => option.activo)
+                              .map((option) => (
+                                <option key={option.id_opcion} value={option.id_opcion}>
+                                  {option.valor}
+                                </option>
+                              ))}
+                          </select>
+                        </label>
+                      ))}
+                      <label>SKU opcional
+                        <input
+                          value={variantForm.sku}
+                          placeholder="Se genera automaticamente"
+                          onChange={(e) => setVariantForm((current) => ({ ...current, sku: e.target.value }))}
+                        />
+                      </label>
+                      <label>Precio opcional
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={variantForm.precio_venta}
+                          placeholder="Usar precio del producto"
+                          onChange={(e) => setVariantForm((current) => ({ ...current, precio_venta: e.target.value }))}
+                        />
+                      </label>
+                      <label>Costo opcional
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={variantForm.costo_adquisicion}
+                          onChange={(e) => setVariantForm((current) => ({ ...current, costo_adquisicion: e.target.value }))}
+                        />
+                      </label>
+                      <label>Stock
+                        <input
+                          type="number"
+                          min="0"
+                          value={variantForm.stock_actual}
+                          onChange={(e) => setVariantForm((current) => ({ ...current, stock_actual: e.target.value }))}
+                        />
+                      </label>
+                      <label className="check-row">
+                        <input
+                          type="checkbox"
+                          checked={variantForm.es_predeterminada}
+                          onChange={(e) => setVariantForm((current) => ({ ...current, es_predeterminada: e.target.checked }))}
+                        />
+                        Variante predeterminada
+                      </label>
+                      <button
+                        className="btn btn-primary"
+                        type="button"
+                        disabled={variantBusy}
+                        onClick={() => createEditingVariant().catch((e) => setError(e.message))}
+                      >
+                        {variantBusy ? "Guardando..." : "Crear variante"}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="muted small">
+                      Configura en la pestana Atributos una opcion de la categoria y marca
+                      "Usar para crear variantes".
+                    </p>
+                  )}
+
+                  {editingVariants.length > 0 ? (
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Combinacion</th>
+                            <th>SKU</th>
+                            <th>Precio</th>
+                            <th>Costo</th>
+                            <th>Stock</th>
+                            <th>Estado</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editingVariants.map((variant) => (
+                            <tr key={variant.id_variante}>
+                              <td>{(variant.atributos || []).map((item) => item.valor).join(" / ")}</td>
+                              <td>
+                                <input
+                                  value={variant.sku || ""}
+                                  onChange={(e) => setEditingVariants((current) => current.map((item) =>
+                                    item.id_variante === variant.id_variante ? { ...item, sku: e.target.value } : item))}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min="0.01"
+                                  step="0.01"
+                                  value={variant.precio_venta ?? ""}
+                                  placeholder="Producto"
+                                  onChange={(e) => setEditingVariants((current) => current.map((item) =>
+                                    item.id_variante === variant.id_variante ? { ...item, precio_venta: e.target.value } : item))}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={variant.costo_adquisicion ?? ""}
+                                  onChange={(e) => setEditingVariants((current) => current.map((item) =>
+                                    item.id_variante === variant.id_variante ? { ...item, costo_adquisicion: e.target.value } : item))}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={variant.stock_actual}
+                                  onChange={(e) => setEditingVariants((current) => current.map((item) =>
+                                    item.id_variante === variant.id_variante ? { ...item, stock_actual: e.target.value } : item))}
+                                />
+                              </td>
+                              <td>
+                                <label className="check-row">
+                                  <input
+                                    type="checkbox"
+                                    checked={variant.activa}
+                                    onChange={(e) => setEditingVariants((current) => current.map((item) =>
+                                      item.id_variante === variant.id_variante ? { ...item, activa: e.target.checked } : item))}
+                                  />
+                                  Activa
+                                </label>
+                                <label className="check-row">
+                                  <input
+                                    type="checkbox"
+                                    checked={variant.es_predeterminada}
+                                    onChange={(e) => setEditingVariants((current) => current.map((item) =>
+                                      item.id_variante === variant.id_variante
+                                        ? { ...item, es_predeterminada: e.target.checked }
+                                        : { ...item, es_predeterminada: e.target.checked ? false : item.es_predeterminada }))}
+                                  />
+                                  Principal
+                                </label>
+                              </td>
+                              <td>
+                                <button
+                                  className="btn btn-ghost"
+                                  type="button"
+                                  disabled={variantBusy}
+                                  onClick={() => saveEditingVariant(variant).catch((e) => setError(e.message))}
+                                >
+                                  Guardar
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </div>
+
                 <div className="image-manager-gallery-wrapper">
                   <div className="image-manager-gallery-title">
                     <span>Imágenes del producto ({editing.row.imagenes?.length || 0})</span>
@@ -654,16 +1227,27 @@ export default function CatalogoScreen({ isSuperadmin }) {
                 try {
                   assertStoreSelected();
                   if (editing.mode === "categoria") {
-                    await api.updateCategoria(editing.row.id_categoria, { nombre: editing.row.nombre, activa: editing.row.activa }, selectedStoreRef);
+                    await api.updateCategoria(editing.row.id_categoria, {
+                      nombre: editing.row.nombre,
+                      id_categoria_padre: editing.row.id_categoria_padre || null,
+                      orden: Number(editing.row.orden || 0),
+                      activa: editing.row.activa,
+                    }, selectedStoreRef);
                   } else {
                     await api.updateProducto(editing.row.id_producto, {
                       nombre: editing.row.nombre,
                       descripcion: editing.row.descripcion || "",
                       precio_venta: Number(editing.row.precio_venta || 0),
                       stock_actual: Number(editing.row.stock_actual || 0),
-                      nombre_categoria: editing.row.nombre_categoria || null,
+                      id_categoria_principal: editing.row.id_categoria_principal || editing.row.id_categoria || null,
                       activo: editing.row.activo,
                     }, selectedStoreRef);
+                    if (editingProductAttributeConfig.length > 0) {
+                      await api.replaceProductoAtributos(
+                        editing.row.id_producto,
+                        buildProductAttributePayload(),
+                      );
+                    }
                   }
                   setEditing(null);
                   await load();
@@ -697,13 +1281,17 @@ export default function CatalogoScreen({ isSuperadmin }) {
           }}>
             <label>Nombre<input value={form.nombre || ""} onChange={(e) => setForm((s) => ({ ...s, nombre: e.target.value }))} required /></label>
             {tab === "categorias" ? (
-              <label className="check-row"><input type="checkbox" checked={!!form.activa} onChange={(e) => setForm((s) => ({ ...s, activa: e.target.checked }))} />Activa</label>
+              <>
+                <label>Categoría padre<select value={form.id_categoria_padre || ""} onChange={(e) => setForm((s) => ({ ...s, id_categoria_padre: e.target.value || null }))}><option value="">Categoría raíz</option>{categoryOptions.map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
+                <label>Orden<input type="number" min="0" value={form.orden || 0} onChange={(e) => setForm((s) => ({ ...s, orden: Number(e.target.value || 0) }))} /></label>
+                <label className="check-row"><input type="checkbox" checked={!!form.activa} onChange={(e) => setForm((s) => ({ ...s, activa: e.target.checked }))} />Activa</label>
+              </>
             ) : (
               <>
                 <label>Descripción<textarea value={form.descripcion || ""} onChange={(e) => setForm((s) => ({ ...s, descripcion: e.target.value }))} /></label>
                 <label>Precio<input type="number" step="0.01" value={form.precio_venta || 0} onChange={(e) => setForm((s) => ({ ...s, precio_venta: e.target.value }))} required /></label>
                 <label>Stock<input type="number" value={form.stock_actual || 0} onChange={(e) => setForm((s) => ({ ...s, stock_actual: e.target.value }))} /></label>
-                <label>Categoría<select value={form.nombre_categoria || ""} onChange={(e) => setForm((s) => ({ ...s, nombre_categoria: e.target.value }))}><option value="">Sin categoría</option>{categoriasDisponibles.map((c) => <option key={c.id_categoria} value={c.nombre}>{c.nombre}</option>)}</select></label>
+                <label>Categoría<select value={form.id_categoria_principal || ""} onChange={(e) => setForm((s) => ({ ...s, id_categoria_principal: e.target.value || null }))}><option value="">Sin categoría</option>{categoryOptions.map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
                 <ImageDropZone
                   title="Imagen del producto"
                   subtitle="La imagen se sube al guardar el producto"

@@ -28,7 +28,7 @@ function prettifySlug(slug = "") {
 }
 
 async function fetchJson(url, options = {}) {
-  const response = await fetch(url, { cache: "no-store", ...options });
+  const response = await fetch(url, { cache: "no-cache", ...options });
 
   if (!response.ok) {
     let message = `Error ${response.status}`;
@@ -94,6 +94,17 @@ function normalizeProduct(item) {
   if (imagenUrl && !imagenes.includes(imagenUrl)) {
     imagenes.unshift(imagenUrl);
   }
+  const atributos = Array.isArray(item.atributos) ? item.atributos : [];
+  const variantes = (Array.isArray(item.variantes) ? item.variantes : []).map((variant) => ({
+    ...variant,
+    id_variante: String(variant.id_variante),
+    precio: Number(variant.precio ?? variant.precio_venta ?? precio),
+    precio_original: Number(variant.precio_original ?? variant.precio ?? precioOriginal),
+    precio_final: Number(variant.precio_final ?? variant.precio ?? precioFinal),
+    descuento_pct: variant.descuento_pct == null ? null : Number(variant.descuento_pct),
+    stock: Number(variant.stock ?? variant.stock_actual ?? 0),
+    atributos: Array.isArray(variant.atributos) ? variant.atributos : [],
+  }));
 
   return {
     id: rawId ? String(rawId) : "",
@@ -109,6 +120,9 @@ function normalizeProduct(item) {
     categoria_id: rawCategoriaId == null ? null : String(rawCategoriaId),
     imagen_url: imagenUrl || "",
     imagenes,
+    atributos,
+    variantes,
+    tiene_variantes: Boolean(item.tiene_variantes || variantes.length > 0),
     // aliases de compatibilidad temporal
     name: nombre,
     description: descripcion,
@@ -281,6 +295,27 @@ export async function registerPublicWhatsappClick(slug, idProducto) {
   } catch {
     // fire-and-forget: no bloquear UX de compra
   }
+}
+
+export async function registerPublicEvent(slug, evento, idProducto = null) {
+  try {
+    await fetchJson(`${BASE_URL}/public/catalog/${slug}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        evento,
+        id_producto: idProducto || null,
+      }),
+    });
+  } catch {
+    // La analitica nunca debe bloquear la navegacion o compra.
+  }
+}
+
+export async function getPublicOrderTracking(slug, trackingCode) {
+  return fetchJson(
+    `${BASE_URL}/public/catalog/${encodeURIComponent(slug)}/orders/${encodeURIComponent(trackingCode)}`,
+  );
 }
 
 export function buildAssetUrl(path) {

@@ -12,11 +12,15 @@ from core.storage import build_public_asset_url
 # -------------------------
 class CategoriaCreate(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=100)
+    id_categoria_padre: Optional[UUID] = None
+    orden: int = Field(default=0, ge=0)
     activa: bool = True
 
 
 class CategoriaUpdate(BaseModel):
     nombre: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    id_categoria_padre: Optional[UUID] = None
+    orden: Optional[int] = Field(default=None, ge=0)
     activa: Optional[bool] = None
 
 
@@ -24,6 +28,9 @@ class CategoriaOut(BaseModel):
     id_categoria: UUID
     id_tienda: UUID
     nombre: str
+    id_categoria_padre: Optional[UUID] = None
+    slug: Optional[str] = None
+    orden: int = 0
     activa: bool
 
     class Config:
@@ -35,6 +42,7 @@ class CategoriaOut(BaseModel):
 # -------------------------
 class ProductoCreate(BaseModel):
     id_categoria: Optional[UUID] = None
+    id_categoria_principal: Optional[UUID] = None
     nombre_categoria: Optional[str] = Field(default=None, min_length=1, max_length=100)
     nombre: str = Field(..., min_length=1, max_length=150)
     descripcion: Optional[str] = None
@@ -49,6 +57,7 @@ class ProductoCreate(BaseModel):
 
 class ProductoUpdate(BaseModel):
     id_categoria: Optional[UUID] = None
+    id_categoria_principal: Optional[UUID] = None
     nombre_categoria: Optional[str] = Field(default=None, min_length=1, max_length=100)
     nombre: Optional[str] = Field(default=None, min_length=1, max_length=150)
     descripcion: Optional[str] = None
@@ -63,6 +72,7 @@ class ProductoOut(BaseModel):
     id_producto: UUID
     id_tienda: UUID
     id_categoria: Optional[UUID]
+    id_categoria_principal: Optional[UUID] = None
     nombre: str
     descripcion: Optional[str]
     precio_venta: Decimal
@@ -91,6 +101,9 @@ class ProductoOut(BaseModel):
 class CategoriaPublicOut(BaseModel):
     id_categoria: UUID
     nombre: str
+    id_categoria_padre: Optional[UUID] = None
+    slug: Optional[str] = None
+    orden: int = 0
 
     class Config:
         from_attributes = True

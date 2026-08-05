@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from core.database import SessionLocal
 from core.security import decode_token
+from core.request_security import get_client_ip
 from crud.crud_audit import create_audit_log
 from models.tenant import Usuario
 
@@ -112,7 +113,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 accion=get_descriptive_action(request.method, request.url.path),
                 endpoint=request.url.path,
                 metodo_http=request.method,
-                ip=request.client.host if request.client else None,
+                ip=get_client_ip(request),
                 user_agent=request.headers.get("user-agent"),
                 rol_usuario=rol_usuario,
             )

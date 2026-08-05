@@ -21,11 +21,15 @@ alembic upgrade head
 
 Incluye cambios recientes de panel privado (CRUD completo) como `usuarios.activo`.
 
-## 4) Seed de datos demo
+## 4) Datos demo
 
 ```powershell
 python scripts/seed_dev.py
 ```
+
+El comando anterior es legado y se limita a desarrollo local. No debe ejecutarse contra una
+base de producci?n. Para probar un cat?logo completo y aislado de accesorios usa el seeder
+no destructivo documentado en `backend/scripts/README_accessories_seed.md`.
 
 ## 5) Levantar FastAPI
 
@@ -58,22 +62,14 @@ python scripts/bootstrap_superadmin.py --email superadmin@tuapp.com --password "
 
 Esto crea (o actualiza) un usuario `superadmin` y una tienda tecnica `platform-root`.
 
-## Seeder minimo para despliegue (solo tu superadmin)
+## Seeder legado de superadministrador
 
-Si quieres iniciar "desde cero" sin catalogo demo, usa:
+`scripts/seed_superadmin_only.py` se conserva ?nicamente por compatibilidad local. No debe
+ejecutarse durante un despliegue porque modifica una cuenta existente. Para crear el primer
+superadministrador usa `bootstrap_superadmin.py` con una contrase?a segura entregada de forma
+expl?cita y luego elimina esa contrase?a del historial de la terminal.
 
-```powershell
-python scripts/seed_superadmin_only.py
-```
-
-Por defecto crea/actualiza:
-
-- Email: `luisfernando.banegasro22@gmail.com`
-- Password: `kiritoLore2203`
-- Rol: `superadmin`
-
-Nota tecnica: el modelo actual exige `usuarios.id_tienda`, por eso se crea una tienda interna
-`__internal-root__` (inactiva) solo como soporte del superadmin.
+Antes de desplegar sigue `docs/DATABASE_DEPLOYMENT_SAFETY.md`.
 
 ## Arquitectura de rutas (actual)
 
@@ -178,4 +174,3 @@ SMTP_USE_TLS=true
 - Checklist y smoke test rapido:
   - `E2E_PASSWORD_RESET_CHECKLIST.md`
   - `backend/scripts/e2e_password_reset_smoke.ps1`
-  

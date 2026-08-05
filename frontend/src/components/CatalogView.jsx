@@ -79,6 +79,9 @@ export function CatalogView({ slug, onOpenCart }) {
         <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4">
           {catalog.productos.map((product) => {
             const imageSrc = buildAssetUrl(product.imagen_url);
+            const defaultVariant = (product.variantes || []).find(
+              (variant) => variant.es_predeterminada,
+            ) || product.variantes?.[0];
             return (
               <div key={product.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-md transition duration-200">
                 {/* Imagen del producto */}
@@ -109,7 +112,16 @@ export function CatalogView({ slug, onOpenCart }) {
                       <p className="text-[10px] text-gray-400 line-through mt-0.5">{formatPrice(product.precio_original)}</p>
                     )}
                     <button
-                      onClick={() => addToCart(product)}
+                      onClick={() => addToCart(defaultVariant ? {
+                        ...product,
+                        id_variante: defaultVariant.id_variante,
+                        nombre_variante: defaultVariant.nombre,
+                        precio_final: defaultVariant.precio_final,
+                        precio: defaultVariant.precio,
+                        stock: defaultVariant.stock,
+                        imagen_url: defaultVariant.imagen_url || product.imagen_url,
+                      } : product)}
+                      disabled={Number(defaultVariant?.stock ?? product.stock ?? 0) <= 0}
                       className="w-full mt-3 py-2 bg-pink-550 bg-pink-600 hover:bg-pink-700 text-white text-[11px] font-bold rounded-xl shadow-sm active:scale-95 transition-transform duration-100"
                     >
                       Añadir

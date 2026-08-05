@@ -11,6 +11,7 @@ from starlette.datastructures import Headers
 # Set environment variables for tests before importing config
 os.environ["UPLOADS_DIR"] = "./test_uploads_tmp"
 os.environ["PUBLIC_ASSET_BASE_URL"] = "https://test.catalogovr.app"
+os.environ["STORAGE_BACKEND"] = "local"
 
 from core.config import settings
 from core.storage import build_public_asset_url, save_upload_file
@@ -34,6 +35,8 @@ class TestStorageLogic(unittest.TestCase):
     def setUp(self):
         # Reset UPLOADS_PATH settings
         settings.UPLOADS_DIR = "./test_uploads_tmp"
+        settings.PUBLIC_ASSET_BASE_URL = "https://test.catalogovr.app"
+        settings.STORAGE_BACKEND = "local"
 
     def test_build_public_asset_url(self):
         # 1. Null or empty path returns None

@@ -7,7 +7,7 @@
  * @param {string} slug - El slug de la tienda.
  * @returns {string} La URL de redirección de WhatsApp codificada.
  */
-export function generateWhatsappOrderLink(whatsappNumber, cartItems, ticketNum = "", slug = "") {
+export function generateWhatsappOrderLink(whatsappNumber, cartItems, ticketNum = "", slug = "", trackingCode = "") {
   if (!whatsappNumber) {
     console.error("No se ha configurado un número de WhatsApp para esta tienda.");
     return "";
@@ -32,6 +32,9 @@ export function generateWhatsappOrderLink(whatsappNumber, cartItems, ticketNum =
   cartItems.forEach((item) => {
     const subtotal = item.precio * item.cantidad;
     total += subtotal;
+    if (item.nombre_variante) {
+      item = { ...item, nombre: item.nombre + " - " + item.nombre_variante };
+    }
 
     message += `• *${item.cantidad}x* ${item.nombre} (_${item.precio.toFixed(2)} Bs._) -> *${subtotal.toFixed(2)} Bs.*\n`;
     if (slug && item.id) {
@@ -41,6 +44,9 @@ export function generateWhatsappOrderLink(whatsappNumber, cartItems, ticketNum =
 
   // Total
   message += `\n*Total a pagar: ${total.toFixed(2)} Bs.*`;
+  if (slug && trackingCode) {
+    message += `\n\n*Seguimiento:* ${origin}${path}?slug=${slug}&pedido=${trackingCode}`;
+  }
   message += "\n\nMuchas gracias. ¿Me confirman el pedido y el método de pago?";
 
   // Codificar el mensaje para URL
@@ -58,8 +64,14 @@ export function generateWhatsappOrderLink(whatsappNumber, cartItems, ticketNum =
  * @param {string} ticketNum - El número abreviado de ticket de la venta.
  * @param {string} slug - El slug de la tienda.
  */
-export function redirectToWhatsappOrder(whatsappNumber, cartItems, ticketNum = "", slug = "") {
-  const url = generateWhatsappOrderLink(whatsappNumber, cartItems, ticketNum, slug);
+export function redirectToWhatsappOrder(whatsappNumber, cartItems, ticketNum = "", slug = "", trackingCode = "") {
+  const url = generateWhatsappOrderLink(
+    whatsappNumber,
+    cartItems,
+    ticketNum,
+    slug,
+    trackingCode,
+  );
   if (url) {
     window.open(url, "_blank", "noopener,noreferrer");
   }

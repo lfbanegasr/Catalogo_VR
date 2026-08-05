@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { getPublicCatalog, registerPublicWhatsappClick } from "./api/api";
+import { getPublicCatalog, registerPublicEvent, registerPublicWhatsappClick } from "./api/api";
 import CatalogPage from "./pages/CatalogPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
+import OrderTrackingPage from "./pages/OrderTrackingPage";
 import { ThemeProvider } from "./theme/theme";
 import { useCart } from "./context/CartContext";
 import CartDrawer from "./components/CartDrawer";
-const REFRESH_INTERVAL_MS = 8000;
+const REFRESH_INTERVAL_MS = 30000;
 
 function getStoreSlug() {
   const params = new URLSearchParams(window.location.search);
-  return params.get("slug") || "tienda-demo";
+  return params.get("slug") || import.meta.env.VITE_DEFAULT_STORE_SLUG || "demo-accesorios";
 }
 
 function App() {
@@ -29,6 +30,10 @@ function App() {
   const [selectedCategoryId, setSelectedCategoryId] = useState("all");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [requestedProductId, setRequestedProductId] = useState("");
+  const [trackingCode, setTrackingCode] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("pedido") || "";
+  });
 
   const buildProductLink = (productId) => {
     const url = new URL(window.location.href);
@@ -65,6 +70,7 @@ function App() {
 
   useEffect(() => {
     loadCatalog({ silent: false, resetCategory: true });
+    registerPublicEvent(storeSlug, "catalog_view");
   }, [storeSlug]);
 
   useEffect(() => {
@@ -107,6 +113,7 @@ function App() {
   const openProduct = (product) => {
     setSelectedProduct(product);
     window.history.replaceState({}, "", buildProductLink(product?.id));
+    registerPublicEvent(storeSlug, "product_view", product?.id);
   };
 
   const closeProduct = () => {
@@ -114,9 +121,34 @@ function App() {
     window.history.replaceState({}, "", buildProductLink(null));
   };
 
+  const openTracking = (code) => {
+    const normalized = String(code || "").trim().toUpperCase();
+    if (!normalized) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("slug", storeSlug);
+    url.searchParams.delete("p");
+    url.searchParams.set("pedido", normalized);
+    window.history.replaceState({}, "", url.toString());
+    setSelectedProduct(null);
+    setTrackingCode(normalized);
+  };
+
+  const closeTracking = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("pedido");
+    window.history.replaceState({}, "", url.toString());
+    setTrackingCode("");
+  };
+
   return (
     <ThemeProvider theme={catalog.theme}>
-      {selectedProductFull ? (
+      {trackingCode ? (
+        <OrderTrackingPage
+          slug={storeSlug}
+          trackingCode={trackingCode}
+          onBack={closeTracking}
+        />
+      ) : selectedProductFull ? (
         <ProductDetailPage
           product={selectedProductFull}
           slug={storeSlug}
@@ -142,9 +174,22 @@ function App() {
           onRetry={loadCatalog}
         />
       )}
+
+      {!trackingCode && !selectedProductFull ? (
+        <button
+          type="button"
+          className="tracking-floating-btn"
+          onClick={() => {
+            const code = window.prompt("Ingresa tu codigo de seguimiento");
+            if (code) openTracking(code);
+          }}
+        >
+          Seguir pedido
+        </button>
+      ) : null}
       
       {/* Botón flotante del carrito */}
-      {cartCount > 0 && !isCartOpen && (
+      {cartCount > 0 && !isCartOpen && !trackingCode && (
         <button
           onClick={() => setIsCartOpen(true)}
           className="cart-floating-btn"

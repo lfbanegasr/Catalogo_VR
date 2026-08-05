@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from core.config import settings
 from core.database import get_db
 from core.email import send_email, smtp_is_configured
+from core.request_security import get_client_ip
 from core.security import create_access_token
 from crud.crud_audit import create_audit_log
 from crud.crud_auth import (
@@ -25,15 +26,6 @@ from schemas.auth_schema import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
-
-
-def _get_request_ip(request: Request) -> str | None:
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        first_ip = forwarded_for.split(",")[0].strip()
-        if first_ip:
-            return first_ip
-    return request.client.host if request.client else None
 
 
 def _register_auth_audit(
@@ -61,7 +53,7 @@ def _register_auth_audit(
         accion=f"{request.method}_{endpoint}",
         endpoint=endpoint,
         metodo_http=request.method,
-        ip=_get_request_ip(request),
+        ip=get_client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
 

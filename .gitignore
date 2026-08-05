@@ -52,5 +52,6 @@ backend/.git_backend_old/
 
 # Local scripts and seeders (do not publish)
 backend/scripts/seed*.py
+!backend/scripts/seed_accessories_store.py
 backend/scripts/bootstrap_superadmin.py
 backend/scripts/e2e_password_reset_smoke.ps1

@@ -141,6 +141,52 @@ export const api = {
     }),
   listCategorias: (tiendaRef) =>
     request(`/catalog/categories${tiendaRef ? `?tienda=${encodeURIComponent(tiendaRef)}` : ""}`),
+  listAtributos: (tiendaRef) =>
+    request(`/catalog/attributes${tiendaRef ? `?tienda=${encodeURIComponent(tiendaRef)}` : ""}`),
+  createAtributo: (payload, tiendaRef) =>
+    request(`/catalog/attributes${tiendaRef ? `?tienda=${encodeURIComponent(tiendaRef)}` : ""}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateAtributo: (idAtributo, payload) =>
+    request(`/catalog/attributes/${idAtributo}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  createAtributoOpcion: (idAtributo, payload) =>
+    request(`/catalog/attributes/${idAtributo}/options`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  listCategoriaAtributos: (idCategoria) =>
+    request(`/catalog/categories/${idCategoria}/attributes`),
+  replaceCategoriaAtributos: (idCategoria, atributos) =>
+    request(`/catalog/categories/${idCategoria}/attributes`, {
+      method: "PUT",
+      body: JSON.stringify({ atributos }),
+    }),
+  listProductoAtributos: (idProducto) =>
+    request(`/catalog/products/${idProducto}/attributes`),
+  replaceProductoAtributos: (idProducto, atributos) =>
+    request(`/catalog/products/${idProducto}/attributes`, {
+      method: "PUT",
+      body: JSON.stringify({ atributos }),
+    }),
+  listVariantes: (idProducto) =>
+    request(`/catalog/products/${idProducto}/variants`),
+  listVariantesTienda: () => request("/catalog/variants"),
+  createVariante: (idProducto, payload) =>
+    request(`/catalog/products/${idProducto}/variants`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateVariante: (idVariante, payload) =>
+    request(`/catalog/variants/${idVariante}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  deactivateVariante: (idVariante) =>
+    request(`/catalog/variants/${idVariante}`, { method: "DELETE" }),
   createCategoria: (payload, tiendaRef) =>
     request(`/catalog/categories${tiendaRef ? `?tienda=${encodeURIComponent(tiendaRef)}` : ""}`, {
       method: "POST",
@@ -182,12 +228,21 @@ export const api = {
   },
   listVentas: (idTienda) =>
     request(withQuery("/sales/ventas", { id_tienda: idTienda })),
+  listClientes: (search, idTienda) =>
+    request(withQuery("/sales/clientes", { search, id_tienda: idTienda })),
+  getCliente: (idCliente, idTienda) =>
+    request(withQuery(`/sales/clientes/${idCliente}`, { id_tienda: idTienda })),
+  updateCliente: (idCliente, payload, idTienda) =>
+    request(withQuery(`/sales/clientes/${idCliente}`, { id_tienda: idTienda }), {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
   getVenta: (idVenta, idTienda) =>
     request(withQuery(`/sales/ventas/${idVenta}`, { id_tienda: idTienda })),
-  updateVentaEstado: (idVenta, estado, idTienda) =>
+  updateVentaEstado: (idVenta, estado, idTienda, nota = null) =>
     request(withQuery(`/sales/ventas/${idVenta}/estado`, { id_tienda: idTienda }), {
       method: "PATCH",
-      body: JSON.stringify({ estado }),
+      body: JSON.stringify({ estado, nota }),
     }),
   createVentaDirecta: (payload, idTienda) =>
     request(withQuery("/sales/ventas", { id_tienda: idTienda }), {

@@ -19,9 +19,28 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [failedImageSrc, setFailedImageSrc] = useState("");
+  const [selectedVariantId, setSelectedVariantId] = useState("");
+  const [variantError, setVariantError] = useState("");
 
   const handleAddToCart = () => {
-    addToCart(product, quantity);
+    if (variants.length > 0 && !selectedVariant) {
+      setVariantError("Selecciona una variante antes de agregar el producto.");
+      return;
+    }
+    const availableStock = Number(selectedVariant?.stock ?? product.stock ?? 0);
+    if (availableStock <= 0) {
+      setVariantError("Esta opcion no tiene stock disponible.");
+      return;
+    }
+    addToCart({
+      ...product,
+      id_variante: selectedVariant?.id_variante || null,
+      nombre_variante: selectedVariant?.nombre || "",
+      precio_final: selectedVariant?.precio_final ?? product.precio_final,
+      precio: selectedVariant?.precio ?? product.precio,
+      imagen_url: selectedVariant?.imagen_url || product.imagen_url,
+      stock: availableStock,
+    }, Math.min(quantity, availableStock));
     onBack();
   };
 
@@ -43,15 +62,27 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
   const precioFinal = product.precio_final ?? product.finalPrice ?? precio;
   const descuentoPct = product.descuento_pct ?? product.discountPct ?? null;
   const badgeText = product.badge_text ?? product.badgeText ?? null;
-
-
-
+  const attributes = Array.isArray(product.atributos) ? product.atributos : [];
+  const variants = Array.isArray(product.variantes) ? product.variantes : [];
+  const selectedVariant = variants.find(
+    (variant) => String(variant.id_variante) === String(selectedVariantId),
+  ) || null;
+  const displayPrice = selectedVariant?.precio ?? precio;
+  const displayOriginalPrice = selectedVariant?.precio_original ?? precioOriginal;
+  const displayFinalPrice = selectedVariant?.precio_final ?? precioFinal;
+  const displayDiscount = selectedVariant?.descuento_pct ?? descuentoPct;
+  const selectedStock = selectedVariant?.stock ?? product.stock;
   const stockText =
-    product.stock == null ? "Stock no disponible" : `Stock: ${product.stock}`;
+    selectedStock == null ? "Stock no disponible" : "Stock: " + selectedStock;
 
   useEffect(() => {
     setSelectedImageIndex(0);
     setFailedImageSrc("");
+    setQuantity(1);
+    setVariantError("");
+    const defaultVariant = variants.find((variant) => variant.es_predeterminada)
+      || (variants.length === 1 ? variants[0] : null);
+    setSelectedVariantId(defaultVariant?.id_variante || "");
   }, [product.id, product.id_producto]);
 
   return (
@@ -112,17 +143,48 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
             <h1 className="detail-title">{nombre}</h1>
             {badgeText ? <span className="offer-badge detail-badge">{badgeText}</span> : null}
             <div className="detail-price-block">
-              {precioOriginal > precioFinal ? (
+              {displayOriginalPrice > displayFinalPrice ? (
                 <>
-                  <p className="detail-price-original">{formatPrice(precioOriginal)}</p>
-                  <p className="detail-price">{formatPrice(precioFinal)}</p>
-                  {descuentoPct != null ? <p className="detail-discount">-{Math.round(Number(descuentoPct))}%</p> : null}
+                  <p className="detail-price-original">{formatPrice(displayOriginalPrice)}</p>
+                  <p className="detail-price">{formatPrice(displayFinalPrice)}</p>
+                  {displayDiscount != null ? <p className="detail-discount">-{Math.round(Number(displayDiscount))}%</p> : null}
                 </>
               ) : (
-                <p className="detail-price">{formatPrice(precio)}</p>
+                <p className="detail-price">{formatPrice(displayPrice)}</p>
               )}
             </div>
             <p className="detail-stock">{stockText}</p>
+
+            {variants.length > 0 ? (
+              <div className="detail-block">
+                <h2 className="detail-subtitle">Elige una opcion</h2>
+                <div className="variant-options" role="radiogroup" aria-label="Variantes del producto">
+                  {variants.map((variant) => {
+                    const isSelected = String(variant.id_variante) === String(selectedVariantId);
+                    const hasStock = Number(variant.stock || 0) > 0;
+                    return (
+                      <button
+                        key={variant.id_variante}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        className={"variant-option " + (isSelected ? "active" : "")}
+                        disabled={!hasStock}
+                        onClick={() => {
+                          setSelectedVariantId(variant.id_variante);
+                          setQuantity(1);
+                          setVariantError("");
+                        }}
+                      >
+                        <span>{variant.nombre || variant.sku}</span>
+                        <small>{hasStock ? variant.stock + " disponibles" : "Sin stock"}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+                {variantError ? <p className="form-error" role="alert">{variantError}</p> : null}
+              </div>
+            ) : null}
 
             <div className="detail-block">
               <h2 className="detail-subtitle">Descripcion</h2>
@@ -132,6 +194,24 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
                   : "Este producto aun no tiene descripcion publica."}
               </p>
             </div>
+
+            {attributes.length > 0 ? (
+              <div className="detail-block">
+                <h2 className="detail-subtitle">Caracteristicas</h2>
+                <dl className="product-attributes">
+                  {attributes.map((attribute) => (
+                    <div key={String(attribute.id_atributo) + String(attribute.valor)} className="product-attribute-row">
+                      <dt>{attribute.nombre}</dt>
+                      <dd>
+                        {attribute.tipo_dato === "BOOLEAN"
+                          ? (attribute.valor ? "Si" : "No")
+                          : <>{attribute.valor}{attribute.unidad ? " " + attribute.unidad : ""}</>}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ) : null}
 
             <div className="detail-actions">
               <div className="qty-field-container">
@@ -151,13 +231,15 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
                     value={quantity}
                     onChange={(event) => {
                       const next = Number(event.target.value);
-                      setQuantity(Number.isFinite(next) && next > 0 ? next : 1);
+                      const max = Number(selectedStock || 1);
+                      setQuantity(Number.isFinite(next) && next > 0 ? Math.min(next, max) : 1);
                     }}
                   />
                   <button
                     type="button"
                     className="qty-btn qty-btn-plus"
-                    onClick={() => setQuantity((prev) => prev + 1)}
+                    onClick={() => setQuantity((prev) => Math.min(prev + 1, Number(selectedStock || 1)))}
+                    disabled={Number(selectedStock || 0) <= quantity}
                   >
                     +
                   </button>
@@ -168,6 +250,7 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
                 className="btn btn-primary add-btn"
                 type="button"
                 onClick={handleAddToCart}
+                disabled={Number(selectedStock || 0) <= 0}
                 style={{ backgroundColor: "var(--color-primary)", borderColor: "var(--color-primary)", color: "#ffffff" }}
               >
                 Agregar al Pedido

@@ -162,6 +162,15 @@ export default function DashboardScreen({ user, onGoToVentas }) {
     margen_neto: "0.00",
     margen_porcentaje: "0.00"
   };
+  const catalogMetrics = metrics?.catalogo || {
+    visitas: 0,
+    productos_vistos: 0,
+    busquedas: 0,
+    clicks_whatsapp: 0,
+    pedidos_online: 0,
+    conversion_porcentaje: "0.00",
+    productos_mas_vistos: [],
+  };
 
   return (
     <div className="stack dashboard-view">
@@ -265,6 +274,36 @@ export default function DashboardScreen({ user, onGoToVentas }) {
       </div>
 
       {/* Alertas de Reposición */}
+      <Card title="Rendimiento del catalogo ? ultimos 30 dias">
+        <div style={{ padding: '16px', display: 'grid', gap: '16px' }}>
+          <div className="stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+            {[
+              ["Visitas", catalogMetrics.visitas],
+              ["Productos vistos", catalogMetrics.productos_vistos],
+              ["Busquedas", catalogMetrics.busquedas],
+              ["WhatsApp", catalogMetrics.clicks_whatsapp],
+              ["Pedidos online", catalogMetrics.pedidos_online],
+              ["Conversion", Number(catalogMetrics.conversion_porcentaje || 0).toFixed(2) + "%"],
+            ].map(([label, value]) => (
+              <div key={label} style={{ padding: '14px', border: '1px solid #e5e7eb', borderRadius: '12px', background: '#fff' }}>
+                <span style={{ display: 'block', color: '#6b7280', fontSize: '9px', textTransform: 'uppercase', fontWeight: '700' }}>{label}</span>
+                <strong style={{ display: 'block', marginTop: '5px', fontSize: '20px', color: '#111827' }}>{value}</strong>
+              </div>
+            ))}
+          </div>
+          {catalogMetrics.productos_mas_vistos.length > 0 ? (
+            <div>
+              <strong style={{ fontSize: '11px', color: '#374151' }}>Productos mas vistos</strong>
+              <ol style={{ margin: '8px 0 0', paddingLeft: '20px', fontSize: '11px', color: '#4b5563' }}>
+                {catalogMetrics.productos_mas_vistos.map((product) => (
+                  <li key={product.nombre}>{product.nombre} ? {product.vistas} vistas</li>
+                ))}
+              </ol>
+            </div>
+          ) : <p className="muted small">La actividad empezara a aparecer con las nuevas visitas.</p>}
+        </div>
+      </Card>
+
       {metrics?.bajo_stock && metrics.bajo_stock.length > 0 && (
         <div style={{ width: '100%', overflow: 'hidden' }}>
           <Card title="⚠️ Productos con Stock Bajo (Alertas de Reposición)">

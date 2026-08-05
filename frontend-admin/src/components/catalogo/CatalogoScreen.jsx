@@ -20,6 +20,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   const [productQuery, setProductQuery] = useState("");
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
+  const [showRemoved, setShowRemoved] = useState(false);
   const [attributeForm, setAttributeForm] = useState({
     nombre: "",
     tipo_dato: "OPTION",
@@ -35,6 +36,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   const [editingProductAttributeValues, setEditingProductAttributeValues] = useState({});
   const [editingVariants, setEditingVariants] = useState([]);
   const [variantBusy, setVariantBusy] = useState(false);
+  const [busyVariantImageId, setBusyVariantImageId] = useState("");
   const [variantForm, setVariantForm] = useState({
     sku: "",
     precio_venta: "",
@@ -77,6 +79,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   const filteredProductRows = useMemo(() => {
     const query = productQuery.trim().toLowerCase();
     return rows.filter((product) => {
+      if (!showRemoved && !product.activo) return false;
       if (categoriaFiltro) {
         const categoriaId = String(product.id_categoria_principal || product.id_categoria || "");
         if (categoriaId !== categoriaFiltro) return false;
@@ -92,13 +95,17 @@ export default function CatalogoScreen({ isSuperadmin }) {
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [rows, productQuery, categoriaFiltro]);
+  }, [rows, productQuery, categoriaFiltro, showRemoved]);
+  const visibleCategoryRows = useMemo(
+    () => rows.filter((category) => showRemoved || category.activa),
+    [rows, showRemoved],
+  );
   const productSuggestions = useMemo(() => {
     const query = productQuery.trim().toLowerCase();
     if (!query) return [];
     const unique = new Set();
     const matches = [];
-    for (const product of rows) {
+    for (const product of rows.filter((item) => showRemoved || item.activo)) {
       const label = String(product.nombre || "").trim();
       if (!label) continue;
       if (label.toLowerCase().includes(query) && !unique.has(label.toLowerCase())) {
@@ -108,7 +115,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
       if (matches.length >= 6) break;
     }
     return matches;
-  }, [rows, productQuery]);
+  }, [rows, productQuery, showRemoved]);
   const variantAttributeConfig = useMemo(
     () => editingProductAttributeConfig.filter(
       (config) =>
@@ -122,6 +129,32 @@ export default function CatalogoScreen({ isSuperadmin }) {
     if (isSuperadmin && !selectedStoreRef) {
       throw new Error("Selecciona una tienda");
     }
+  };
+  const toggleRowVisibility = async (row, mode) => {
+    const isCategory = mode === "categoria";
+    const isActive = isCategory ? row.activa : row.activo;
+    if (isActive) {
+      const label = isCategory ? "categoria" : "producto";
+      const confirmed = window.confirm(
+        `¿Quitar este ${label} del catálogo? Podrás recuperarlo usando "Mostrar eliminados".`,
+      );
+      if (!confirmed) return;
+    }
+    assertStoreSelected();
+    if (isCategory) {
+      await api.updateCategoria(
+        row.id_categoria,
+        { activa: !isActive },
+        selectedStoreRef,
+      );
+    } else {
+      await api.updateProducto(
+        row.id_producto,
+        { activo: !isActive },
+        selectedStoreRef,
+      );
+    }
+    await load();
   };
   const openProductEditor = async (product) => {
     const categoryId = product.id_categoria_principal || product.id_categoria || "";
@@ -241,6 +274,20 @@ export default function CatalogoScreen({ isSuperadmin }) {
       setEditingVariants(await api.listVariantes(editing.row.id_producto));
     } finally {
       setVariantBusy(false);
+    }
+  };
+
+  const uploadVariantImage = async (variant, file) => {
+    if (!file || !variant?.id_variante) return;
+    setBusyVariantImageId(variant.id_variante);
+    try {
+      const updated = await api.uploadVarianteImage(variant.id_variante, file);
+      setEditingVariants((current) => current.map((item) => (
+        item.id_variante === variant.id_variante ? updated : item
+      )));
+      await load();
+    } finally {
+      setBusyVariantImageId("");
     }
   };
 
@@ -394,6 +441,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
     setPendingImageFile(null);
     setProductQuery("");
     setCategoriaFiltro("");
+    setShowRemoved(false);
     if (tab !== "productos") {
       setProductSearchOpen(false);
     }
@@ -582,6 +630,14 @@ export default function CatalogoScreen({ isSuperadmin }) {
             />
           ) : <div className="catalog-controls-spacer" />}
           <button className="btn btn-ghost catalog-refresh" onClick={() => handleReload().catch((e) => setError(e.message))}>Recargar</button>
+          <label className="check-row show-removed-toggle">
+            <input
+              type="checkbox"
+              checked={showRemoved}
+              onChange={(event) => setShowRemoved(event.target.checked)}
+            />
+            Mostrar eliminados
+          </label>
         </div>
       </div>
       {error ? <p className="error-text">{error}</p> : null}
@@ -651,7 +707,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
               : <tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Stock</th><th>Activo</th><th>Imagen</th><th>Acciones</th></tr>}
           </thead>
           <tbody>
-            {(tab === "productos" ? filteredProductRows : rows).map((r) => {
+            {(tab === "productos" ? filteredProductRows : visibleCategoryRows).map((r) => {
               if (tab === "categorias") {
                 if (!r.id_categoria) return null;
                 return (
@@ -665,7 +721,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     </td>
                     <td className="actions-cell">
                       <button className="btn btn-ghost" onClick={() => setEditing({ mode: "categoria", row: r })}>Editar</button>
-                      <button className={`btn ${r.activa ? "btn-danger-ghost" : "btn-success-ghost"}`} onClick={async () => { try { assertStoreSelected(); await api.updateCategoria(r.id_categoria, { activa: !r.activa }, selectedStoreRef); await load(); } catch (e) { setError(e.message); } }}>{r.activa ? "Desactivar" : "Activar"}</button>
+                      <button className={`btn ${r.activa ? "btn-danger-ghost" : "btn-success-ghost"}`} onClick={() => toggleRowVisibility(r, "categoria").catch((e) => setError(e.message))}>{r.activa ? "Quitar" : "Restaurar"}</button>
                     </td>
                   </tr>
                 );
@@ -678,7 +734,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     <td className="price-cell">{r.precio_venta} Bs.</td>
                     <td>
                       <span className={`stock-badge ${r.stock_actual <= 5 ? "low" : ""}`}>
-                        {r.stock_actual}
+                        {r.stock_actual}{r.tiene_variantes ? " total" : ""}
                       </span>
                     </td>
                     <td>
@@ -697,7 +753,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     </td>
                     <td className="actions-cell">
                       <button className="btn btn-ghost" onClick={() => openProductEditor(r)}>Editar</button>
-                      <button className={`btn ${r.activo ? "btn-danger-ghost" : "btn-success-ghost"}`} onClick={async () => { try { assertStoreSelected(); await api.updateProducto(r.id_producto, { activo: !r.activo }, selectedStoreRef); await load(); } catch (e) { setError(e.message); } }}>{r.activo ? "Desactivar" : "Activar"}</button>
+                      <button className={`btn ${r.activo ? "btn-danger-ghost" : "btn-success-ghost"}`} onClick={() => toggleRowVisibility(r, "producto").catch((e) => setError(e.message))}>{r.activo ? "Quitar" : "Restaurar"}</button>
                       <ImageDropZone
                         compact
                         title={busyImageProductId === r.id_producto ? "Subiendo..." : "Imagen"}
@@ -735,7 +791,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
       {/* --- VISTA MOBILE: TARJETAS --- */}
       <div className="mobile-only mobile-cards-grid">
         {tab === "categorias" ? (
-          rows.map((r) => {
+          visibleCategoryRows.map((r) => {
             if (!r.id_categoria) return null;
             return (
               <div key={r.id_categoria} className="admin-card category-card">
@@ -750,17 +806,9 @@ export default function CatalogoScreen({ isSuperadmin }) {
                   <button className="btn btn-ghost" onClick={() => setEditing({ mode: "categoria", row: r })}>Editar</button>
                   <button 
                     className={`btn ${r.activa ? "btn-danger-ghost" : "btn-success-ghost"}`} 
-                    onClick={async () => { 
-                      try { 
-                        assertStoreSelected(); 
-                        await api.updateCategoria(r.id_categoria, { activa: !r.activa }, selectedStoreRef); 
-                        await load(); 
-                      } catch (e) { 
-                        setError(e.message); 
-                      } 
-                    }}
+                    onClick={() => toggleRowVisibility(r, "categoria").catch((e) => setError(e.message))}
                   >
-                    {r.activa ? "Desactivar" : "Activar"}
+                    {r.activa ? "Quitar" : "Restaurar"}
                   </button>
                 </div>
               </div>
@@ -784,7 +832,9 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     <h4 className="card-name">{r.nombre}</h4>
                     <div className="product-card-metrics">
                       <span className="price-tag">{r.precio_venta} Bs.</span>
-                      <span className={`stock-tag ${r.stock_actual <= 5 ? "low" : ""}`}>{r.stock_actual} en stock</span>
+                      <span className={`stock-tag ${r.stock_actual <= 5 ? "low" : ""}`}>
+                        {r.stock_actual} {r.tiene_variantes ? "entre variantes" : "en stock"}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -799,17 +849,9 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     </button>
                     <button 
                       className={`btn ${r.activo ? "btn-danger-ghost" : "btn-success-ghost"}`} 
-                      onClick={async () => { 
-                        try { 
-                          assertStoreSelected(); 
-                          await api.updateProducto(r.id_producto, { activo: !r.activo }, selectedStoreRef); 
-                          await load(); 
-                        } catch (e) { 
-                          setError(e.message); 
-                        } 
-                      }}
+                      onClick={() => toggleRowVisibility(r, "producto").catch((e) => setError(e.message))}
                     >
-                      {r.activo ? "Desactivar" : "Activar"}
+                      {r.activo ? "Quitar" : "Restaurar"}
                     </button>
                   </div>
                 </div>
@@ -862,7 +904,18 @@ export default function CatalogoScreen({ isSuperadmin }) {
               <>
                 <label>Descripción<textarea value={editing.row.descripcion || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, descripcion: e.target.value } }))} /></label>
                 <label>Precio<input type="number" step="0.01" value={editing.row.precio_venta || 0} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, precio_venta: e.target.value } }))} /></label>
-                <label>Stock<input type="number" value={editing.row.stock_actual || 0} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, stock_actual: e.target.value } }))} /></label>
+                <label>{editing.row.tiene_variantes ? "Stock total de variantes" : "Stock"}
+                  <input
+                    type="number"
+                    value={editing.row.stock_actual || 0}
+                    disabled={editing.row.tiene_variantes}
+                    title={editing.row.tiene_variantes ? "Edita el stock individual de cada variante debajo" : undefined}
+                    onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, stock_actual: e.target.value } }))}
+                  />
+                  {editing.row.tiene_variantes ? (
+                    <small className="muted">Se calcula automáticamente. Edita cada variante debajo.</small>
+                  ) : null}
+                </label>
                 <label>Categoría<select value={editing.row.id_categoria_principal || editing.row.id_categoria || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, id_categoria_principal: e.target.value || null } }))}><option value="">Sin categoría</option>{categoryOptions.map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
                 {editingProductAttributeConfig.length > 0 ? (
                   <div className="grid-form">
@@ -1005,6 +1058,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                             <th>Precio</th>
                             <th>Costo</th>
                             <th>Stock</th>
+                            <th>Imagen</th>
                             <th>Estado</th>
                             <th></th>
                           </tr>
@@ -1019,6 +1073,27 @@ export default function CatalogoScreen({ isSuperadmin }) {
                                   onChange={(e) => setEditingVariants((current) => current.map((item) =>
                                     item.id_variante === variant.id_variante ? { ...item, sku: e.target.value } : item))}
                                 />
+                              </td>
+                              <td>
+                                <div className="variant-image-editor">
+                                  {variant.imagen_url ? (
+                                    <img
+                                      className="variant-admin-thumb"
+                                      src={getImageSrc(variant.imagen_url)}
+                                      alt={`Imagen de ${(variant.atributos || []).map((item) => item.valor).join(" / ")}`}
+                                    />
+                                  ) : (
+                                    <span className="no-image-text">Usa la imagen general</span>
+                                  )}
+                                  <ImageDropZone
+                                    compact
+                                    title={busyVariantImageId === variant.id_variante ? "Subiendo..." : "Imagen de variante"}
+                                    subtitle="Selecciona JPG, PNG o WEBP"
+                                    disabled={busyVariantImageId === variant.id_variante}
+                                    onFileSelected={(file) => uploadVariantImage(variant, file)
+                                      .catch((e) => setError(e.message))}
+                                  />
+                                </div>
                               </td>
                               <td>
                                 <input

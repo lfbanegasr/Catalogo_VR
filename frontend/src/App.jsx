@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getPublicCatalog, registerPublicEvent, registerPublicWhatsappClick } from "./api/api";
 import CatalogPage from "./pages/CatalogPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
@@ -29,6 +29,7 @@ function App() {
   const [error, setError] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("all");
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const returnProductIdRef = useRef("");
   const [requestedProductId, setRequestedProductId] = useState("");
   const [trackingCode, setTrackingCode] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -99,6 +100,29 @@ function App() {
     );
   }, [catalog.products, selectedProduct]);
 
+  const relatedProducts = useMemo(() => {
+    if (!selectedProductFull) return [];
+    const categoryId = selectedProductFull.categoria_id;
+    const sameCategory = catalog.products.filter(
+      (product) => String(product.categoria_id ?? "") === String(categoryId ?? ""),
+    );
+    return sameCategory.length > 1 ? sameCategory : catalog.products;
+  }, [catalog.products, selectedProductFull]);
+
+  const selectedRelatedIndex = useMemo(
+    () => relatedProducts.findIndex(
+      (product) => String(product.id) === String(selectedProductFull?.id),
+    ),
+    [relatedProducts, selectedProductFull],
+  );
+
+  const previousProduct = selectedRelatedIndex > 0
+    ? relatedProducts[selectedRelatedIndex - 1]
+    : null;
+  const nextProduct = selectedRelatedIndex >= 0 && selectedRelatedIndex < relatedProducts.length - 1
+    ? relatedProducts[selectedRelatedIndex + 1]
+    : null;
+
   useEffect(() => {
     if (!requestedProductId || selectedProduct) return;
     const target = catalog.products.find(
@@ -111,15 +135,42 @@ function App() {
   }, [catalog.products, requestedProductId, selectedProduct]);
 
   const openProduct = (product) => {
+    returnProductIdRef.current = String(product?.id || "");
     setSelectedProduct(product);
     window.history.replaceState({}, "", buildProductLink(product?.id));
     registerPublicEvent(storeSlug, "product_view", product?.id);
   };
 
   const closeProduct = () => {
+    const productId = String(selectedProductFull?.id || returnProductIdRef.current || "");
+    returnProductIdRef.current = productId;
     setSelectedProduct(null);
     window.history.replaceState({}, "", buildProductLink(null));
   };
+
+  const navigateProduct = (product) => {
+    if (!product) return;
+    returnProductIdRef.current = String(product.id);
+    setSelectedProduct(product);
+    window.history.replaceState({}, "", buildProductLink(product.id));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    registerPublicEvent(storeSlug, "product_view", product.id);
+  };
+
+  useEffect(() => {
+    if (selectedProduct || !returnProductIdRef.current) return undefined;
+    const productId = returnProductIdRef.current;
+    const frameId = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const cards = document.querySelectorAll("[data-product-id]");
+        const target = Array.from(cards).reverse().find(
+          (card) => card.dataset.productId === productId,
+        );
+        target?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [selectedProduct]);
 
   const openTracking = (code) => {
     const normalized = String(code || "").trim().toUpperCase();
@@ -157,6 +208,10 @@ function App() {
           productUrl={buildProductLink(selectedProductFull?.id)}
           onWhatsappClick={async (idProducto) => registerPublicWhatsappClick(storeSlug, idProducto)}
           onBack={closeProduct}
+          previousProduct={previousProduct}
+          nextProduct={nextProduct}
+          onPreviousProduct={() => navigateProduct(previousProduct)}
+          onNextProduct={() => navigateProduct(nextProduct)}
         />
       ) : (
         <CatalogPage

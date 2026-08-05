@@ -185,6 +185,14 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
+  uploadVarianteImage: (idVariante, file) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request(`/catalog/variants/${idVariante}/image`, {
+      method: "POST",
+      body: form,
+    });
+  },
   deactivateVariante: (idVariante) =>
     request(`/catalog/variants/${idVariante}`, { method: "DELETE" }),
   createCategoria: (payload, tiendaRef) =>

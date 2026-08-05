@@ -14,7 +14,19 @@ function normalizeWhatsappNumber(raw) {
   return String(raw || "").replace(/[^\d]/g, "");
 }
 
-function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUrl, onWhatsappClick, onBack }) {
+function ProductDetailPage({
+  product,
+  slug,
+  storeName,
+  whatsappNumber,
+  productUrl,
+  onWhatsappClick,
+  onBack,
+  previousProduct,
+  nextProduct,
+  onPreviousProduct,
+  onNextProduct,
+}) {
   const { addToCart } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -46,12 +58,20 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
 
   const nombre = product.nombre || product.name || "Producto";
   const imagenUrl = product.imagen_url || product.imageUrl || "";
+  const variants = Array.isArray(product.variantes) ? product.variantes : [];
+  const selectedVariant = variants.find(
+    (variant) => String(variant.id_variante) === String(selectedVariantId),
+  ) || null;
+  const variantImageUrl = selectedVariant?.imagen_url || "";
   const imageListRaw = Array.isArray(product.imagenes)
     ? product.imagenes
     : Array.isArray(product.images)
       ? product.images
       : [];
-  const imageList = imageListRaw.length > 0 ? imageListRaw : (imagenUrl ? [imagenUrl] : []);
+  const imageList = Array.from(new Set([
+    variantImageUrl,
+    ...(imageListRaw.length > 0 ? imageListRaw : (imagenUrl ? [imagenUrl] : [])),
+  ].filter(Boolean)));
   const currentImageUrl = imageList[selectedImageIndex] || imagenUrl;
   const currentImageSrc = buildAssetUrl(currentImageUrl);
   const currentImageFailed =
@@ -63,10 +83,19 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
   const descuentoPct = product.descuento_pct ?? product.discountPct ?? null;
   const badgeText = product.badge_text ?? product.badgeText ?? null;
   const attributes = Array.isArray(product.atributos) ? product.atributos : [];
-  const variants = Array.isArray(product.variantes) ? product.variantes : [];
-  const selectedVariant = variants.find(
-    (variant) => String(variant.id_variante) === String(selectedVariantId),
-  ) || null;
+  const variantAttributeIds = new Set(
+    variants.flatMap((variant) => (
+      Array.isArray(variant.atributos)
+        ? variant.atributos.map((attribute) => String(attribute.id_atributo))
+        : []
+    )),
+  );
+  const displayAttributes = [
+    ...attributes.filter(
+      (attribute) => !variantAttributeIds.has(String(attribute.id_atributo)),
+    ),
+    ...(selectedVariant?.atributos || []),
+  ];
   const displayPrice = selectedVariant?.precio ?? precio;
   const displayOriginalPrice = selectedVariant?.precio_original ?? precioOriginal;
   const displayFinalPrice = selectedVariant?.precio_final ?? precioFinal;
@@ -85,11 +114,16 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
     setSelectedVariantId(defaultVariant?.id_variante || "");
   }, [product.id, product.id_producto]);
 
+  useEffect(() => {
+    setSelectedImageIndex(0);
+    setFailedImageSrc("");
+  }, [selectedVariantId]);
+
   return (
     <main className="page-shell">
       <div className="container">
         <button className="btn btn-ghost back-btn" type="button" onClick={onBack}>
-          Volver al catalogo
+          ← Volver al producto en el catalogo
         </button>
 
         <section className="panel detail-layout">
@@ -195,11 +229,11 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
               </p>
             </div>
 
-            {attributes.length > 0 ? (
+            {displayAttributes.length > 0 ? (
               <div className="detail-block">
                 <h2 className="detail-subtitle">Caracteristicas</h2>
                 <dl className="product-attributes">
-                  {attributes.map((attribute) => (
+                  {displayAttributes.map((attribute) => (
                     <div key={String(attribute.id_atributo) + String(attribute.valor)} className="product-attribute-row">
                       <dt>{attribute.nombre}</dt>
                       <dd>
@@ -258,6 +292,35 @@ function ProductDetailPage({ product, slug, storeName, whatsappNumber, productUr
             </div>
           </div>
         </section>
+
+        {(previousProduct || nextProduct) ? (
+          <nav className="detail-product-navigation" aria-label="Navegacion entre productos">
+            <button
+              className="btn btn-ghost detail-nav-btn"
+              type="button"
+              onClick={onPreviousProduct}
+              disabled={!previousProduct}
+            >
+              <span aria-hidden="true">←</span>
+              <span>
+                <small>Producto anterior</small>
+                <strong>{previousProduct?.nombre || "No disponible"}</strong>
+              </span>
+            </button>
+            <button
+              className="btn btn-primary detail-nav-btn detail-nav-next"
+              type="button"
+              onClick={onNextProduct}
+              disabled={!nextProduct}
+            >
+              <span>
+                <small>Siguiente producto</small>
+                <strong>{nextProduct?.nombre || "Fin del catalogo"}</strong>
+              </span>
+              <span aria-hidden="true">→</span>
+            </button>
+          </nav>
+        ) : null}
       </div>
     </main>
   );

@@ -78,6 +78,7 @@ class ProductoOut(BaseModel):
     precio_venta: Decimal
     costo_adquisicion: Optional[Decimal]
     stock_actual: int
+    tiene_variantes: bool = False
     imagen_url: Optional[str]
     imagenes: list[str] = []
     activo: bool

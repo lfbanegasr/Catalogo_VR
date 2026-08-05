@@ -3,6 +3,7 @@ from pathlib import Path
 from uuid import UUID
 
 import os
+from sqlalchemy import func
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
@@ -29,6 +30,7 @@ from crud.crud_catalog import (
     update_producto,
 )
 from models.catalog import ProductoImagen
+from models.catalog_variant import VarianteProducto
 from crud.crud_offers import (
     attach_categories_to_offer,
     attach_products_to_offer,
@@ -440,7 +442,35 @@ def api_list_productos(
         tienda_ref=tienda_ref,
         nombre_tienda_target=nombre_tienda_target,
     )
-    return list_productos(db=db, id_tienda=target_tienda_id)
+    products = list_productos(db=db, id_tienda=target_tienda_id)
+    variant_stock_rows = (
+        db.query(
+            VarianteProducto.id_producto,
+            func.coalesce(func.sum(VarianteProducto.stock_actual), 0),
+        )
+        .filter(
+            VarianteProducto.id_tienda == target_tienda_id,
+            VarianteProducto.activa.is_(True),
+        )
+        .group_by(VarianteProducto.id_producto)
+        .all()
+    )
+    variant_stock = {
+        product_id: int(stock or 0)
+        for product_id, stock in variant_stock_rows
+    }
+    return [
+        ProductoOut.model_validate(product).model_copy(
+            update={
+                "stock_actual": variant_stock.get(
+                    product.id_producto,
+                    product.stock_actual,
+                ),
+                "tiene_variantes": product.id_producto in variant_stock,
+            },
+        )
+        for product in products
+    ]
 
 
 @router.patch(

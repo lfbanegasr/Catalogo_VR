@@ -1,10 +1,11 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.deps import get_current_tienda_id, get_current_user, require_role
+from core.storage import save_upload_file
 from crud.crud_catalog import get_producto_by_id
 from crud.crud_variants import (
     create_variant,
@@ -87,6 +88,29 @@ def api_update_variant(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/variants/{id_variante}/image", response_model=VariantOut)
+def api_upload_variant_image(
+    id_variante: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    variant = get_variant(db, id_variante)
+    if variant is None:
+        raise HTTPException(status_code=404, detail="Variante no encontrada")
+    product = get_producto_by_id(db, variant.id_producto)
+    _ensure_product_access(current_user, product)
+    image_url = save_upload_file(file, "variants", id_variante)
+    return serialize_variant(
+        update_variant(
+            db,
+            product=product,
+            variant=variant,
+            payload=VariantUpdate(imagen_url=image_url),
+        ),
+    )
 
 
 @router.delete("/variants/{id_variante}", response_model=VariantOut)

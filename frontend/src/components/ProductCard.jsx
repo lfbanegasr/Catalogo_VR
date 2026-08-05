@@ -53,7 +53,10 @@ function ProductCard({ product, onViewDetail, compact = false }) {
     stock == null ? "is-unknown" : stock > 0 ? "is-available" : "is-out";
 
   return (
-    <article className={`product-card ${compact ? "compact" : ""}`.trim()}>
+    <article
+      className={`product-card ${compact ? "compact" : ""}`.trim()}
+      data-product-id={String(product.id)}
+    >
       <div className="product-media">
         <ProductImage src={imageSrc} alt={nombre} />
         <div className="product-image-fallback hidden">Imagen no disponible</div>

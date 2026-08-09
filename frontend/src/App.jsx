@@ -138,6 +138,7 @@ function App() {
     returnProductIdRef.current = String(product?.id || "");
     setSelectedProduct(product);
     window.history.replaceState({}, "", buildProductLink(product?.id));
+    window.scrollTo({ top: 0, behavior: "instant" });
     registerPublicEvent(storeSlug, "product_view", product?.id);
   };
 

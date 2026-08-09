@@ -4,6 +4,7 @@ import { Card } from '../Card';
 import StoreRefPicker from '../StoreRefPicker';
 import ImageDropZone from '../ImageDropZone';
 import { getImageSrc } from '../../utils';
+import { ToastStack } from '../Toast';
 
 export default function CatalogoScreen({ isSuperadmin }) {
   const editorRef = useRef(null);
@@ -59,6 +60,18 @@ export default function CatalogoScreen({ isSuperadmin }) {
     atributos: {},
   });
   const [form, setForm] = useState(tab === "categorias" ? { nombre: "", id_categoria_padre: "", orden: 0, activa: true } : { nombre: "", descripcion: "", precio_venta: 0, stock_actual: 0, id_categoria_principal: "", activo: true });
+  const [toasts, setToasts] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const pushToast = (message, type = "success") => {
+    const id = Date.now() + Math.random();
+    setToasts((current) => [...current, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((current) => current.filter((item) => item.id !== id));
+    }, 4000);
+  };
+
+  const dismissToast = (id) => setToasts((current) => current.filter((item) => item.id !== id));
   const categoryOptions = useMemo(() => {
     const byId = new Map(categoriasDisponibles.map((category) => [category.id_categoria, category]));
     const labelFor = (category) => {
@@ -626,6 +639,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   }
 
   return (
+    <>
     <Card title="Catálogo privado" className="catalog-compact">
       <div className="catalog-toolbar">
         <div className="catalog-tabs">
@@ -1320,7 +1334,9 @@ export default function CatalogoScreen({ isSuperadmin }) {
               </>
             )}
             <div className="row">
-              <button className="btn btn-primary" onClick={async () => {
+              <button className="btn btn-primary" disabled={isSaving} style={{ opacity: isSaving ? 0.6 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }} onClick={async () => {
+                if (isSaving) return;
+                setIsSaving(true);
                 try {
                   assertStoreSelected();
                   if (editing.mode === "categoria") {
@@ -1348,14 +1364,17 @@ export default function CatalogoScreen({ isSuperadmin }) {
                   }
                   setEditing(null);
                   await load();
-                } catch (e) { setError(e.message); }
-              }}>Guardar</button>
+                  pushToast(editing.mode === "categoria" ? "Categoría guardada correctamente" : "Producto guardado correctamente");
+                } catch (e) { setError(e.message); pushToast(e.message, "error"); } finally { setIsSaving(false); }
+              }}>{isSaving ? "Guardando..." : "Guardar"}</button>
               <button className="btn btn-ghost" onClick={() => setEditing(null)}>Cancelar</button>
             </div>
           </div>
         ) : (
           <form className="grid-form" onSubmit={async (e) => {
             e.preventDefault();
+            if (isSaving) return;
+            setIsSaving(true);
             try {
               assertStoreSelected();
               if (tab === "categorias") {
@@ -1374,7 +1393,8 @@ export default function CatalogoScreen({ isSuperadmin }) {
               resetFormForTab(tab);
               setPendingImageFile(null);
               await load();
-            } catch (err) { setError(err.message); }
+              pushToast(tab === "categorias" ? "✅ Categoría creada correctamente" : "✅ Producto creado correctamente");
+            } catch (err) { setError(err.message); pushToast(err.message, "error"); } finally { setIsSaving(false); }
           }}>
             <label>Nombre<input value={form.nombre || ""} onChange={(e) => setForm((s) => ({ ...s, nombre: e.target.value }))} required /></label>
             {tab === "categorias" ? (
@@ -1398,7 +1418,9 @@ export default function CatalogoScreen({ isSuperadmin }) {
                 <label className="check-row"><input type="checkbox" checked={!!form.activo} onChange={(e) => setForm((s) => ({ ...s, activo: e.target.checked }))} />Activo</label>
               </>
             )}
-            <button className="btn btn-primary">Crear</button>
+            <button className="btn btn-primary" disabled={isSaving} style={{ opacity: isSaving ? 0.6 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }}>
+              {isSaving ? "Guardando..." : "Crear"}
+            </button>
           </form>
         )}
       </div>
@@ -1416,5 +1438,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
         </button>
       )}
     </Card>
+    <ToastStack items={toasts} onDismiss={dismissToast} />
+    </>
   );
 }

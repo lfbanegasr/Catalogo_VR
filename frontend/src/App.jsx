@@ -230,18 +230,7 @@ function App() {
         />
       )}
 
-      {!trackingCode && !selectedProductFull ? (
-        <button
-          type="button"
-          className="tracking-floating-btn"
-          onClick={() => {
-            const code = window.prompt("Ingresa tu codigo de seguimiento");
-            if (code) openTracking(code);
-          }}
-        >
-          Seguir pedido
-        </button>
-      ) : null}
+      {/* Botón "Seguir pedido" ocultado — solo disponible via URL ?pedido=XXX */}
       
       {/* Botón flotante del carrito */}
       {cartCount > 0 && !isCartOpen && !trackingCode && (

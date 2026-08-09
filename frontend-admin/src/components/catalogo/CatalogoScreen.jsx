@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from '../../api';
 import { Card } from '../Card';
 import StoreRefPicker from '../StoreRefPicker';
@@ -6,6 +6,19 @@ import ImageDropZone from '../ImageDropZone';
 import { getImageSrc } from '../../utils';
 
 export default function CatalogoScreen({ isSuperadmin }) {
+  const editorRef = useRef(null);
+
+  const handleOpenCreateForm = () => {
+    setEditing(null);
+    if (editorRef.current) {
+      editorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      const firstInput = editorRef.current.querySelector("input, select, textarea");
+      if (firstInput) {
+        setTimeout(() => firstInput.focus(), 350);
+      }
+    }
+  };
+
   const [tab, setTab] = useState("categorias");
   const [stores, setStores] = useState([]);
   const [rows, setRows] = useState([]);
@@ -621,6 +634,15 @@ export default function CatalogoScreen({ isSuperadmin }) {
           <button className="tab-btn" onClick={() => setTab("atributos")}>Atributos</button>
         </div>
         <div className="catalog-controls">
+          {tab !== "atributos" && (
+            <button
+              type="button"
+              className="btn btn-primary create-action-btn"
+              onClick={handleOpenCreateForm}
+            >
+              + {tab === "categorias" ? "Crear categoría" : "Crear producto"}
+            </button>
+          )}
           {isSuperadmin ? (
             <StoreRefPicker
               stores={stores}
@@ -889,7 +911,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
         )}
       </div>
 
-      <div className="inline-editor">
+      <div className="inline-editor" ref={editorRef}>
         <h4>{editing ? `Editar ${editing.mode}` : `Crear ${tab === "categorias" ? "categoría" : "producto"}`}</h4>
         {editing ? (
           <div className="grid-form">
@@ -1380,6 +1402,19 @@ export default function CatalogoScreen({ isSuperadmin }) {
           </form>
         )}
       </div>
+      {tab !== "atributos" && (
+        <button
+          type="button"
+          className="catalog-fab-btn"
+          title={tab === "categorias" ? "Crear categoría" : "Crear producto"}
+          onClick={handleOpenCreateForm}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+          </svg>
+          <span>{tab === "categorias" ? "Nueva categoría" : "Nuevo producto"}</span>
+        </button>
+      )}
     </Card>
   );
 }

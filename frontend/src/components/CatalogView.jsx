@@ -87,7 +87,7 @@ export function CatalogView({ slug, onOpenCart }) {
                 {/* Imagen del producto */}
                 <div className="aspect-square bg-gray-100 relative overflow-hidden flex items-center justify-center">
                   {imageSrc ? (
-                    <img src={imageSrc} alt={product.nombre} className="w-full h-full object-cover" />
+                    <img src={imageSrc} alt={product.nombre} className="w-full h-full object-cover object-[center_30%]" />
                   ) : (
                     <span className="text-xs text-gray-400">Sin foto</span>
                   )}

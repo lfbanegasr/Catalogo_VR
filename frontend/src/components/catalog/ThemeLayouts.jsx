@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { buildAssetUrl } from "../../api/api";
 import ProductCard from "../ProductCard";
 
@@ -125,43 +125,124 @@ function AttributeFilters({
   values,
   onChange,
   onClear,
+  totalResults,
 }) {
-  if (!filters.length) return null;
-  const hasActiveFilters = Object.values(values).some(Boolean);
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!filters || !filters.length) return null;
+
+  const activeEntries = Object.entries(values).filter(([_, val]) => Boolean(val));
+  const activeCount = activeEntries.length;
+
   return (
-    <div className="attribute-filter-bar" aria-label="Filtros de productos">
-      {filters.map((filter) => (
-        <div key={filter.codigo} className={`attribute-filter ${values[filter.codigo] ? "active" : ""}`}>
-          <span>{filter.nombre}</span>
-          <details className="filter-dropdown">
-            <summary>{values[filter.codigo] || "Todos"}</summary>
-            <div className="filter-dropdown-menu" role="listbox" aria-label={filter.nombre}>
-              {["", ...filter.values].map((value) => {
-                const selected = (values[filter.codigo] || "") === value;
-                return (
-                  <button
-                    key={value || "all"}
-                    type="button"
-                    role="option"
-                    aria-selected={selected}
-                    className={selected ? "active" : ""}
-                    onClick={(event) => {
-                      onChange(filter.codigo, value);
-                      event.currentTarget.closest("details")?.removeAttribute("open");
-                    }}
-                  >
-                    {value || "Todos"}
-                  </button>
-                );
-              })}
-            </div>
-          </details>
-        </div>
-      ))}
-      {hasActiveFilters ? (
-        <button type="button" className="btn btn-ghost clear-filters-btn" onClick={onClear}>
-          Limpiar filtros
+    <div className="catalog-filters-wrapper">
+      <div className="filter-trigger-bar">
+        <button
+          type="button"
+          className={`filter-toggle-btn ${activeCount > 0 ? "has-active" : ""}`}
+          onClick={() => setIsOpen(true)}
+        >
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+          <span>Filtros</span>
+          {activeCount > 0 ? <span className="filter-badge">{activeCount}</span> : null}
         </button>
+
+        {activeCount > 0 ? (
+          <div className="filter-active-chips">
+            {activeEntries.map(([code, value]) => {
+              const filterDef = filters.find((f) => f.codigo === code);
+              const label = filterDef ? filterDef.nombre : code;
+              return (
+                <span key={code} className="filter-active-chip">
+                  <span className="chip-label">{label}: <strong>{value}</strong></span>
+                  <button
+                    type="button"
+                    className="chip-remove-btn"
+                    title="Remover filtro"
+                    onClick={() => onChange(code, "")}
+                  >
+                    ✕
+                  </button>
+                </span>
+              );
+            })}
+            <button type="button" className="clear-all-link" onClick={onClear}>
+              Limpiar todo
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {isOpen ? (
+        <div className="filter-modal-overlay" onClick={() => setIsOpen(false)}>
+          <div className="filter-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="filter-modal-header">
+              <div className="filter-modal-title">
+                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                </svg>
+                <h3>Filtros de productos</h3>
+              </div>
+              <div className="filter-modal-header-actions">
+                {activeCount > 0 ? (
+                  <button type="button" className="modal-clear-btn" onClick={onClear}>
+                    Limpiar todo
+                  </button>
+                ) : null}
+                <button type="button" className="modal-close-btn" onClick={() => setIsOpen(false)}>
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="filter-modal-body">
+              <div className="filter-grid-list">
+                {filters.map((filter) => {
+                  const currentValue = values[filter.codigo] || "";
+                  return (
+                    <div key={filter.codigo} className="filter-group-item">
+                      <label className="filter-group-title">{filter.nombre}</label>
+                      <div className="filter-options-pills">
+                        <button
+                          type="button"
+                          className={`filter-option-pill ${currentValue === "" ? "selected" : ""}`}
+                          onClick={() => onChange(filter.codigo, "")}
+                        >
+                          Todos
+                        </button>
+                        {filter.values.map((val) => {
+                          const isSelected = currentValue === val;
+                          return (
+                            <button
+                              key={val}
+                              type="button"
+                              className={`filter-option-pill ${isSelected ? "selected" : ""}`}
+                              onClick={() => onChange(filter.codigo, val)}
+                            >
+                              {val}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="filter-modal-footer">
+              <button
+                type="button"
+                className="btn btn-primary modal-apply-btn"
+                onClick={() => setIsOpen(false)}
+              >
+                Ver {totalResults !== undefined ? `${totalResults} ` : ""}resultados
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );
@@ -352,6 +433,7 @@ export function ModernBannerTheme(props) {
             values={attributeFilters}
             onChange={onAttributeFilterChange}
             onClear={onClearAttributeFilters}
+            totalResults={filteredProducts?.length}
           />
         </section>
         <CatalogState loading={loading} error={error} onRetry={onRetry} />
@@ -422,6 +504,7 @@ export function SoftBeigeTheme(props) {
             values={attributeFilters}
             onChange={onAttributeFilterChange}
             onClear={onClearAttributeFilters}
+            totalResults={filteredProducts?.length}
           />
         </section>
         <CatalogState loading={loading} error={error} onRetry={onRetry} />
@@ -485,6 +568,7 @@ export function MinimalCleanTheme(props) {
           values={attributeFilters}
           onChange={onAttributeFilterChange}
           onClear={onClearAttributeFilters}
+          totalResults={filteredProducts?.length}
         />
         <CatalogState loading={loading} error={error} onRetry={onRetry} />
         {!loading && !error ? (

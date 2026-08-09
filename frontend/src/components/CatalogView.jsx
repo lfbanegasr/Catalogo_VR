@@ -76,7 +76,7 @@ export function CatalogView({ slug, onOpenCart }) {
       {/* Lista de Productos (Grid Responsivo Mobile-First) */}
       <main className="px-5 mt-6 flex-1">
         <h2 className="text-xs uppercase font-bold tracking-wider text-gray-400 mb-4">Productos disponibles</h2>
-        <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 md:grid-cols-4">
+        <div className="products-grid">
           {catalog.productos.map((product) => {
             const imageSrc = buildAssetUrl(product.imagen_url);
             const defaultVariant = (product.variantes || []).find(

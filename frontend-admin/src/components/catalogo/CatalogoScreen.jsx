@@ -59,7 +59,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
     es_predeterminada: false,
     atributos: {},
   });
-  const [form, setForm] = useState(tab === "categorias" ? { nombre: "", id_categoria_padre: "", orden: 0, activa: true } : { nombre: "", descripcion: "", precio_venta: 0, stock_actual: 0, id_categoria_principal: "", activo: true });
+  const [form, setForm] = useState(tab === "categorias" ? { nombre: "", id_categoria_padre: null, orden: 0, activa: true } : { nombre: "", descripcion: "", precio_venta: 0, stock_actual: 0, id_categoria_principal: "", activo: true });
   const [toasts, setToasts] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -320,7 +320,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   const resetFormForTab = (nextTab) =>
     setForm(
       nextTab === "categorias"
-        ? { nombre: "", id_categoria_padre: "", orden: 0, activa: true }
+        ? { nombre: "", id_categoria_padre: null, orden: 0, activa: true }
         : { nombre: "", descripcion: "", precio_venta: 0, stock_actual: 0, id_categoria_principal: "", activo: true },
     );
 

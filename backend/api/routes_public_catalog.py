@@ -45,6 +45,37 @@ def _get_active_tienda_or_404(db: Session, slug: str):
     return tienda
 
 
+def _public_product_out(producto) -> ProductoPublicOut:
+    categoria = producto.categoria_principal or producto.categoria
+    return ProductoPublicOut(
+        id_producto=producto.id_producto,
+        id_categoria=producto.id_categoria_principal or producto.id_categoria,
+        nombre=producto.nombre,
+        descripcion=producto.descripcion,
+        precio_venta=producto.precio_venta,
+        imagen_url=producto.imagen_url,
+        imagenes=producto.imagenes,
+        imagen_fit=producto.imagen_fit or getattr(categoria, "imagen_fit_default", None) or "cover",
+        imagen_posicion_x=(
+            producto.imagen_posicion_x
+            if producto.imagen_posicion_x is not None
+            else getattr(categoria, "imagen_posicion_x_default", 50)
+        ),
+        imagen_posicion_y=(
+            producto.imagen_posicion_y
+            if producto.imagen_posicion_y is not None
+            else getattr(categoria, "imagen_posicion_y_default", 30)
+        ),
+        imagen_zoom=(
+            producto.imagen_zoom
+            if producto.imagen_zoom is not None
+            else getattr(categoria, "imagen_zoom_default", 100)
+        ),
+        imagen_fondo=producto.imagen_fondo or getattr(categoria, "imagen_fondo_default", None),
+        fecha_agregado=producto.fecha_agregado,
+    )
+
+
 def _get_cached_public_catalog(db: Session, slug: str):
     now = monotonic()
     with _catalog_cache_lock:
@@ -151,12 +182,13 @@ def get_public_products(
     db: Session = Depends(get_db),
 ):
     tienda = _get_active_tienda_or_404(db, slug)
-    return list_public_productos(
+    products = list_public_productos(
         db=db,
         id_tienda=tienda.id_tienda,
         limit=limit,
         offset=offset,
     )
+    return [_public_product_out(product) for product in products]
 
 
 @router.post(

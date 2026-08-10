@@ -6,6 +6,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_serializer
 from core.storage import build_public_asset_url
 
+ImageFit = Literal["cover", "contain", "auto"]
+IMAGE_COLOR_PATTERN = r"^#[0-9A-Fa-f]{6}$"
 
 # -------------------------
 # CATEGORIAS
@@ -15,6 +17,11 @@ class CategoriaCreate(BaseModel):
     id_categoria_padre: Optional[UUID] = None
     orden: int = Field(default=0, ge=0)
     activa: bool = True
+    imagen_fit_default: ImageFit = "cover"
+    imagen_posicion_x_default: int = Field(default=50, ge=0, le=100)
+    imagen_posicion_y_default: int = Field(default=30, ge=0, le=100)
+    imagen_zoom_default: int = Field(default=100, ge=80, le=200)
+    imagen_fondo_default: Optional[str] = Field(default=None, pattern=IMAGE_COLOR_PATTERN)
 
 
 class CategoriaUpdate(BaseModel):
@@ -22,6 +29,11 @@ class CategoriaUpdate(BaseModel):
     id_categoria_padre: Optional[UUID] = None
     orden: Optional[int] = Field(default=None, ge=0)
     activa: Optional[bool] = None
+    imagen_fit_default: Optional[ImageFit] = None
+    imagen_posicion_x_default: Optional[int] = Field(default=None, ge=0, le=100)
+    imagen_posicion_y_default: Optional[int] = Field(default=None, ge=0, le=100)
+    imagen_zoom_default: Optional[int] = Field(default=None, ge=80, le=200)
+    imagen_fondo_default: Optional[str] = Field(default=None, pattern=IMAGE_COLOR_PATTERN)
 
 
 class CategoriaOut(BaseModel):
@@ -32,6 +44,11 @@ class CategoriaOut(BaseModel):
     slug: Optional[str] = None
     orden: int = 0
     activa: bool
+    imagen_fit_default: ImageFit = "cover"
+    imagen_posicion_x_default: int = 50
+    imagen_posicion_y_default: int = 30
+    imagen_zoom_default: int = 100
+    imagen_fondo_default: Optional[str] = None
 
     class Config:
         from_attributes = True  # permite devolver objetos ORM
@@ -52,6 +69,11 @@ class ProductoCreate(BaseModel):
 
     stock_actual: int = Field(default=0, ge=0)
     imagen_url: Optional[str] = Field(default=None, max_length=255)
+    imagen_fit: Optional[ImageFit] = None
+    imagen_posicion_x: Optional[int] = Field(default=None, ge=0, le=100)
+    imagen_posicion_y: Optional[int] = Field(default=None, ge=0, le=100)
+    imagen_zoom: Optional[int] = Field(default=None, ge=80, le=200)
+    imagen_fondo: Optional[str] = Field(default=None, pattern=IMAGE_COLOR_PATTERN)
     activo: bool = True
 
 
@@ -65,6 +87,11 @@ class ProductoUpdate(BaseModel):
     costo_adquisicion: Optional[Decimal] = Field(default=None, ge=0)
     stock_actual: Optional[int] = Field(default=None, ge=0)
     imagen_url: Optional[str] = Field(default=None, max_length=255)
+    imagen_fit: Optional[ImageFit] = None
+    imagen_posicion_x: Optional[int] = Field(default=None, ge=0, le=100)
+    imagen_posicion_y: Optional[int] = Field(default=None, ge=0, le=100)
+    imagen_zoom: Optional[int] = Field(default=None, ge=80, le=200)
+    imagen_fondo: Optional[str] = Field(default=None, pattern=IMAGE_COLOR_PATTERN)
     activo: Optional[bool] = None
 
 
@@ -81,6 +108,11 @@ class ProductoOut(BaseModel):
     tiene_variantes: bool = False
     imagen_url: Optional[str]
     imagenes: list[str] = []
+    imagen_fit: Optional[ImageFit] = None
+    imagen_posicion_x: Optional[int] = None
+    imagen_posicion_y: Optional[int] = None
+    imagen_zoom: Optional[int] = None
+    imagen_fondo: Optional[str] = None
     activo: bool
     fecha_agregado: datetime
 
@@ -105,6 +137,11 @@ class CategoriaPublicOut(BaseModel):
     id_categoria_padre: Optional[UUID] = None
     slug: Optional[str] = None
     orden: int = 0
+    imagen_fit_default: ImageFit = "cover"
+    imagen_posicion_x_default: int = 50
+    imagen_posicion_y_default: int = 30
+    imagen_zoom_default: int = 100
+    imagen_fondo_default: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -118,6 +155,11 @@ class ProductoPublicOut(BaseModel):
     precio_venta: Decimal
     imagen_url: Optional[str]
     imagenes: list[str] = []
+    imagen_fit: ImageFit = "cover"
+    imagen_posicion_x: int = 50
+    imagen_posicion_y: int = 30
+    imagen_zoom: int = 100
+    imagen_fondo: Optional[str] = None
     fecha_agregado: datetime
     precio_original: Optional[Decimal] = None
     precio_final: Optional[Decimal] = None

@@ -430,7 +430,13 @@ img {
   object-position: center 30%;
   display: block;
   padding: 0;
+  transform-origin: center;
+  transition: transform 180ms ease, object-position 180ms ease;
+  will-change: transform;
 }
+
+.product-image.fit-cover { object-fit: cover; }
+.product-image.fit-contain { object-fit: contain; }
 
 .detail-image {
   width: 100%;

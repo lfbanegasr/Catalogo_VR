@@ -5,6 +5,55 @@ import StoreRefPicker from '../StoreRefPicker';
 import ImageDropZone from '../ImageDropZone';
 import { getImageSrc } from '../../utils';
 import { ToastStack } from '../Toast';
+import ProductCoverEditor, { categoryCoverDefaults } from './ProductCoverEditor';
+
+const CATEGORY_FORM_DEFAULTS = {
+  nombre: "",
+  id_categoria_padre: null,
+  orden: 0,
+  activa: true,
+  imagen_fit_default: "cover",
+  imagen_posicion_x_default: 50,
+  imagen_posicion_y_default: 30,
+  imagen_zoom_default: 100,
+  imagen_fondo_default: "#F8F5F2",
+};
+
+const PRODUCT_FORM_DEFAULTS = {
+  nombre: "",
+  descripcion: "",
+  precio_venta: 0,
+  stock_actual: 0,
+  id_categoria_principal: "",
+  imagen_fit: null,
+  imagen_posicion_x: null,
+  imagen_posicion_y: null,
+  imagen_zoom: null,
+  imagen_fondo: null,
+  activo: true,
+};
+
+function CategoryCoverDefaultsFields({ value, onChange }) {
+  const update = (key, next) => onChange({ ...value, [key]: next });
+  return (
+    <section className="category-cover-defaults">
+      <header><strong>Portadas de esta categoría</strong><span>Los productos heredarán este ajuste mientras no tengan uno individual.</span></header>
+      <label>Modo predeterminado
+        <select value={value.imagen_fit_default || "cover"} onChange={(event) => update("imagen_fit_default", event.target.value)}>
+          <option value="cover">Rellenar el cuadro</option>
+          <option value="contain">Mostrar imagen completa</option>
+          <option value="auto">Automático según proporción</option>
+        </select>
+      </label>
+      <label className="category-cover-color">Color de fondo
+        <input type="color" value={value.imagen_fondo_default || "#F8F5F2"} onChange={(event) => update("imagen_fondo_default", event.target.value.toUpperCase())} />
+      </label>
+      <label className="cover-range-control"><span><strong>Posición horizontal</strong><output>{value.imagen_posicion_x_default ?? 50}%</output></span><input type="range" min="0" max="100" value={value.imagen_posicion_x_default ?? 50} onChange={(event) => update("imagen_posicion_x_default", Number(event.target.value))} /></label>
+      <label className="cover-range-control"><span><strong>Posición vertical</strong><output>{value.imagen_posicion_y_default ?? 30}%</output></span><input type="range" min="0" max="100" value={value.imagen_posicion_y_default ?? 30} onChange={(event) => update("imagen_posicion_y_default", Number(event.target.value))} /></label>
+      <label className="cover-range-control"><span><strong>Zoom</strong><output>{value.imagen_zoom_default ?? 100}%</output></span><input type="range" min="80" max="200" value={value.imagen_zoom_default ?? 100} onChange={(event) => update("imagen_zoom_default", Number(event.target.value))} /></label>
+    </section>
+  );
+}
 
 export default function CatalogoScreen({ isSuperadmin }) {
   const editorRef = useRef(null);
@@ -62,9 +111,12 @@ export default function CatalogoScreen({ isSuperadmin }) {
     es_predeterminada: false,
     atributos: {},
   });
-  const [form, setForm] = useState(tab === "categorias" ? { nombre: "", id_categoria_padre: null, orden: 0, activa: true } : { nombre: "", descripcion: "", precio_venta: 0, stock_actual: 0, id_categoria_principal: "", activo: true });
+  const [form, setForm] = useState(tab === "categorias" ? { ...CATEGORY_FORM_DEFAULTS } : { ...PRODUCT_FORM_DEFAULTS });
   const [toasts, setToasts] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [coverEditor, setCoverEditor] = useState(null);
+  const [coverEditorBusy, setCoverEditorBusy] = useState(false);
+  const [pendingImagePreviewUrl, setPendingImagePreviewUrl] = useState("");
 
   const pushToast = (message, type = "success") => {
     const id = Date.now() + Math.random();
@@ -75,6 +127,16 @@ export default function CatalogoScreen({ isSuperadmin }) {
   };
 
   const dismissToast = (id) => setToasts((current) => current.filter((item) => item.id !== id));
+
+  useEffect(() => {
+    if (!pendingImageFile) {
+      setPendingImagePreviewUrl("");
+      return undefined;
+    }
+    const objectUrl = URL.createObjectURL(pendingImageFile);
+    setPendingImagePreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [pendingImageFile]);
   const categoryOptions = useMemo(() => {
     const byId = new Map(categoriasDisponibles.map((category) => [category.id_categoria, category]));
     const labelFor = (category) => {
@@ -213,6 +275,79 @@ export default function CatalogoScreen({ isSuperadmin }) {
       ) : null}
     </div>
   );
+
+  const findProductCategory = (product) => {
+    const categoryId = product?.id_categoria_principal || product?.id_categoria || "";
+    return categoriasDisponibles.find((item) => String(item.id_categoria) === String(categoryId)) || null;
+  };
+
+  const getAdminCoverAdjustment = (product) => {
+    const defaults = categoryCoverDefaults(findProductCategory(product));
+    const fit = product?.imagen_fit || defaults.fit;
+    return {
+      backgroundColor: product?.imagen_fondo || defaults.background,
+      imageStyle: {
+        objectFit: fit === "auto" ? "contain" : fit,
+        objectPosition: `${product?.imagen_posicion_x ?? defaults.positionX}% ${product?.imagen_posicion_y ?? defaults.positionY}%`,
+        transform: `scale(${(product?.imagen_zoom ?? defaults.zoom) / 100})`,
+      },
+    };
+  };
+
+  const openProductCoverEditor = (product, options = {}) => {
+    setCoverEditor({
+      target: options.target || "existing",
+      product,
+      category: findProductCategory(product),
+      file: options.file || null,
+      imageUrl: options.imageUrl || (product?.imagen_url ? getImageSrc(product.imagen_url) : ""),
+      replaceUrl: options.replaceUrl || "",
+    });
+  };
+
+  const applyProductCover = async ({ file, payload }) => {
+    if (!coverEditor) return;
+    if (coverEditor.target === "new") {
+      if (file) setPendingImageFile(file);
+      setForm((current) => ({ ...current, ...payload }));
+      setCoverEditor(null);
+      pushToast("Portada preparada. Crea el producto para subirla.");
+      return;
+    }
+
+    const productId = coverEditor.product?.id_producto;
+    if (!productId) return;
+    setCoverEditorBusy(true);
+    setError("");
+    try {
+      let imageResult = null;
+      if (file && coverEditor.replaceUrl) {
+        imageResult = await api.replaceProductoImage(productId, coverEditor.replaceUrl, file);
+      } else if (file) {
+        imageResult = await api.uploadProductoImage(productId, file);
+      }
+      const updated = await api.updateProducto(productId, payload, selectedStoreRef);
+      const merged = {
+        ...coverEditor.product,
+        ...updated,
+        ...(imageResult || {}),
+        ...payload,
+      };
+      setRows((current) => current.map((item) => item.id_producto === productId ? merged : item));
+      setEditing((current) => current?.row?.id_producto === productId
+        ? { ...current, row: { ...current.row, ...merged } }
+        : current);
+      await load();
+      setCoverEditor(null);
+      pushToast(file ? "Portada subida y ajustada correctamente" : "Ajuste de portada guardado");
+    } catch (err) {
+      const message = err.message || "No se pudo aplicar el ajuste de portada";
+      setError(message);
+      pushToast(message, "error");
+    } finally {
+      setCoverEditorBusy(false);
+    }
+  };
 
   const toggleRowVisibility = async (row, mode) => {
     const isCategory = mode === "categoria";
@@ -376,11 +511,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   };
 
   const resetFormForTab = (nextTab) =>
-    setForm(
-      nextTab === "categorias"
-        ? { nombre: "", id_categoria_padre: null, orden: 0, activa: true }
-        : { nombre: "", descripcion: "", precio_venta: 0, stock_actual: 0, id_categoria_principal: "", activo: true },
-    );
+    setForm(nextTab === "categorias" ? { ...CATEGORY_FORM_DEFAULTS } : { ...PRODUCT_FORM_DEFAULTS });
 
   const loadStores = async () => {
     if (!isSuperadmin) {
@@ -844,7 +975,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     <td>
                       {r.imagen_url ? (
                         <div className="table-img-wrapper">
-                          <img src={getImageSrc(r.imagen_url)} alt="" className="table-thumb" />
+                          <img src={getImageSrc(r.imagen_url)} alt="" className="table-thumb" style={getAdminCoverAdjustment(r).imageStyle} />
                         </div>
                       ) : (
                         <span className="no-image-text">Sin imagen</span>
@@ -861,22 +992,10 @@ export default function CatalogoScreen({ isSuperadmin }) {
                         statusText={uploadMetaByProduct[r.id_producto]?.status || ""}
                         errorText={uploadMetaByProduct[r.id_producto]?.error || ""}
                         disabled={busyImageProductId === r.id_producto}
-                        onFileSelected={async (file) => {
-                          try {
-                            await uploadImage(r.id_producto, file);
-                          } catch (err) {
-                            const message = err.message || "No se pudo subir la imagen";
-                            setError(message);
-                            setUploadMetaByProduct((prev) => ({
-                              ...prev,
-                              [r.id_producto]: {
-                                fileName: file?.name || "",
-                                status: "",
-                                error: message,
-                              },
-                            }));
-                          }
-                        }}
+                        onFileSelected={(file) => openProductCoverEditor(r, {
+                          file,
+                          replaceUrl: r.imagenes?.[0] || r.imagen_url || "",
+                        })}
                       />
                     </td>
                   </tr>
@@ -919,9 +1038,9 @@ export default function CatalogoScreen({ isSuperadmin }) {
             return (
               <div key={r.id_producto} className="admin-card product-card">
                 <div className="product-card-header">
-                  <div className="product-card-img">
+                  <div className="product-card-img" style={{ backgroundColor: getAdminCoverAdjustment(r).backgroundColor }}>
                     {r.imagen_url ? (
-                      <img src={getImageSrc(r.imagen_url)} alt={r.nombre} />
+                      <img src={getImageSrc(r.imagen_url)} alt={r.nombre} style={getAdminCoverAdjustment(r).imageStyle} />
                     ) : (
                       <div className="placeholder-img"><span className="icon">🛍️</span></div>
                     )}
@@ -964,22 +1083,10 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     statusText={uploadMetaByProduct[r.id_producto]?.status || ""}
                     errorText={uploadMetaByProduct[r.id_producto]?.error || ""}
                     disabled={busyImageProductId === r.id_producto}
-                    onFileSelected={async (file) => {
-                      try {
-                        await uploadImage(r.id_producto, file);
-                      } catch (err) {
-                        const message = err.message || "No se pudo subir la imagen";
-                        setError(message);
-                        setUploadMetaByProduct((prev) => ({
-                          ...prev,
-                          [r.id_producto]: {
-                            fileName: file?.name || "",
-                            status: "",
-                            error: message,
-                          },
-                        }));
-                      }
-                    }}
+                    onFileSelected={(file) => openProductCoverEditor(r, {
+                      file,
+                      replaceUrl: r.imagenes?.[0] || r.imagen_url || "",
+                    })}
                   />
                 </div>
               </div>
@@ -997,6 +1104,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
               <>
                 <label>Categoría padre<select value={editing.row.id_categoria_padre || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, id_categoria_padre: e.target.value || null } }))}><option value="">Categoría raíz</option>{categoryOptions.filter((c) => c.id_categoria !== editing.row.id_categoria).map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
                 <label>Orden<input type="number" min="0" value={editing.row.orden || 0} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, orden: Number(e.target.value || 0) } }))} /></label>
+                <CategoryCoverDefaultsFields value={editing.row} onChange={(row) => setEditing((current) => ({ ...current, row }))} />
                 <label className="check-row"><input type="checkbox" checked={!!editing.row.activa} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, activa: e.target.checked } }))} />Activa</label>
               </>
             ) : (
@@ -1268,6 +1376,11 @@ export default function CatalogoScreen({ isSuperadmin }) {
                   <div className="image-manager-gallery-title">
                     <span>Imágenes del producto ({editing.row.imagenes?.length || 0})</span>
                     <span className="muted small">La primera imagen será la portada</span>
+                    {editing.row.imagen_url ? (
+                      <button type="button" className="btn btn-ghost" onClick={() => openProductCoverEditor(editing.row)}>
+                        Ajustar portada
+                      </button>
+                    ) : null}
                   </div>
                   
                   {/* File input oculto para reemplazo de imágenes específicas */}
@@ -1278,28 +1391,34 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     style={{ display: 'none' }}
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
-                      if (file && replacingImageUrl) {
-                        try {
-                          setError("");
-                          setBusyImageProductId(editing.row.id_producto);
-                          const result = await api.replaceProductoImage(editing.row.id_producto, replacingImageUrl, file);
-                          if (result) {
-                            setEditing((prev) => ({
-                              ...prev,
-                              row: { 
-                                ...prev.row, 
-                                imagenes: result.imagenes || [result.imagen_url], 
-                                imagen_url: result.imagen_url 
-                              },
-                            }));
-                          }
-                          await load();
-                        } catch (err) {
-                          setError(err.message || "Error al reemplazar imagen");
-                        } finally {
-                          setBusyImageProductId("");
-                          setReplacingImageUrl(null);
+                      e.target.value = "";
+                      if (!file || !replacingImageUrl) return;
+                      const isCover = replacingImageUrl === (editing.row.imagenes?.[0] || editing.row.imagen_url);
+                      if (isCover) {
+                        openProductCoverEditor(editing.row, { file, replaceUrl: replacingImageUrl });
+                        setReplacingImageUrl(null);
+                        return;
+                      }
+                      try {
+                        setError("");
+                        setBusyImageProductId(editing.row.id_producto);
+                        const result = await api.replaceProductoImage(editing.row.id_producto, replacingImageUrl, file);
+                        if (result) {
+                          setEditing((prev) => ({
+                            ...prev,
+                            row: {
+                              ...prev.row,
+                              imagenes: result.imagenes || [result.imagen_url],
+                              imagen_url: result.imagen_url,
+                            },
+                          }));
                         }
+                        await load();
+                      } catch (err) {
+                        setError(err.message || "Error al reemplazar imagen");
+                      } finally {
+                        setBusyImageProductId("");
+                        setReplacingImageUrl(null);
                       }
                     }}
                   />
@@ -1375,16 +1494,21 @@ export default function CatalogoScreen({ isSuperadmin }) {
                   subtitle="Arrastra y suelta o selecciona archivo para añadir"
                   disabled={busyImageProductId === editing.row.id_producto}
                   onFileSelected={async (file) => {
+                    const hasCover = Boolean(editing.row.imagenes?.length || editing.row.imagen_url);
+                    if (!hasCover) {
+                      openProductCoverEditor(editing.row, { file });
+                      return;
+                    }
                     try {
                       setError("");
                       const result = await uploadImage(editing.row.id_producto, file);
                       if (result) {
                         setEditing((prev) => ({
                           ...prev,
-                          row: { 
-                            ...prev.row, 
+                          row: {
+                            ...prev.row,
                             imagenes: result.imagenes || [result.imagen_url],
-                            imagen_url: result.imagen_url 
+                            imagen_url: result.imagen_url,
                           },
                         }));
                       }
@@ -1408,6 +1532,11 @@ export default function CatalogoScreen({ isSuperadmin }) {
                       id_categoria_padre: editing.row.id_categoria_padre || null,
                       orden: Number(editing.row.orden || 0),
                       activa: editing.row.activa,
+                      imagen_fit_default: editing.row.imagen_fit_default || "cover",
+                      imagen_posicion_x_default: Number(editing.row.imagen_posicion_x_default ?? 50),
+                      imagen_posicion_y_default: Number(editing.row.imagen_posicion_y_default ?? 30),
+                      imagen_zoom_default: Number(editing.row.imagen_zoom_default ?? 100),
+                      imagen_fondo_default: editing.row.imagen_fondo_default || null,
                     }, selectedStoreRef);
                   } else {
                     await api.updateProducto(editing.row.id_producto, {
@@ -1417,6 +1546,11 @@ export default function CatalogoScreen({ isSuperadmin }) {
                       stock_actual: Number(editing.row.stock_actual || 0),
                       id_categoria_principal: editing.row.id_categoria_principal || editing.row.id_categoria || null,
                       activo: editing.row.activo,
+                      imagen_fit: editing.row.imagen_fit || null,
+                      imagen_posicion_x: editing.row.imagen_posicion_x ?? null,
+                      imagen_posicion_y: editing.row.imagen_posicion_y ?? null,
+                      imagen_zoom: editing.row.imagen_zoom ?? null,
+                      imagen_fondo: editing.row.imagen_fondo || null,
                     }, selectedStoreRef);
                     if (editingProductAttributeConfig.length > 0) {
                       await api.replaceProductoAtributos(
@@ -1464,6 +1598,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
               <>
                 <label>Categoría padre<select value={form.id_categoria_padre || ""} onChange={(e) => setForm((s) => ({ ...s, id_categoria_padre: e.target.value || null }))}><option value="">Categoría raíz</option>{categoryOptions.map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
                 <label>Orden<input type="number" min="0" value={form.orden || 0} onChange={(e) => setForm((s) => ({ ...s, orden: Number(e.target.value || 0) }))} /></label>
+                <CategoryCoverDefaultsFields value={form} onChange={setForm} />
                 <label className="check-row"><input type="checkbox" checked={!!form.activa} onChange={(e) => setForm((s) => ({ ...s, activa: e.target.checked }))} />Activa</label>
               </>
             ) : (
@@ -1473,11 +1608,19 @@ export default function CatalogoScreen({ isSuperadmin }) {
                 <label>Stock<input type="number" value={form.stock_actual || 0} onChange={(e) => setForm((s) => ({ ...s, stock_actual: e.target.value }))} /></label>
                 <label>Categoría<select value={form.id_categoria_principal || ""} onChange={(e) => setForm((s) => ({ ...s, id_categoria_principal: e.target.value || null }))}><option value="">Sin categoría</option>{categoryOptions.map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
                 <ImageDropZone
-                  title="Imagen del producto"
-                  subtitle="La imagen se sube al guardar el producto"
+                  title="Portada del producto"
+                  subtitle="Arrastra una imagen para ajustar y previsualizar antes de subir"
+                  previewUrl={pendingImagePreviewUrl}
                   selectedFileName={pendingImageFile?.name || ""}
-                  onFileSelected={setPendingImageFile}
+                  onFileSelected={(file) => openProductCoverEditor(form, { target: "new", file })}
                 />
+                {pendingImageFile ? (
+                  <button type="button" className="btn btn-ghost" onClick={() => openProductCoverEditor(form, {
+                    target: "new",
+                    file: pendingImageFile,
+                    imageUrl: pendingImagePreviewUrl,
+                  })}>Volver a ajustar portada</button>
+                ) : null}
                 <label className="check-row"><input type="checkbox" checked={!!form.activo} onChange={(e) => setForm((s) => ({ ...s, activo: e.target.checked }))} />Activo</label>
               </>
             )}
@@ -1501,6 +1644,16 @@ export default function CatalogoScreen({ isSuperadmin }) {
         </button>
       )}
     </Card>
+    <ProductCoverEditor
+      open={Boolean(coverEditor)}
+      imageUrl={coverEditor?.imageUrl || ""}
+      file={coverEditor?.file || null}
+      product={coverEditor?.product || null}
+      category={coverEditor?.category || null}
+      busy={coverEditorBusy}
+      onCancel={() => { if (!coverEditorBusy) setCoverEditor(null); }}
+      onApply={applyProductCover}
+    />
     <ToastStack items={toasts} onDismiss={dismissToast} />
     </>
   );

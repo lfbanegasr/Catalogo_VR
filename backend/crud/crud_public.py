@@ -54,6 +54,11 @@ def get_catalog_public(db: Session, slug: str):
             Categoria.id_categoria_padre,
             Categoria.slug,
             Categoria.orden,
+            Categoria.imagen_fit_default,
+            Categoria.imagen_posicion_x_default,
+            Categoria.imagen_posicion_y_default,
+            Categoria.imagen_zoom_default,
+            Categoria.imagen_fondo_default,
         )
         .where(Categoria.id_tienda == tienda_id, Categoria.activa.is_(True))
         .order_by(Categoria.orden.asc(), Categoria.nombre.asc())
@@ -94,6 +99,16 @@ def get_catalog_public(db: Session, slug: str):
                 Producto.id_categoria,
             ).label("categoria_id_efectiva"),
             Producto.imagen_url,
+            func.coalesce(Producto.imagen_fit, Categoria.imagen_fit_default, "cover"),
+            func.coalesce(Producto.imagen_posicion_x, Categoria.imagen_posicion_x_default, 50),
+            func.coalesce(Producto.imagen_posicion_y, Categoria.imagen_posicion_y_default, 30),
+            func.coalesce(Producto.imagen_zoom, Categoria.imagen_zoom_default, 100),
+            func.coalesce(Producto.imagen_fondo, Categoria.imagen_fondo_default),
+        )
+        .outerjoin(
+            Categoria,
+            Categoria.id_categoria
+            == func.coalesce(Producto.id_categoria_principal, Producto.id_categoria),
         )
         .where(
             Producto.id_tienda == tienda_id,
@@ -130,6 +145,11 @@ def get_catalog_public(db: Session, slug: str):
             "stock": stock_actual,
             "categoria_id": str(categoria_id) if categoria_id else None,
             "imagen_url": build_public_asset_url(imagen_url),
+            "imagen_fit": imagen_fit,
+            "imagen_posicion_x": imagen_posicion_x,
+            "imagen_posicion_y": imagen_posicion_y,
+            "imagen_zoom": imagen_zoom,
+            "imagen_fondo": imagen_fondo,
             "imagenes": [
                 build_public_asset_url(img) for img in (
                     [imagen_url, *imagenes_por_producto.get(str(producto_id), [])]
@@ -146,6 +166,11 @@ def get_catalog_public(db: Session, slug: str):
             stock_actual,
             categoria_id,
             imagen_url,
+            imagen_fit,
+            imagen_posicion_x,
+            imagen_posicion_y,
+            imagen_zoom,
+            imagen_fondo,
         ) in productos_rows
     ]
     atributos_por_producto: dict[str, list[dict]] = {}
@@ -394,8 +419,24 @@ def get_catalog_public(db: Session, slug: str):
                 "id_categoria_padre": str(id_categoria_padre) if id_categoria_padre else None,
                 "slug": slug,
                 "orden": orden,
+                "imagen_fit_default": imagen_fit_default,
+                "imagen_posicion_x_default": imagen_posicion_x_default,
+                "imagen_posicion_y_default": imagen_posicion_y_default,
+                "imagen_zoom_default": imagen_zoom_default,
+                "imagen_fondo_default": imagen_fondo_default,
             }
-            for categoria_id, nombre, id_categoria_padre, slug, orden in categorias_rows
+            for (
+                categoria_id,
+                nombre,
+                id_categoria_padre,
+                slug,
+                orden,
+                imagen_fit_default,
+                imagen_posicion_x_default,
+                imagen_posicion_y_default,
+                imagen_zoom_default,
+                imagen_fondo_default,
+            ) in categorias_rows
         ],
         "productos": productos,
     }

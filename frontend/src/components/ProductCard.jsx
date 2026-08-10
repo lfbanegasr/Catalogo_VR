@@ -4,17 +4,33 @@ import { useCart } from "../context/CartContext";
 import { useCurrency } from "../context/CurrencyContext";
 import { formatPrice } from "../utils/price";
 
-function ProductImage({ src, alt }) {
+function ProductImage({ src, alt, adjustment }) {
+  const [autoFit, setAutoFit] = useState("cover");
   if (!src) {
     return <div className="product-image-fallback">Sin imagen</div>;
   }
 
+  const requestedFit = adjustment?.fit || "cover";
+  const resolvedFit = requestedFit === "auto" ? autoFit : requestedFit;
+  const positionX = Number(adjustment?.positionX ?? 50);
+  const positionY = Number(adjustment?.positionY ?? 30);
+  const zoom = Number(adjustment?.zoom ?? 100);
+
   return (
     <img
-      className="product-image"
+      className={`product-image fit-${resolvedFit}`}
       src={src}
       alt={alt}
       loading="lazy"
+      style={{
+        objectPosition: `${positionX}% ${positionY}%`,
+        transform: `scale(${zoom / 100})`,
+      }}
+      onLoad={(event) => {
+        if (requestedFit !== "auto") return;
+        const ratio = event.currentTarget.naturalWidth / Math.max(1, event.currentTarget.naturalHeight);
+        setAutoFit(ratio < 0.9 || ratio > 1.1 ? "contain" : "cover");
+      }}
       onError={(event) => {
         event.currentTarget.style.display = "none";
         const fallback = event.currentTarget.nextElementSibling;
@@ -41,6 +57,13 @@ function ProductCard({ product, onViewDetail, compact = false }) {
   const stock = product.stock ?? null;
   const imagenUrl = product.imagen_url || product.imageUrl || "";
   const imageSrc = buildAssetUrl(imagenUrl);
+  const imageAdjustment = {
+    fit: product.imagen_fit || "cover",
+    positionX: product.imagen_posicion_x ?? 50,
+    positionY: product.imagen_posicion_y ?? 30,
+    zoom: product.imagen_zoom ?? 100,
+    background: product.imagen_fondo || "",
+  };
   const defaultVariant = (Array.isArray(product.variantes) ? product.variantes : [])
     .find((variant) => variant.es_predeterminada)
     || product.variantes?.[0]
@@ -76,8 +99,8 @@ function ProductCard({ product, onViewDetail, compact = false }) {
       className={`product-card ${compact ? "compact" : ""}`.trim()}
       data-product-id={String(product.id)}
     >
-      <div className="product-media">
-        <ProductImage src={imageSrc} alt={nombre} />
+      <div className="product-media" style={imageAdjustment.background ? { backgroundColor: imageAdjustment.background } : undefined}>
+        <ProductImage src={imageSrc} alt={nombre} adjustment={imageAdjustment} />
         <div className="product-image-fallback hidden">Imagen no disponible</div>
         {badgeText ? <span className="product-badge">{badgeText}</span> : null}
       </div>

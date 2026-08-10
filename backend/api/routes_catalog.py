@@ -44,7 +44,7 @@ from crud.crud_offers import (
     list_offers,
     update_offer,
 )
-from models.tenant import Usuario
+from models.tenant import Tienda, Usuario
 from schemas.catalog_schema import (
     CategoriaCreate,
     CategoriaOut,
@@ -68,6 +68,15 @@ router = APIRouter(prefix="/api/catalog", tags=["Catalog"])
 UPLOAD_DIR = settings.PRODUCTS_UPLOAD_PATH
 OFFERS_UPLOAD_DIR = settings.OFFERS_UPLOAD_PATH
 THEME_UPLOAD_DIR = settings.THEME_UPLOAD_PATH
+
+
+def _invalidate_public_catalog_for_tenant(db: Session, id_tienda: UUID) -> None:
+    tienda = db.query(Tienda).filter(Tienda.id_tienda == id_tienda).first()
+    if not tienda:
+        return
+    from api.routes_public_catalog import invalidate_public_catalog_cache
+
+    invalidate_public_catalog_cache(tienda.slug)
 
 
 def _resolve_target_tienda_id(
@@ -279,7 +288,9 @@ def api_create_categoria(
         nombre_tienda_target=nombre_tienda_target,
     )
     try:
-        return create_categoria(db=db, id_tienda=target_tienda_id, data=data)
+        created = create_categoria(db=db, id_tienda=target_tienda_id, data=data)
+        _invalidate_public_catalog_for_tenant(db, target_tienda_id)
+        return created
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -342,6 +353,7 @@ def api_update_categoria(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not updated:
         raise HTTPException(status_code=404, detail="Categoria no encontrada")
+    _invalidate_public_catalog_for_tenant(db, target_tienda_id)
     return updated
 
 
@@ -418,7 +430,9 @@ def api_create_producto(
     create_payload["id_categoria_principal"] = categoria_id
     create_payload.pop("nombre_categoria", None)
     normalized_data = ProductoCreate(**create_payload)
-    return create_producto(db=db, id_tienda=target_tienda_id, data=normalized_data)
+    created = create_producto(db=db, id_tienda=target_tienda_id, data=normalized_data)
+    _invalidate_public_catalog_for_tenant(db, target_tienda_id)
+    return created
 
 
 @router.get(
@@ -530,6 +544,7 @@ def api_update_producto(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not updated:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
+    _invalidate_public_catalog_for_tenant(db, target_tienda_id)
     return updated
 
 
@@ -598,6 +613,7 @@ def api_upload_product_image(
     add_product_image(db=db, id_producto=id_producto, imagen_url=imagen_url)
     if not updated:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
+    _invalidate_public_catalog_for_tenant(db, producto.id_tienda)
 
     return {
         "id_producto": str(updated.id_producto),

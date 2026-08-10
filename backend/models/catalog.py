@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     DateTime,
     Enum,
@@ -26,7 +27,15 @@ OFFER_TYPES = ("PERCENT", "PRICE_OVERRIDE")
 
 class Categoria(Base):
     __tablename__ = "categorias"
-
+    __table_args__ = (
+        CheckConstraint(
+            "imagen_fit_default IN ('cover', 'contain', 'auto')",
+            name="ck_categorias_imagen_fit_default",
+        ),
+        CheckConstraint("imagen_posicion_x_default BETWEEN 0 AND 100", name="ck_categorias_imagen_pos_x_default"),
+        CheckConstraint("imagen_posicion_y_default BETWEEN 0 AND 100", name="ck_categorias_imagen_pos_y_default"),
+        CheckConstraint("imagen_zoom_default BETWEEN 80 AND 200", name="ck_categorias_imagen_zoom_default"),
+    )
     id_categoria = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_tienda = Column(
         UUID(as_uuid=True),
@@ -43,6 +52,11 @@ class Categoria(Base):
     slug = Column(String(120), nullable=False)
     orden = Column(Integer, nullable=False, default=0)
     activa = Column(Boolean, default=True)
+    imagen_fit_default = Column(String(12), nullable=False, default="cover")
+    imagen_posicion_x_default = Column(Integer, nullable=False, default=50)
+    imagen_posicion_y_default = Column(Integer, nullable=False, default=30)
+    imagen_zoom_default = Column(Integer, nullable=False, default=100)
+    imagen_fondo_default = Column(String(20), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(
         DateTime,
@@ -80,6 +94,10 @@ class Producto(Base):
     __tablename__ = "productos"
     __table_args__ = (
         UniqueConstraint("id_tienda", "nombre", name="uq_productos_tienda_nombre"),
+        CheckConstraint("imagen_fit IS NULL OR imagen_fit IN ('cover', 'contain', 'auto')", name="ck_productos_imagen_fit"),
+        CheckConstraint("imagen_posicion_x IS NULL OR imagen_posicion_x BETWEEN 0 AND 100", name="ck_productos_imagen_pos_x"),
+        CheckConstraint("imagen_posicion_y IS NULL OR imagen_posicion_y BETWEEN 0 AND 100", name="ck_productos_imagen_pos_y"),
+        CheckConstraint("imagen_zoom IS NULL OR imagen_zoom BETWEEN 80 AND 200", name="ck_productos_imagen_zoom"),
     )
 
     id_producto = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -107,7 +125,11 @@ class Producto(Base):
 
     stock_actual = Column(Integer, default=0)
     imagen_url = Column(String(255), nullable=True)
-
+    imagen_fit = Column(String(12), nullable=True)
+    imagen_posicion_x = Column(Integer, nullable=True)
+    imagen_posicion_y = Column(Integer, nullable=True)
+    imagen_zoom = Column(Integer, nullable=True)
+    imagen_fondo = Column(String(20), nullable=True)
     activo = Column(Boolean, default=True)
     fecha_agregado = Column(DateTime, default=datetime.utcnow)
 

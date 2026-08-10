@@ -75,6 +75,11 @@ function normalizeCategory(item) {
       item.id_categoria_padre == null && item.parent_id == null
         ? null
         : String(item.id_categoria_padre ?? item.parent_id),
+    imagen_fit_default: ["cover", "contain", "auto"].includes(item.imagen_fit_default) ? item.imagen_fit_default : "cover",
+    imagen_posicion_x_default: Number(item.imagen_posicion_x_default ?? 50),
+    imagen_posicion_y_default: Number(item.imagen_posicion_y_default ?? 30),
+    imagen_zoom_default: Number(item.imagen_zoom_default ?? 100),
+    imagen_fondo_default: item.imagen_fondo_default || "",
   };
 }
 
@@ -140,6 +145,11 @@ function normalizeProduct(item) {
     categoria_id: rawCategoriaId == null ? null : String(rawCategoriaId),
     imagen_url: imagenUrl || "",
     imagenes,
+    imagen_fit: ["cover", "contain", "auto"].includes(item.imagen_fit) ? item.imagen_fit : "cover",
+    imagen_posicion_x: Math.min(100, Math.max(0, Number(item.imagen_posicion_x ?? 50))),
+    imagen_posicion_y: Math.min(100, Math.max(0, Number(item.imagen_posicion_y ?? 30))),
+    imagen_zoom: Math.min(200, Math.max(80, Number(item.imagen_zoom ?? 100))),
+    imagen_fondo: /^#[0-9A-Fa-f]{6}$/.test(item.imagen_fondo || "") ? item.imagen_fondo : "",
     atributos,
     variantes,
     tiene_variantes: Boolean(item.tiene_variantes || variantes.length > 0),

@@ -93,6 +93,11 @@ def create_categoria(db: Session, id_tienda, data: CategoriaCreate) -> Categoria
         slug=_build_unique_category_slug(db, id_tienda=id_tienda, nombre=data.nombre),
         orden=data.orden,
         activa=data.activa,
+        imagen_fit_default=data.imagen_fit_default,
+        imagen_posicion_x_default=data.imagen_posicion_x_default,
+        imagen_posicion_y_default=data.imagen_posicion_y_default,
+        imagen_zoom_default=data.imagen_zoom_default,
+        imagen_fondo_default=data.imagen_fondo_default,
     )
     db.add(categoria)
     db.commit()
@@ -152,6 +157,16 @@ def update_categoria(db: Session, id_categoria, data: CategoriaUpdate) -> Catego
         categoria.orden = payload["orden"]
     if "activa" in payload and payload["activa"] is not None:
         categoria.activa = payload["activa"]
+    for field in (
+        "imagen_fit_default",
+        "imagen_posicion_x_default",
+        "imagen_posicion_y_default",
+        "imagen_zoom_default",
+    ):
+        if field in payload and payload[field] is not None:
+            setattr(categoria, field, payload[field])
+    if "imagen_fondo_default" in payload:
+        categoria.imagen_fondo_default = payload["imagen_fondo_default"]
     db.commit()
     db.refresh(categoria)
     return categoria
@@ -182,6 +197,11 @@ def create_producto(db: Session, id_tienda, data: ProductoCreate) -> Producto:
         costo_adquisicion=data.costo_adquisicion,
         stock_actual=data.stock_actual,
         imagen_url=data.imagen_url,
+        imagen_fit=data.imagen_fit,
+        imagen_posicion_x=data.imagen_posicion_x,
+        imagen_posicion_y=data.imagen_posicion_y,
+        imagen_zoom=data.imagen_zoom,
+        imagen_fondo=data.imagen_fondo,
         activo=data.activo,
     )
     db.add(producto)

@@ -245,7 +245,7 @@ img {
   background: var(--color-surface);
   color: var(--color-text);
   border: 1px solid var(--border-soft);
-  border-radius: 999px;
+  border-radius: 10px;
   cursor: pointer;
 }
 
@@ -2387,14 +2387,14 @@ img {
   .category-pill,
   .category-nav.round_icons .category-pill {
     min-width: auto;
-    min-height: 44px;
+    min-height: 40px;
+    margin-block: 2px;
     padding: 0 10px;
     flex-direction: row;
     color: var(--color-muted);
     background: transparent;
-    border: 0;
-    border-bottom: 2px solid transparent;
-    border-radius: 0;
+    border: 1px solid transparent;
+    border-radius: 7px;
     font-size: .68rem;
     font-weight: 800;
     text-transform: uppercase;
@@ -2402,8 +2402,8 @@ img {
 
   .category-pill.active,
   .category-nav.round_icons .category-pill.active {
-    color: var(--color-text);
-    background: transparent;
+    color: var(--color-on-primary);
+    background: var(--color-primary);
     border-color: var(--color-primary);
   }
 

@@ -680,6 +680,21 @@ export default function CatalogoScreen({ isSuperadmin }) {
       .catch((e) => setError(e.message));
   }, [tab, attributeCategoryId, selectedStoreRef]);
 
+  useEffect(() => {
+    if (editing) {
+      const timer = setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+          const firstInput = editorRef.current.querySelector("input, select, textarea");
+          if (firstInput) {
+            firstInput.focus();
+          }
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [editing]);
+
   if (tab === "atributos") {
     return (
       <Card title="Atributos del catálogo" className="catalog-compact">

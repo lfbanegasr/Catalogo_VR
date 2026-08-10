@@ -82,9 +82,39 @@ function App() {
     const productId = params.get("p");
     if (slug && slug !== storeSlug) return;
     if (productId) {
+      window.history.replaceState({ type: "catalog" }, "", buildProductLink(null));
+      window.history.pushState({ type: "product", id: productId }, "", buildProductLink(productId));
       setRequestedProductId(productId);
     }
   }, [storeSlug]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const productId = params.get("p");
+      if (productId) {
+        const target = catalog.products.find(
+          (product) => String(product.id) === String(productId),
+        );
+        if (target) {
+          returnProductIdRef.current = String(target.id);
+          setSelectedProduct(target);
+        } else {
+          setRequestedProductId(productId);
+        }
+      } else {
+        if (selectedProduct) {
+          returnProductIdRef.current = String(selectedProduct.id);
+        }
+        setSelectedProduct(null);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [catalog.products, selectedProduct]);
 
   useEffect(() => {
     const refreshCatalog = () => loadCatalog({ silent: true, resetCategory: false });
@@ -147,7 +177,7 @@ function App() {
   const openProduct = (product) => {
     returnProductIdRef.current = String(product?.id || "");
     setSelectedProduct(product);
-    window.history.replaceState({}, "", buildProductLink(product?.id));
+    window.history.pushState({ type: "product", id: product?.id }, "", buildProductLink(product?.id));
     window.scrollTo({ top: 0, behavior: "instant" });
     registerPublicEvent(storeSlug, "product_view", product?.id);
   };
@@ -156,14 +186,14 @@ function App() {
     const productId = String(selectedProductFull?.id || returnProductIdRef.current || "");
     returnProductIdRef.current = productId;
     setSelectedProduct(null);
-    window.history.replaceState({}, "", buildProductLink(null));
+    window.history.replaceState({ type: "catalog" }, "", buildProductLink(null));
   };
 
   const navigateProduct = (product) => {
     if (!product) return;
     returnProductIdRef.current = String(product.id);
     setSelectedProduct(product);
-    window.history.replaceState({}, "", buildProductLink(product.id));
+    window.history.pushState({ type: "product", id: product.id }, "", buildProductLink(product.id));
     window.scrollTo({ top: 0, behavior: "smooth" });
     registerPublicEvent(storeSlug, "product_view", product.id);
   };

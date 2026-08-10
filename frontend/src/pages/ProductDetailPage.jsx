@@ -28,6 +28,7 @@ function ProductDetailPage({
   const [failedImageSrc, setFailedImageSrc] = useState("");
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [variantError, setVariantError] = useState("");
+  const [isZoomed, setIsZoomed] = useState(false);
 
   const handleAddToCart = () => {
     if (variants.length > 0 && !selectedVariant) {
@@ -117,8 +118,17 @@ function ProductDetailPage({
   return (
     <main className="page-shell">
       <div className="container">
-        <button className="btn btn-ghost back-btn" type="button" onClick={onBack}>
-          ← Volver al producto en el catalogo
+        <button
+          className="btn btn-ghost back-btn-round"
+          type="button"
+          onClick={onBack}
+          aria-label="Volver al catálogo"
+          title="Volver al catálogo"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="19" y1="12" x2="5" y2="12"></line>
+            <polyline points="12 19 5 12 12 5"></polyline>
+          </svg>
         </button>
 
         <section className="panel detail-layout">
@@ -130,6 +140,8 @@ function ProductDetailPage({
                 src={currentImageSrc}
                 alt={nombre}
                 onError={() => setFailedImageSrc(currentImageSrc)}
+                onClick={() => setIsZoomed(true)}
+                style={{ cursor: "zoom-in" }}
               />
             ) : (
               <div
@@ -141,9 +153,20 @@ function ProductDetailPage({
               </div>
             )}
             {!currentImageUrl || currentImageFailed ? null : (
-              <div className="image-fallback-overlay" aria-hidden="true">
-                Vista previa
-              </div>
+              <button
+                className="zoom-image-btn"
+                type="button"
+                onClick={() => setIsZoomed(true)}
+                title="Ver imagen completa"
+                aria-label="Ver imagen completa"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  <line x1="11" y1="8" x2="11" y2="14"></line>
+                  <line x1="8" y1="11" x2="14" y2="11"></line>
+                </svg>
+              </button>
             )}
             {imageList.length > 1 ? (
               <div className="thumb-row">
@@ -317,6 +340,29 @@ function ProductDetailPage({
           </nav>
         ) : null}
       </div>
+
+      {isZoomed && (
+        <div
+          className="fullscreen-image-modal"
+          onClick={() => setIsZoomed(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Vista de imagen completa"
+        >
+          <button
+            className="fullscreen-close-btn"
+            onClick={() => setIsZoomed(false)}
+            aria-label="Cerrar vista completa"
+          >
+            ✕
+          </button>
+          <img
+            src={currentImageSrc}
+            alt={nombre}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </main>
   );
 }

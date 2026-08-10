@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, buildAssetUrl } from "../api";
+import ImageDropZone from "./ImageDropZone";
 
 const THEME_PRESETS = {
   modern_banner: {
@@ -644,16 +645,38 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
 
               <div className="theme-assets-grid">
                 <div className="theme-asset-card">
-                  <strong>Logo del encabezado</strong><span>PNG o WEBP transparente recomendado.</span>
-                  {form.theme_config.hero_logo_url ? <img src={buildAssetUrl(form.theme_config.hero_logo_url)} alt="Logo actual" /> : <div className="theme-asset-empty">Sin logo</div>}
-                  <label className="btn btn-ghost file-btn">{logoUploading ? "Subiendo..." : "Elegir logo"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={logoUploading} onChange={(event) => handleLogoUpload(event.target.files?.[0])} /></label>
-                  {form.theme_config.hero_logo_url ? <button type="button" className="theme-remove-asset" onClick={() => updateConfig("hero_logo_url", "")}>Quitar logo</button> : null}
+                  <div className="theme-asset-card-head">
+                    <div><strong>Logo del encabezado</strong><span>PNG o WEBP transparente recomendado.</span></div>
+                    {form.theme_config.hero_logo_url ? <button type="button" className="theme-remove-asset" onClick={() => updateConfig("hero_logo_url", "")}>Quitar</button> : null}
+                  </div>
+                  <ImageDropZone
+                    className="theme-asset-dropzone theme-logo-dropzone"
+                    title={form.theme_config.hero_logo_url ? "Arrastra un logo nuevo para reemplazarlo" : "Arrastra aquí el logo"}
+                    subtitle="O selecciónalo desde tu equipo · máximo 5 MB"
+                    previewUrl={form.theme_config.hero_logo_url ? buildAssetUrl(form.theme_config.hero_logo_url) : ""}
+                    previewAlt="Logo actual"
+                    statusText={logoUploading ? "Subiendo logo…" : ""}
+                    buttonLabel={form.theme_config.hero_logo_url ? "Cambiar logo" : "Elegir logo"}
+                    disabled={logoUploading}
+                    onFileSelected={handleLogoUpload}
+                  />
                 </div>
                 <div className="theme-asset-card">
-                  <strong>Imagen del banner</strong><span>Recomendado: 1600 × 400 px. No se agregará texto ni logo encima.</span>
-                  {form.theme_config.hero_image_url ? <img src={buildAssetUrl(form.theme_config.hero_image_url)} alt="Banner actual" /> : <div className="theme-asset-empty">Sin imagen</div>}
-                  <label className="btn btn-ghost file-btn">{uploading ? "Subiendo..." : "Elegir banner"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(event) => handleBannerUpload(event.target.files?.[0])} /></label>
-                  {form.theme_config.hero_image_url ? <button type="button" className="theme-remove-asset" onClick={() => updateConfig("hero_image_url", "")}>Quitar banner</button> : null}
+                  <div className="theme-asset-card-head">
+                    <div><strong>Imagen del banner</strong><span>Recomendado: 1600 × 400 px. Sin texto ni logo encima.</span></div>
+                    {form.theme_config.hero_image_url ? <button type="button" className="theme-remove-asset" onClick={() => updateConfig("hero_image_url", "")}>Quitar</button> : null}
+                  </div>
+                  <ImageDropZone
+                    className="theme-asset-dropzone theme-banner-dropzone"
+                    title={form.theme_config.hero_image_url ? "Arrastra un banner nuevo para reemplazarlo" : "Arrastra aquí el banner"}
+                    subtitle="O selecciónalo desde tu equipo · máximo 5 MB"
+                    previewUrl={form.theme_config.hero_image_url ? buildAssetUrl(form.theme_config.hero_image_url) : ""}
+                    previewAlt="Banner actual"
+                    statusText={uploading ? "Subiendo banner…" : ""}
+                    buttonLabel={form.theme_config.hero_image_url ? "Cambiar banner" : "Elegir banner"}
+                    disabled={uploading}
+                    onFileSelected={handleBannerUpload}
+                  />
                 </div>
               </div>
 

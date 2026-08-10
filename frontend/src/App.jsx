@@ -87,10 +87,18 @@ function App() {
   }, [storeSlug]);
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      loadCatalog({ silent: true, resetCategory: false });
-    }, REFRESH_INTERVAL_MS);
-    return () => window.clearInterval(intervalId);
+    const refreshCatalog = () => loadCatalog({ silent: true, resetCategory: false });
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") refreshCatalog();
+    };
+    const intervalId = window.setInterval(refreshCatalog, REFRESH_INTERVAL_MS);
+    window.addEventListener("focus", refreshCatalog);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshCatalog);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [storeSlug]);
 
   const selectedProductFull = useMemo(() => {

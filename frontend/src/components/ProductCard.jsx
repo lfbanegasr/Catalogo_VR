@@ -23,8 +23,10 @@ function ProductImage({ src, alt, adjustment }) {
       alt={alt}
       loading="lazy"
       style={{
+        objectFit: resolvedFit,
         objectPosition: `${positionX}% ${positionY}%`,
         transform: `scale(${zoom / 100})`,
+        transformOrigin: `${positionX}% ${positionY}%`,
       }}
       onLoad={(event) => {
         if (requestedFit !== "auto") return;

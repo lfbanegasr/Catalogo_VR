@@ -44,7 +44,7 @@ function prettifySlug(slug = "") {
 }
 
 async function fetchJson(url, options = {}) {
-  const response = await fetch(url, { cache: "no-cache", ...options });
+  const response = await fetch(url, { cache: "no-store", ...options });
 
   if (!response.ok) {
     let message = `Error ${response.status}`;

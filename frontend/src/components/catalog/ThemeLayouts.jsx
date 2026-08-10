@@ -14,52 +14,35 @@ function formatCategoryIcon(name = "") {
   return "•";
 }
 
-function ThemeHeader({ storeName, slug, title, subtitle, heroImageUrl, config = {}, compact = false }) {
-  const layout = config.hero_layout || "text_image";
-  const logoUrl = config.hero_logo_url || "";
-  const showCopy = layout !== "image_only" && layout !== "logo_only";
-  const showMedia = Boolean(heroImageUrl) && layout !== "logo_only";
-  const kicker = config.hero_kicker || slug;
-  const heading = config.hero_title || title || storeName || "Catalogo";
-  const description = layout === "offer"
-    ? (config.hero_offer_text || config.hero_subtitle || subtitle)
-    : (config.hero_subtitle || subtitle);
+function ThemeHeader({ storeName, heroImageUrl, config = {} }) {
+  if (!heroImageUrl) return null;
+
   return (
-    <section className={`catalog-hero hero-${layout} ${showMedia ? "has-media" : "no-media"} ${logoUrl ? "has-logo" : ""} align-${config.hero_alignment || "left"} ${compact ? "compact" : ""}`}>
-      {layout === "logo_only" ? (
-        <div className="catalog-hero-logo-only">
-          {logoUrl ? <img src={buildAssetUrl(logoUrl)} alt={`Logo de ${storeName || "la tienda"}`} /> : <h1>{heading}</h1>}
-        </div>
-      ) : null}
-      {showCopy ? (
-        <div className={`catalog-hero-copy ${logoUrl ? "has-logo" : ""}`}>
-          {logoUrl ? <img className="catalog-hero-logo" src={buildAssetUrl(logoUrl)} alt={`Logo de ${storeName || "la tienda"}`} /> : null}
-          <div className="catalog-hero-copy-text">
-            {kicker ? <span className="catalog-kicker">{kicker}</span> : null}
-            <h1>{heading}</h1>
-            {description ? <p>{description}</p> : null}
-          </div>
-        </div>
-      ) : null}
-      {showMedia ? (
-        <div className={`catalog-hero-media fit-${config.hero_image_fit || "cover"}`}>
-          <img src={buildAssetUrl(heroImageUrl)} alt={storeName || "Banner de tienda"} />
-        </div>
-      ) : null}
+    <section className="catalog-banner" aria-label={"Banner de " + (storeName || "la tienda")}>
+      <img
+        src={buildAssetUrl(heroImageUrl)}
+        alt=""
+        className={"fit-" + (config.hero_image_fit || "cover")}
+      />
     </section>
   );
 }
-
 function SearchBar({ value, onChange }) {
   return (
-    <label className="catalog-search">
-      <span>Buscar producto</span>
+    <label className={"catalog-search " + (value ? "has-value" : "")} aria-label="Buscar producto">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-3.6-3.6" />
+      </svg>
       <input
         value={value}
         autoComplete="off"
-        placeholder="Nombre, descripcion o promo"
+        placeholder="Buscar productos..."
         onChange={(event) => onChange(event.target.value)}
       />
+      {value ? (
+        <button type="button" className="search-clear-btn" onClick={() => onChange("")} aria-label="Limpiar búsqueda">×</button>
+      ) : null}
     </label>
   );
 }
@@ -129,9 +112,8 @@ function AttributeFilters({
 }) {
   const [isOpen, setIsOpen] = useState(false);
 
-  if (!filters || !filters.length) return null;
-
-  const activeEntries = Object.entries(values).filter(([_, val]) => Boolean(val));
+  const hasFilters = Boolean(filters?.length);
+  const activeEntries = Object.entries(values || {}).filter(([_, val]) => Boolean(val));
   const activeCount = activeEntries.length;
 
   return (
@@ -140,7 +122,9 @@ function AttributeFilters({
         <button
           type="button"
           className={`filter-toggle-btn ${activeCount > 0 ? "has-active" : ""}`}
-          onClick={() => setIsOpen(true)}
+          onClick={() => hasFilters && setIsOpen(true)}
+          disabled={!hasFilters}
+          aria-label={hasFilters ? "Abrir filtros" : "No hay filtros disponibles"}
         >
           <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
@@ -175,7 +159,7 @@ function AttributeFilters({
         ) : null}
       </div>
 
-      {isOpen ? (
+      {isOpen && hasFilters ? (
         <div className="filter-modal-overlay" onClick={() => setIsOpen(false)}>
           <div className="filter-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="filter-modal-header">
@@ -488,6 +472,8 @@ export function SoftBeigeTheme(props) {
           slug={slug}
           title={storeName}
           subtitle="Catalogo simple con foco en busqueda, categorias y ofertas."
+          heroImageUrl={themeConfig.hero_image_url}
+          config={themeConfig}
           compact
         />
         <section className="catalog-section toolbar">
@@ -549,6 +535,17 @@ export function MinimalCleanTheme(props) {
   return (
     <main className="catalog-shell minimal-clean">
       <div className="catalog-container">
+        {themeConfig.hero_image_url ? (
+          <ThemeHeader
+            storeName={storeName}
+            slug={slug}
+            title={storeName}
+            subtitle=""
+            heroImageUrl={themeConfig.hero_image_url}
+            config={{ ...themeConfig, hero_layout: "image_only" }}
+            compact
+          />
+        ) : null}
         <section className="catalog-section minimal-head">
           <div>
             <span className="catalog-kicker">{slug}</span>

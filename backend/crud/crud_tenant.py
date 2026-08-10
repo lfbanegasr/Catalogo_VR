@@ -54,6 +54,7 @@ def create_tienda(db: Session, payload: TiendaCreate) -> Tienda:
         slug=slug,
         dominio_personalizado=payload.dominio_personalizado,
         whatsapp_number=payload.whatsapp_number,
+        currency_symbol=payload.currency_symbol or "S/",
         theme_id="default",
         theme_config=None,
         activa=payload.activa,
@@ -90,6 +91,8 @@ def update_tienda(db: Session, id_tienda, payload: TiendaUpdate) -> Tienda | Non
         tienda.dominio_personalizado = data["dominio_personalizado"]
     if "whatsapp_number" in data:
         tienda.whatsapp_number = data["whatsapp_number"]
+    if "currency_symbol" in data:
+        tienda.currency_symbol = data["currency_symbol"]
     if "theme_id" in data and data["theme_id"] is not None:
         tienda.theme_id = data["theme_id"]
     if "theme_config" in data:

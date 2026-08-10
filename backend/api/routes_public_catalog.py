@@ -13,6 +13,8 @@ from core.database import get_db
 from core.request_security import get_client_ip
 from crud.crud_public import get_catalog_public
 from crud.crud_public_events import create_public_event
+from api.routes_customer_account import get_optional_current_customer
+from models.sales import Cliente
 from crud.crud_catalog import (
     get_producto_by_id,
     get_tienda_by_slug,
@@ -165,6 +167,7 @@ def get_public_products(
 def api_public_checkout(
     slug: str,
     payload: VentaCreate,
+    customer: Cliente | None = Depends(get_optional_current_customer),
     db: Session = Depends(get_db),
 ):
     print(f"[checkout] Recibido slug: {slug}", flush=True)
@@ -173,6 +176,7 @@ def api_public_checkout(
         # Forzar estado inicial y origen para la creación
         payload.estado = "pendiente"
         payload.origen = "whatsapp"
+        payload.id_cliente = customer.id_cliente if customer else None
         
         venta = create_venta(db=db, id_tienda=tienda.id_tienda, payload=payload)
         invalidate_public_catalog_cache(slug)

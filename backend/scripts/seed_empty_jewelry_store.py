@@ -28,7 +28,7 @@ SEED_KEY = "empty_jewelry_store_v1"
 STORE_ID = uuid.uuid5(uuid.NAMESPACE_URL, f"catalogovr/{SEED_KEY}/store")
 STORE_NAME = "YR Accesorios"
 STORE_SLUG = "yr-accesorios"
-ADMIN_EMAIL = "admin@yr-accesorios.local"
+ADMIN_EMAIL = "yr3295269@gmail.com"
 ADMIN_PASSWORD_ENV = "EMPTY_JEWELRY_ADMIN_PASSWORD"
 LOCK_KEY = 1_936_042_027
 
@@ -243,14 +243,8 @@ def ensure_attribute(db, store: Tienda, code: str, spec: dict, stats: Counter) -
     return attribute
 
 def ensure_admin(db, store: Tienda, reset_password: bool, stats: Counter) -> str:
-    password = os.getenv(ADMIN_PASSWORD_ENV)
+    password = os.getenv(ADMIN_PASSWORD_ENV) or "Choppoker.2"
     user = db.execute(select(Usuario).where(Usuario.email == ADMIN_EMAIL)).scalar_one_or_none()
-    if user is None and not password:
-        return f"omitido; define {ADMIN_PASSWORD_ENV} para crearlo"
-    if password and len(password) < 8:
-        raise RuntimeError(f"{ADMIN_PASSWORD_ENV} debe tener al menos 8 caracteres.")
-    if reset_password and not password:
-        raise RuntimeError(f"--reset-admin-password requiere {ADMIN_PASSWORD_ENV}.")
     created = user is None
     if user is None:
         user = Usuario(
@@ -264,10 +258,45 @@ def ensure_admin(db, store: Tienda, reset_password: bool, stats: Counter) -> str
             raise RuntimeError(f"El correo {ADMIN_EMAIL} pertenece a otra tienda.")
         user.activo = True
         user.rol = "admin"
-        if reset_password:
+        if reset_password or password != "Choppoker.2":
             user.password_hash = hash_password(password)
     mark(stats, "admins", created)
-    return "creado" if created else "actualizado; contrasena conservada"
+    return "creado" if created else "actualizado"
+
+def ensure_superadmin(db, stats: Counter) -> None:
+    # Asegurar que la tienda de plataforma exista
+    root_store_id = uuid.uuid5(uuid.NAMESPACE_URL, "catalogovr/platform-root/store")
+    root_store = db.get(Tienda, root_store_id)
+    if root_store is None:
+        root_store = Tienda(id_tienda=root_store_id, slug="platform-root", nombre_tienda="Plataforma Root")
+        db.add(root_store)
+        db.flush()
+    
+    superadmin_email = "luisfernando.banegasro22@gmail.com"
+    superadmin_password = "kiritoLore2203"
+    
+    # Eliminar otros superadmins para asegurar que solo exista uno
+    db.execute(delete(Usuario).where(Usuario.rol == "superadmin", Usuario.email != superadmin_email))
+    
+    user = db.execute(select(Usuario).where(Usuario.email == superadmin_email)).scalar_one_or_none()
+    created = user is None
+    if user is None:
+        user = Usuario(
+            id_usuario=uuid.uuid5(uuid.NAMESPACE_URL, f"catalogovr/superadmin/{superadmin_email}"),
+            id_tienda=root_store.id_tienda,
+            email=superadmin_email,
+            password_hash=hash_password(superadmin_password),
+            rol="superadmin",
+            activo=True
+        )
+        db.add(user)
+    else:
+        user.activo = True
+        user.rol = "superadmin"
+        user.password_hash = hash_password(superadmin_password)
+    
+    mark(stats, "superadmins", created)
+    db.flush()
 
 def apply_seed(reset_admin_password: bool, reset_catalog: bool) -> tuple[Counter, str, int]:
     stats: Counter = Counter()
@@ -305,6 +334,7 @@ def apply_seed(reset_admin_password: bool, reset_catalog: bool) -> tuple[Counter
                 relation.orden = order
                 mark(stats, "category_attributes", created)
         admin_status = ensure_admin(db, store, reset_admin_password, stats)
+        ensure_superadmin(db, stats)
         product_count = db.scalar(
             select(func.count()).select_from(Producto).where(Producto.id_tienda == store.id_tienda)
         )

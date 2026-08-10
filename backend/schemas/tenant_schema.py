@@ -10,6 +10,7 @@ class TiendaCreate(BaseModel):
     slug: Optional[str] = Field(default=None, max_length=120)
     dominio_personalizado: Optional[str] = Field(default=None, max_length=100)
     whatsapp_number: Optional[str] = Field(default=None, max_length=30)
+    currency_symbol: str = Field(default="S/", max_length=10)
     activa: bool = True
 
 
@@ -21,6 +22,7 @@ class TiendaOut(BaseModel):
     whatsapp_number: Optional[str] = None
     theme_id: str
     theme_config: Optional[dict[str, Any]] = None
+    currency_symbol: str = "S/"
     fecha_creacion: datetime
     activa: bool
 
@@ -43,11 +45,13 @@ class TiendaUpdate(BaseModel):
     whatsapp_number: Optional[str] = Field(default=None, max_length=30)
     theme_id: Optional[str] = Field(default=None, max_length=50)
     theme_config: Optional[dict[str, Any]] = None
+    currency_symbol: Optional[str] = Field(default=None, max_length=10)
     activa: Optional[bool] = None
 
 
 class MyStoreUpdate(BaseModel):
     whatsapp_number: Optional[str] = Field(default=None, max_length=30)
+    currency_symbol: Optional[str] = Field(default=None, max_length=10)
 
 
 class TiendaThemeUpdate(BaseModel):

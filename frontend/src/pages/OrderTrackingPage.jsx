@@ -29,14 +29,11 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-function formatPrice(value) {
-  return new Intl.NumberFormat("es-BO", {
-    style: "currency",
-    currency: "BOB",
-  }).format(Number(value || 0)).replace("BOB", "Bs.");
-}
+import { useCurrency } from "../context/CurrencyContext";
+import { formatPrice } from "../utils/price";
 
 export default function OrderTrackingPage({ slug, trackingCode, onBack }) {
+  const currencySymbol = useCurrency();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -97,7 +94,7 @@ export default function OrderTrackingPage({ slug, trackingCode, onBack }) {
                 </div>
                 <div>
                   <span>Total</span>
-                  <strong>{formatPrice(order.total_venta)}</strong>
+                  <strong>{formatPrice(order.total_venta, currencySymbol)}</strong>
                 </div>
               </div>
 

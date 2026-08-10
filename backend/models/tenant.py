@@ -20,6 +20,7 @@ class Tienda(Base):
     whatsapp_number = Column(String(30), nullable=True)
     theme_id = Column(String(50), nullable=False, default="default")
     theme_config = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    currency_symbol = Column(String(10), nullable=False, default="S/")
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     activa = Column(Boolean, default=True)
 

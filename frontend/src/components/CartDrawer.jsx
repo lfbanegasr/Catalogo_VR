@@ -1,20 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCart } from "../context/CartContext";
+import { useCustomerAccount } from "../context/CustomerAccountContext";
 import { redirectToWhatsappOrder } from "../utils/whatsapp";
 import axiosInstance from "../api/axiosConfig";
 
-function formatPrice(value) {
-  return new Intl.NumberFormat("es-BO", {
-    style: "currency",
-    currency: "BOB",
-    minimumFractionDigits: 2,
-  })
-    .format(Number(value || 0))
-    .replace("BOB", "Bs.");
-}
+import { useCurrency } from "../context/CurrencyContext";
+import { formatPrice } from "../utils/price";
 
 export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
+  const currencySymbol = useCurrency();
   const { cartItems, updateQuantity, removeFromCart, cartTotal, clearCart } = useCart();
+  const { customer, token } = useCustomerAccount();
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(null);
@@ -31,6 +27,16 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
     notas_cliente: "",
   });
 
+  useEffect(() => {
+    if (!customer) return;
+    setCheckout((current) => ({
+      ...current,
+      nombre_completo: current.nombre_completo || customer.nombre_completo || "",
+      telefono: current.telefono || customer.telefono || "",
+      email: customer.email || current.email,
+      ciudad: current.ciudad || customer.ciudad_region || "",
+    }));
+  }, [customer]);
   if (!isOpen) return null;
 
   const handleCheckout = async () => {
@@ -61,8 +67,8 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
 
       // Registrar venta silenciosa en base de datos
       const res = await axiosInstance.post(`/public/catalog/${slug}/checkout`, {
-        id_cliente: null,
-        cliente_nuevo: {
+        id_cliente: customer?.id_cliente || null,
+        cliente_nuevo: customer ? null : {
           nombre_completo: checkout.nombre_completo.trim(),
           telefono: checkout.telefono.trim(),
           email: checkout.email.trim() || null,
@@ -81,7 +87,7 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
         metodo_pago: checkout.metodo_pago,
         notas_cliente: checkout.notas_cliente.trim() || null,
         detalles: detalles,
-      });
+      }, token ? { headers: { Authorization: "Bearer " + token } } : undefined);
       if (res && res.data && res.data.id_venta) {
         ticketNum = String(res.data.id_venta).split("-")[0] || String(res.data.id_venta).substring(0, 8);
         
@@ -474,7 +480,7 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
                   {item.nombre_variante ? (
                     <p className="cart-item-variant">{item.nombre_variante}</p>
                   ) : null}
-                  <p className="cart-item-price">{formatPrice(item.precio)}</p>
+                  <p className="cart-item-price">{formatPrice(item.precio, currencySymbol)}</p>
                 </div>
 
                 {/* Controles de cantidad */}
@@ -515,7 +521,7 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
           <footer className="cart-footer">
             <div className="cart-total-row">
               <span className="cart-total-label">Subtotal del pedido</span>
-              <span className="cart-total-value">{formatPrice(cartTotal)}</span>
+              <span className="cart-total-value">{formatPrice(cartTotal, currencySymbol)}</span>
             </div>
 
             <div className="checkout-form">

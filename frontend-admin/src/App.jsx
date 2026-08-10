@@ -66,46 +66,88 @@ function usePath() {
 }
 
 function Layout({ user, section, onSection, onLogout, children }) {
+  const [navOpen, setNavOpen] = useState(false);
+  const menu = useMemo(() => menuByRole(user.rol), [user.rol]);
   const labelForSection = useMemo(() => {
-    const menu = menuByRole(user.rol);
-    const item = menu.find(([k]) => k === section);
+    const item = menu.find(([key]) => key === section);
     return item ? item[1] : section;
-  }, [user.rol, section]);
+  }, [menu, section]);
+
+  useEffect(() => {
+    setNavOpen(false);
+  }, [section]);
+
+  const navigateTo = (key) => {
+    setNavOpen(false);
+    onSection(key);
+  };
 
   return (
     <div className="admin-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <p className="eyebrow">Tienda SaaS</p>
-          <h2>Admin</h2>
-          <p className="muted small">{user.email}</p>
-          <p className="chip" style={{
-            textTransform: 'capitalize',
-            background: user.rol === 'superadmin' ? '#fee2e2' : user.rol === 'admin' ? '#e0e7ff' : '#f3f4f6',
-            color: user.rol === 'superadmin' ? '#991b1b' : user.rol === 'admin' ? '#3730a3' : '#374151'
-          }}>{user.rol}</p>
+      <header className="mobile-admin-bar">
+        <button
+          type="button"
+          className="admin-icon-button"
+          aria-label="Abrir menú"
+          aria-expanded={navOpen}
+          onClick={() => setNavOpen(true)}
+        >
+          <span /><span /><span />
+        </button>
+        <div className="mobile-admin-title">
+          <small>Administración</small>
+          <strong>{labelForSection}</strong>
         </div>
-        <nav className="menu">
-          {menuByRole(user.rol).map(([k, l]) => (
+        <button type="button" className="mobile-logout" onClick={onLogout}>Salir</button>
+      </header>
+
+      {navOpen ? <button type="button" className="sidebar-backdrop" aria-label="Cerrar menú" onClick={() => setNavOpen(false)} /> : null}
+
+      <aside className={`sidebar ${navOpen ? "is-open" : ""}`}>
+        <div className="brand">
+          <div className="brand-heading">
+            <span className="brand-mark" aria-hidden="true">TS</span>
+            <div>
+              <p className="eyebrow">Tienda SaaS</p>
+              <h2>Administración</h2>
+            </div>
+          </div>
+          <button type="button" className="sidebar-close" aria-label="Cerrar menú" onClick={() => setNavOpen(false)}>×</button>
+        </div>
+
+        <div className="sidebar-profile">
+          <span className="profile-avatar" aria-hidden="true">{String(user.email || "A").charAt(0).toUpperCase()}</span>
+          <div className="profile-copy">
+            <strong>{user.email}</strong>
+            <span className={`role-chip role-${user.rol}`}>{user.rol}</span>
+          </div>
+        </div>
+
+        <p className="menu-label">Menú principal</p>
+        <nav className="menu" aria-label="Secciones del administrador">
+          {menu.map(([key, label]) => (
             <button
-              key={k}
-              className={`menu-item ${k === section ? "active" : ""}`}
-              onClick={() => onSection(k)}
+              key={key}
+              type="button"
+              className={`menu-item ${key === section ? "active" : ""}`}
+              aria-current={key === section ? "page" : undefined}
+              onClick={() => navigateTo(key)}
             >
-              {l}
+              <span className="menu-item-icon" aria-hidden="true">{label.charAt(0)}</span>
+              <span>{label}</span>
             </button>
           ))}
         </nav>
-        <button className="btn btn-ghost" style={{ marginTop: 'auto' }} onClick={onLogout}>Cerrar sesion</button>
-      </aside>
-      <main className="content">
-        <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 800, textTransform: 'capitalize' }}>
-            {labelForSection}
-          </h1>
+
+        <div className="sidebar-footer">
+          <button type="button" className="sidebar-logout" onClick={onLogout}>
+            <span aria-hidden="true">↪</span>
+            Cerrar sesión
+          </button>
         </div>
-        {children}
-      </main>
+      </aside>
+
+      <main className="content">{children}</main>
     </div>
   );
 }

@@ -33,6 +33,7 @@ class Cliente(Base):
     nombre_completo = Column(String(150), nullable=False)
     telefono = Column(String(20), nullable=True)
     email = Column(String(150), nullable=True)
+    password_hash = Column(String(255), nullable=True)
     ciudad_region = Column(String(100), nullable=True)
     notas = Column(Text, nullable=True)
     fecha_registro = Column(DateTime, default=datetime.utcnow)

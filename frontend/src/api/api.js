@@ -25,6 +25,14 @@ const DEFAULT_THEME_CONFIG = {
   show_featured: true,
   category_style: "round_icons",
   font_scale: "md",
+  side_menu_title: "",
+  side_menu_text: "",
+  contact_phone: "",
+  contact_email: "",
+  contact_whatsapp: "",
+  social_instagram: "",
+  social_tiktok: "",
+  social_facebook: "",
 };
 
 function prettifySlug(slug = "") {
@@ -63,6 +71,10 @@ function normalizeCategory(item) {
   return {
     id: rawId ? String(rawId) : "",
     nombre: item.nombre || item.name || "Sin categoria",
+    id_categoria_padre:
+      item.id_categoria_padre == null && item.parent_id == null
+        ? null
+        : String(item.id_categoria_padre ?? item.parent_id),
   };
 }
 
@@ -324,6 +336,41 @@ export async function getPublicOrderTracking(slug, trackingCode) {
   return fetchJson(
     `${BASE_URL}/public/catalog/${encodeURIComponent(slug)}/orders/${encodeURIComponent(trackingCode)}`,
   );
+}
+
+function customerAuthHeaders(token) {
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: "Bearer " + token } : {}),
+  };
+}
+
+export function registerCustomer(slug, payload) {
+  return fetchJson(BASE_URL + "/public/catalog/" + encodeURIComponent(slug) + "/customers/register", {
+    method: "POST",
+    headers: customerAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function loginCustomer(slug, payload) {
+  return fetchJson(BASE_URL + "/public/catalog/" + encodeURIComponent(slug) + "/customers/login", {
+    method: "POST",
+    headers: customerAuthHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getCustomerAccount(slug, token) {
+  return fetchJson(BASE_URL + "/public/catalog/" + encodeURIComponent(slug) + "/customers/me", {
+    headers: customerAuthHeaders(token),
+  });
+}
+
+export function getCustomerOrders(slug, token) {
+  return fetchJson(BASE_URL + "/public/catalog/" + encodeURIComponent(slug) + "/customers/me/orders", {
+    headers: customerAuthHeaders(token),
+  });
 }
 
 export function buildAssetUrl(path) {

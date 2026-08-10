@@ -118,7 +118,10 @@ def admin_update_my_store(
     current_user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    update_payload = TiendaUpdate(whatsapp_number=payload.whatsapp_number)
+    update_payload = TiendaUpdate(
+        whatsapp_number=payload.whatsapp_number,
+        currency_symbol=payload.currency_symbol,
+    )
     updated = update_tienda(
         db=db,
         id_tienda=current_user.id_tienda,

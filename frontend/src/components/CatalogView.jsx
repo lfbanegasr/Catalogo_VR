@@ -1,18 +1,11 @@
 import useCatalog from "../api/useCatalog";
 import { useCart } from "../context/CartContext";
 import { buildAssetUrl } from "../api/api";
-
-function formatPrice(value) {
-  return new Intl.NumberFormat("es-BO", {
-    style: "currency",
-    currency: "BOB",
-    minimumFractionDigits: 2,
-  })
-    .format(Number(value || 0))
-    .replace("BOB", "Bs.");
-}
+import { useCurrency } from "../context/CurrencyContext";
+import { formatPrice } from "../utils/price";
 
 export function CatalogView({ slug, onOpenCart }) {
+  const currencySymbol = useCurrency();
   const { catalog, loading, error, refetch } = useCatalog(slug);
   const { addToCart, cartCount } = useCart();
 
@@ -107,9 +100,9 @@ export function CatalogView({ slug, onOpenCart }) {
                     )}
                   </div>
                   <div className="mt-3">
-                    <p className="text-sm font-black text-pink-600">{formatPrice(product.precio_final || product.precio)}</p>
+                    <p className="text-sm font-black text-pink-600">{formatPrice(product.precio_final || product.precio, currencySymbol)}</p>
                     {product.precio_original > product.precio_final && (
-                      <p className="text-[10px] text-gray-400 line-through mt-0.5">{formatPrice(product.precio_original)}</p>
+                      <p className="text-[10px] text-gray-400 line-through mt-0.5">{formatPrice(product.precio_original, currencySymbol)}</p>
                     )}
                     <button
                       onClick={() => addToCart(defaultVariant ? {

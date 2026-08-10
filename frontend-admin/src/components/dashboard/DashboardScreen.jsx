@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../api';
 import { Card } from '../Card';
 
-function SalesChart({ data }) {
+function SalesChart({ data, currencySymbol = "Bs" }) {
   if (!data || data.length === 0) {
     return <p className="muted text-center py-4" style={{ fontSize: '11px' }}>No hay suficientes datos de ventas para mostrar el gráfico.</p>;
   }
@@ -48,7 +48,7 @@ function SalesChart({ data }) {
             <circle cx={p.x} cy={p.y} r={3} fill="#10B981" stroke="#ffffff" strokeWidth={1} />
             {points.length <= 15 && p.val > 0 && (
               <text x={p.x} y={p.y - 8} fontSize="7" fontWeight="bold" textAnchor="middle" fill="#374151">
-                {p.val.toFixed(0)} Bs
+                {p.val.toFixed(0)} {currencySymbol}
               </text>
             )}
           </g>
@@ -58,7 +58,7 @@ function SalesChart({ data }) {
   );
 }
 
-function TopProductsChart({ data }) {
+function TopProductsChart({ data, currencySymbol = "Bs" }) {
   if (!data || data.length === 0) {
     return <p className="muted text-center py-4" style={{ fontSize: '11px' }}>No hay datos de productos vendidos.</p>;
   }
@@ -73,9 +73,9 @@ function TopProductsChart({ data }) {
           const percentage = (item.cantidad / maxQty) * 100;
           return (
             <div key={index} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold' }}>
+              <div style={{ display: 'flex', justifycontent: 'space-between', fontSize: '11px', fontWeight: 'bold' }}>
                 <span className="text-gray-700 truncate" style={{ maxWidth: '70%' }}>{item.nombre}</span>
-                <span className="text-emerald-600">{item.cantidad} u. ({parseFloat(item.recaudado).toFixed(2)} Bs)</span>
+                <span className="text-emerald-600">{item.cantidad} u. ({parseFloat(item.recaudado).toFixed(2)} {currencySymbol})</span>
               </div>
               <div style={{ height: '8px', background: '#f3f4f6', borderRadius: '4px', overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${percentage}%`, background: '#10B981', borderRadius: '4px' }} />
@@ -93,13 +93,18 @@ export default function DashboardScreen({ user, onGoToVentas }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [allProducts, setAllProducts] = useState([]);
+  const [currencySymbol, setCurrencySymbol] = useState("Bs");
 
   const loadData = async () => {
     setLoading(true);
     setError("");
     try {
-      const m = await api.getMetrics(user.id_tienda);
+      const [m, storeData] = await Promise.all([
+        api.getMetrics(user.id_tienda),
+        api.adminGetMyStore()
+      ]);
       setMetrics(m);
+      setCurrencySymbol(storeData.currency_symbol || "S/");
     } catch (err) {
       console.error(err);
       setError("No se pudieron cargar las métricas de la tienda.");
@@ -217,7 +222,7 @@ export default function DashboardScreen({ user, onGoToVentas }) {
           cursor: 'default'
         }}>
           <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: '700', color: '#6b7280', letterSpacing: '0.05em' }}>Vendido hoy</span>
-          <strong style={{ display: 'block', fontSize: '24px', color: '#111827', marginTop: '8px', fontWeight: '700' }}>{parseFloat(res.ventas_hoy || 0).toFixed(2)} Bs</strong>
+          <strong style={{ display: 'block', fontSize: '24px', color: '#111827', marginTop: '8px', fontWeight: '700' }}>{parseFloat(res.ventas_hoy || 0).toFixed(2)} {currencySymbol}</strong>
           <span style={{ fontSize: '11px', color: '#059669', marginTop: '6px', display: 'block', fontWeight: '600' }}>{res.pedidos_hoy || 0} Pedidos completados hoy</span>
         </div>
 
@@ -233,7 +238,7 @@ export default function DashboardScreen({ user, onGoToVentas }) {
           cursor: 'default'
         }}>
           <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: '700', color: '#6b7280', letterSpacing: '0.05em' }}>Vendido Total (Histórico)</span>
-          <strong style={{ display: 'block', fontSize: '24px', color: '#111827', marginTop: '8px', fontWeight: '700' }}>{parseFloat(res.ventas_totales).toFixed(2)} Bs</strong>
+          <strong style={{ display: 'block', fontSize: '24px', color: '#111827', marginTop: '8px', fontWeight: '700' }}>{parseFloat(res.ventas_totales).toFixed(2)} {currencySymbol}</strong>
           <span style={{ fontSize: '11px', color: '#4f46e5', marginTop: '6px', display: 'block', fontWeight: '600' }}>{res.pedidos_totales} Ventas totales activas</span>
         </div>
 
@@ -249,7 +254,7 @@ export default function DashboardScreen({ user, onGoToVentas }) {
           cursor: 'default'
         }}>
           <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: '700', color: '#6b7280', letterSpacing: '0.05em' }}>Costo de Stock (Inversión)</span>
-          <strong style={{ display: 'block', fontSize: '24px', color: '#111827', marginTop: '8px', fontWeight: '700' }}>{parseFloat(res.costos_totales).toFixed(2)} Bs</strong>
+          <strong style={{ display: 'block', fontSize: '24px', color: '#111827', marginTop: '8px', fontWeight: '700' }}>{parseFloat(res.costos_totales).toFixed(2)} {currencySymbol}</strong>
           <span style={{ fontSize: '11px', color: '#d97706', marginTop: '6px', display: 'block', fontWeight: '600' }}>Inversión acumulada en mercancías</span>
         </div>
 
@@ -266,7 +271,7 @@ export default function DashboardScreen({ user, onGoToVentas }) {
         }}>
           <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: '700', color: '#6b7280', letterSpacing: '0.05em' }}>Ganancia Neta</span>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <strong style={{ display: 'block', fontSize: '24px', color: '#111827', marginTop: '8px', fontWeight: '700' }}>{parseFloat(res.margen_neto).toFixed(2)} Bs</strong>
+            <strong style={{ display: 'block', fontSize: '24px', color: '#111827', marginTop: '8px', fontWeight: '700' }}>{parseFloat(res.margen_neto).toFixed(2)} {currencySymbol}</strong>
             <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#2563eb', background: '#eff6ff', padding: '2px 8px', borderRadius: '12px' }}>{parseFloat(res.margen_porcentaje).toFixed(1)}%</span>
           </div>
           <span style={{ fontSize: '11px', color: '#2563eb', marginTop: '6px', display: 'block', fontWeight: '600' }}>Diferencia libre de costos</span>
@@ -329,8 +334,8 @@ export default function DashboardScreen({ user, onGoToVentas }) {
                     {metrics.bajo_stock.map((p, idx) => (
                       <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6', background: p.stock_actual === 0 ? '#fef2f2' : 'transparent' }}>
                         <td style={{ padding: '8px', fontWeight: 'bold', color: '#1f2937' }}>{p.nombre}</td>
-                        <td style={{ padding: '8px' }}>{parseFloat(p.precio_venta).toFixed(2)} Bs</td>
-                        <td style={{ padding: '8px' }}>{parseFloat(p.costo_adquisicion).toFixed(2)} Bs</td>
+                        <td style={{ padding: '8px' }}>{parseFloat(p.precio_venta).toFixed(2)} {currencySymbol}</td>
+                        <td style={{ padding: '8px' }}>{parseFloat(p.costo_adquisicion).toFixed(2)} {currencySymbol}</td>
                         <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'black', color: p.stock_actual === 0 ? '#ef4444' : '#d97706' }}>
                           {p.stock_actual} uds
                         </td>
@@ -358,8 +363,8 @@ export default function DashboardScreen({ user, onGoToVentas }) {
 
       {/* Graficos */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '20px', margin: '20px 0' }}>
-        <SalesChart data={metrics?.ventas_diarias || []} />
-        <TopProductsChart data={metrics?.productos_top || []} />
+        <SalesChart data={metrics?.ventas_diarias || []} currencySymbol={currencySymbol} />
+        <TopProductsChart data={metrics?.productos_top || []} currencySymbol={currencySymbol} />
       </div>
     </div>
   );

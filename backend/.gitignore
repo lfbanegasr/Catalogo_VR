@@ -16,3 +16,7 @@ __pycache__/
 uploads/theme/
 
 uploads/theme/
+
+scripts/
+pycache/
+seed_empty_jewelry_store.py

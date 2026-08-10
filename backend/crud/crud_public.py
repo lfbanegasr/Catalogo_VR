@@ -35,6 +35,7 @@ def get_catalog_public(db: Session, slug: str):
             Tienda.whatsapp_number,
             Tienda.theme_id,
             Tienda.theme_config,
+            Tienda.currency_symbol,
         )
         .where(Tienda.slug == slug, Tienda.activa.is_(True))
         .limit(1)
@@ -44,7 +45,7 @@ def get_catalog_public(db: Session, slug: str):
     if tienda_row is None:
         return None
 
-    tienda_id, nombre_tienda, tienda_slug, whatsapp_number, theme_id, theme_config = tienda_row
+    tienda_id, nombre_tienda, tienda_slug, whatsapp_number, theme_id, theme_config, currency_symbol = tienda_row
 
     categorias_stmt = (
         select(
@@ -370,6 +371,7 @@ def get_catalog_public(db: Session, slug: str):
             "whatsapp_number": whatsapp_number,
             "theme_id": theme_id,
             "theme_config": resolved_theme_config,
+            "currency_symbol": currency_symbol,
         },
         "ofertas": [
             {

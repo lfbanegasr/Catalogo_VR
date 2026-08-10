@@ -5,6 +5,7 @@ import ProductDetailPage from "./pages/ProductDetailPage";
 import OrderTrackingPage from "./pages/OrderTrackingPage";
 import { ThemeProvider } from "./theme/theme";
 import { useCart } from "./context/CartContext";
+import { CurrencyProvider } from "./context/CurrencyContext";
 import CartDrawer from "./components/CartDrawer";
 const REFRESH_INTERVAL_MS = 30000;
 
@@ -24,6 +25,7 @@ function App() {
     products: [],
     offers: [],
     theme: undefined,
+    tienda: null,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -194,68 +196,71 @@ function App() {
 
   return (
     <ThemeProvider theme={catalog.theme}>
-      {trackingCode ? (
-        <OrderTrackingPage
-          slug={storeSlug}
-          trackingCode={trackingCode}
-          onBack={closeTracking}
-        />
-      ) : selectedProductFull ? (
-        <ProductDetailPage
-          product={selectedProductFull}
-          slug={storeSlug}
-          storeName={catalog.storeName}
+      <CurrencyProvider value={catalog.tienda?.currency_symbol}>
+        {trackingCode ? (
+          <OrderTrackingPage
+            slug={storeSlug}
+            trackingCode={trackingCode}
+            onBack={closeTracking}
+          />
+        ) : selectedProductFull ? (
+          <ProductDetailPage
+            product={selectedProductFull}
+            slug={storeSlug}
+            storeName={catalog.storeName}
+            whatsappNumber={catalog.whatsappNumber}
+            productUrl={buildProductLink(selectedProductFull?.id)}
+            onWhatsappClick={async (idProducto) => registerPublicWhatsappClick(storeSlug, idProducto)}
+            onBack={closeProduct}
+            previousProduct={previousProduct}
+            nextProduct={nextProduct}
+            onPreviousProduct={() => navigateProduct(previousProduct)}
+            onNextProduct={() => navigateProduct(nextProduct)}
+          />
+        ) : (
+          <CatalogPage
+            slug={storeSlug}
+            storeName={catalog.storeName}
+            whatsappNumber={catalog.whatsappNumber}
+            categories={catalog.categories}
+            products={catalog.products}
+            offers={catalog.offers}
+            theme={catalog.theme}
+            loading={loading}
+            error={error}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategoryId={setSelectedCategoryId}
+            onViewDetail={openProduct}
+            onRetry={loadCatalog}
+          />
+        )}
+
+        {/* Botón "Seguir pedido" ocultado — solo disponible via URL ?pedido=XXX */}
+        
+        {/* Botón flotante del carrito */}
+        {cartCount > 0 && !isCartOpen && !trackingCode && (
+          <button
+            onClick={() => setIsCartOpen(true)}
+            className="cart-floating-btn"
+            title="Ver Pedido"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ width: "24px", height: "24px" }}>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            </svg>
+            <span className="cart-floating-badge">
+              {cartCount}
+            </span>
+          </button>
+        )}
+
+        {/* Drawer del carrito */}
+        <CartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
           whatsappNumber={catalog.whatsappNumber}
-          productUrl={buildProductLink(selectedProductFull?.id)}
-          onWhatsappClick={async (idProducto) => registerPublicWhatsappClick(storeSlug, idProducto)}
-          onBack={closeProduct}
-          previousProduct={previousProduct}
-          nextProduct={nextProduct}
-          onPreviousProduct={() => navigateProduct(previousProduct)}
-          onNextProduct={() => navigateProduct(nextProduct)}
-        />
-      ) : (
-        <CatalogPage
           slug={storeSlug}
-          storeName={catalog.storeName}
-          categories={catalog.categories}
-          products={catalog.products}
-          offers={catalog.offers}
-          theme={catalog.theme}
-          loading={loading}
-          error={error}
-          selectedCategoryId={selectedCategoryId}
-          onSelectCategoryId={setSelectedCategoryId}
-          onViewDetail={openProduct}
-          onRetry={loadCatalog}
         />
-      )}
-
-      {/* Botón "Seguir pedido" ocultado — solo disponible via URL ?pedido=XXX */}
-      
-      {/* Botón flotante del carrito */}
-      {cartCount > 0 && !isCartOpen && !trackingCode && (
-        <button
-          onClick={() => setIsCartOpen(true)}
-          className="cart-floating-btn"
-          title="Ver Pedido"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ width: "24px", height: "24px" }}>
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-          </svg>
-          <span className="cart-floating-badge">
-            {cartCount}
-          </span>
-        </button>
-      )}
-
-      {/* Drawer del carrito */}
-      <CartDrawer
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        whatsappNumber={catalog.whatsappNumber}
-        slug={storeSlug}
-      />
+      </CurrencyProvider>
     </ThemeProvider>
   );
 }

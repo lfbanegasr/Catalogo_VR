@@ -22,6 +22,9 @@ export default function CatalogoScreen({ isSuperadmin }) {
 
   const [tab, setTab] = useState("categorias");
   const [stores, setStores] = useState([]);
+  const [ownStore, setOwnStore] = useState(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const [rows, setRows] = useState([]);
   const [categoriasDisponibles, setCategoriasDisponibles] = useState([]);
   const [tenantId, setTenantId] = useState("");
@@ -102,6 +105,18 @@ export default function CatalogoScreen({ isSuperadmin }) {
   const selectedStoreRef = isSuperadmin
     ? selectedStore?.slug || selectedStore?.nombre_tienda || ""
     : undefined;
+  const catalogStore = isSuperadmin ? selectedStore : ownStore;
+  const catalogSlug = catalogStore?.slug || "";
+  const publicCatalogUrl = useMemo(() => {
+    if (!catalogSlug) return "";
+    const configuredBase = String(import.meta.env.VITE_PUBLIC_CATALOG_URL || "").trim();
+    const fallbackBase = import.meta.env.DEV ? "http://localhost:5173/" : window.location.origin;
+    const url = new URL(configuredBase || fallbackBase, window.location.origin);
+    url.search = "";
+    url.hash = "";
+    url.searchParams.set("slug", catalogSlug);
+    return url.toString();
+  }, [catalogSlug]);
   const filteredProductRows = useMemo(() => {
     const query = productQuery.trim().toLowerCase();
     return rows.filter((product) => {
@@ -156,6 +171,49 @@ export default function CatalogoScreen({ isSuperadmin }) {
       throw new Error("Selecciona una tienda");
     }
   };
+  const copyCatalogUrl = async () => {
+    if (!publicCatalogUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicCatalogUrl);
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 2200);
+    } catch {
+      setError("No se pudo copiar el enlace. Selecciónalo y cópialo manualmente.");
+    }
+  };
+
+  const catalogSharePanel = (
+    <div className="catalog-share">
+      <div className="catalog-share-summary">
+        <span className="catalog-share-icon" aria-hidden="true">↗</span>
+        <div>
+          <strong>Compartir catálogo</strong>
+          <small>{catalogSlug ? `Enlace público de ${catalogStore?.nombre_tienda || catalogSlug}` : "Selecciona una tienda para generar el enlace"}</small>
+        </div>
+      </div>
+      <button
+        type="button"
+        className="btn btn-ghost catalog-share-toggle"
+        disabled={!catalogSlug}
+        onClick={() => setShareOpen((current) => !current)}
+      >
+        {shareOpen ? "Ocultar enlace" : "Obtener enlace"}
+      </button>
+      {shareOpen && publicCatalogUrl ? (
+        <div className="catalog-share-panel">
+          <label>
+            Enlace de la tienda
+            <input value={publicCatalogUrl} readOnly onFocus={(event) => event.target.select()} />
+          </label>
+          <div className="catalog-share-actions">
+            <button type="button" className="btn btn-primary" onClick={copyCatalogUrl}>{shareCopied ? "¡Copiado!" : "Copiar enlace"}</button>
+            <button type="button" className="btn btn-ghost" onClick={() => window.open(publicCatalogUrl, "_blank", "noopener,noreferrer")}>Ver catálogo</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+
   const toggleRowVisibility = async (row, mode) => {
     const isCategory = mode === "categoria";
     const isActive = isCategory ? row.activa : row.activo;
@@ -325,7 +383,10 @@ export default function CatalogoScreen({ isSuperadmin }) {
     );
 
   const loadStores = async () => {
-    if (!isSuperadmin) return;
+    if (!isSuperadmin) {
+      setOwnStore(await api.adminGetMyStore());
+      return;
+    }
     const data = await api.adminListTiendas();
     setStores(data);
     if (!tenantId && data[0]?.id_tienda) {
@@ -490,7 +551,8 @@ export default function CatalogoScreen({ isSuperadmin }) {
 
   if (tab === "atributos") {
     return (
-      <Card title="Atributos del catalogo" className="catalog-compact">
+      <Card title="Atributos del catálogo" className="catalog-compact">
+        {catalogSharePanel}
         <div className="catalog-toolbar">
           <div className="catalog-tabs">
             <button className="tab-btn" onClick={() => setTab("categorias")}>Categorias</button>
@@ -641,6 +703,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   return (
     <>
     <Card title="Catálogo privado" className="catalog-compact">
+      {catalogSharePanel}
       <div className="catalog-toolbar">
         <div className="catalog-tabs">
           <button className={`tab-btn ${tab === "categorias" ? "active" : ""}`} onClick={() => setTab("categorias")}>Categorías</button>

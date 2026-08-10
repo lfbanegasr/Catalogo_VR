@@ -26,7 +26,14 @@ const THEME_PRESETS = {
       show_featured: true,
       category_style: "round_icons",
       font_scale: "md",
-    },
+      side_menu_title: "",
+      side_menu_text: "",
+      contact_phone: "",
+      contact_email: "",
+      contact_whatsapp: "",
+      social_instagram: "",
+      social_tiktok: "",
+      social_facebook: "",    },
   },
   soft_beige: {
     label: "Soft Beige",
@@ -44,7 +51,14 @@ const THEME_PRESETS = {
       show_featured: false,
       category_style: "chips",
       font_scale: "md",
-    },
+      side_menu_title: "",
+      side_menu_text: "",
+      contact_phone: "",
+      contact_email: "",
+      contact_whatsapp: "",
+      social_instagram: "",
+      social_tiktok: "",
+      social_facebook: "",    },
   },
   minimal_clean: {
     label: "Minimal Clean",
@@ -62,7 +76,14 @@ const THEME_PRESETS = {
       show_featured: false,
       category_style: "chips",
       font_scale: "sm",
-    },
+      side_menu_title: "",
+      side_menu_text: "",
+      contact_phone: "",
+      contact_email: "",
+      contact_whatsapp: "",
+      social_instagram: "",
+      social_tiktok: "",
+      social_facebook: "",    },
   },
 };
 
@@ -200,35 +221,24 @@ function LiveThemePreview({ storeName, form, categories }) {
   };
   const previewCategories = categories.slice(0, 4);
   const activeCategoryId = previewCategories[previewCategories.length - 1]?.id;
-  const heroLayout = form.theme_config.hero_layout || "text_image";
   const logoUrl = form.theme_config.hero_logo_url || "";
 
   return (
     <section className="live-preview-card" style={previewStyle}>
       <div className={`live-preview-shell ${form.theme_id}`}>
-        <div className={`live-preview-head hero-${heroLayout} align-${form.theme_config.hero_alignment || "left"}`}>
-          {heroLayout === "logo_only" ? (
-            <div className="live-preview-logo-only">
-              {logoUrl ? <img src={buildAssetUrl(logoUrl)} alt="Logo" /> : <h4>{storeName || "Tienda Demo"}</h4>}
-            </div>
-          ) : null}
-          {heroLayout !== "image_only" && heroLayout !== "logo_only" ? (
-            <div>
-              {logoUrl ? <img className="live-preview-logo" src={buildAssetUrl(logoUrl)} alt="Logo" /> : null}
-              <small>{form.theme_config.hero_kicker || storeName || "Tienda Demo"}</small>
-              <h4>{form.theme_config.hero_title || storeName || "Vista previa"}</h4>
-              <p>{heroLayout === "offer" ? (form.theme_config.hero_offer_text || "Oferta especial") : (form.theme_config.hero_subtitle || "Asi se vera antes de guardar.")}</p>
-            </div>
-          ) : null}
-          {form.theme_id === "modern_banner" && form.theme_config.hero_image_url && heroLayout !== "logo_only" ? (
+        <div className="live-preview-storebar">
+          {logoUrl ? <img src={buildAssetUrl(logoUrl)} alt="Logo" /> : <span>{String(storeName || "T").slice(0, 1)}</span>}
+          <strong>{storeName || "Tienda Demo"}</strong>
+        </div>
+        {form.theme_config.hero_image_url ? (
+          <div className="live-preview-banner">
             <img
               src={buildAssetUrl(form.theme_config.hero_image_url)}
               alt="Banner"
-              className={`live-preview-hero fit-${form.theme_config.hero_image_fit || "cover"}`}
+              className={"fit-" + (form.theme_config.hero_image_fit || "cover")}
             />
-          ) : null}
-        </div>
-
+          </div>
+        ) : null}
         <div className={`live-preview-categories ${form.theme_config.category_style}`}>
           {(previewCategories.length ? previewCategories : [{ id: "all", nombre: "Todas" }]).map((category) => (
             <PreviewCategory
@@ -626,103 +636,101 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
               </label>
             </div>
 
-            {form.theme_id === "modern_banner" ? (
-              <div className="theme-editor-section">
-                <div className="theme-section-head compact">
-                  <div><span>Paso 2</span><h3>Encabezado y banner</h3></div>
-                  <p>Elige una composición y luego agrega solamente el contenido que necesites.</p>
+            <div className="theme-editor-section">
+              <div className="theme-section-head compact">
+                <div><span>Paso 2</span><h3>Logo superior y banner</h3></div>
+                <p>El logo aparece únicamente en la barra superior. El banner muestra solamente la imagen.</p>
+              </div>
+
+              <div className="theme-assets-grid">
+                <div className="theme-asset-card">
+                  <strong>Logo del encabezado</strong><span>PNG o WEBP transparente recomendado.</span>
+                  {form.theme_config.hero_logo_url ? <img src={buildAssetUrl(form.theme_config.hero_logo_url)} alt="Logo actual" /> : <div className="theme-asset-empty">Sin logo</div>}
+                  <label className="btn btn-ghost file-btn">{logoUploading ? "Subiendo..." : "Elegir logo"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={logoUploading} onChange={(event) => handleLogoUpload(event.target.files?.[0])} /></label>
+                  {form.theme_config.hero_logo_url ? <button type="button" className="theme-remove-asset" onClick={() => updateConfig("hero_logo_url", "")}>Quitar logo</button> : null}
                 </div>
-
-                <div className="hero-layout-picker" role="radiogroup" aria-label="Diseño del encabezado">
-                  {[
-                    ["text_image", "Texto + imagen", "Presentación completa"],
-                    ["logo_only", "Solo logo", "Encabezado limpio"],
-                    ["image_only", "Solo banner", "Imagen a todo el ancho"],
-                    ["offer", "Oferta", "Promoción destacada"],
-                  ].map(([value, label, help]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      className={form.theme_config.hero_layout === value ? "active" : ""}
-                      onClick={() => updateConfig("hero_layout", value)}
-                      aria-pressed={form.theme_config.hero_layout === value}
-                    >
-                      <strong>{label}</strong><span>{help}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="theme-grid-2">
-                  <label>
-                    Alineación
-                    <select value={form.theme_config.hero_alignment || "left"} onChange={(event) => updateConfig("hero_alignment", event.target.value)}>
-                      <option value="left">Izquierda</option>
-                      <option value="center">Centrada</option>
-                    </select>
-                  </label>
-                  <label>
-                    Ajuste de la imagen
-                    <select value={form.theme_config.hero_image_fit || "cover"} onChange={(event) => updateConfig("hero_image_fit", event.target.value)}>
-                      <option value="cover">Llenar el espacio</option>
-                      <option value="contain">Mostrar imagen completa</option>
-                    </select>
-                  </label>
-                </div>
-
-                {!["logo_only", "image_only"].includes(form.theme_config.hero_layout) ? (
-                  <div className="theme-grid-2">
-                    <label>Texto pequeño<input value={form.theme_config.hero_kicker || ""} placeholder={store?.slug || "Mi tienda"} onChange={(event) => updateConfig("hero_kicker", event.target.value)} /></label>
-                    <label>Título principal<input value={form.theme_config.hero_title || ""} placeholder={store?.nombre_tienda || "Nombre de la tienda"} onChange={(event) => updateConfig("hero_title", event.target.value)} /></label>
-                    {form.theme_config.hero_layout === "offer" ? (
-                      <label className="theme-field-wide">Texto de la oferta<input value={form.theme_config.hero_offer_text || ""} placeholder="20% de descuento esta semana" onChange={(event) => updateConfig("hero_offer_text", event.target.value)} /></label>
-                    ) : (
-                      <label className="theme-field-wide">Descripción<input value={form.theme_config.hero_subtitle || ""} placeholder="Cuenta brevemente qué ofrece tu tienda" onChange={(event) => updateConfig("hero_subtitle", event.target.value)} /></label>
-                    )}
-                  </div>
-                ) : null}
-
-                <div className="theme-assets-grid">
-                  <div className="theme-asset-card">
-                    <strong>Logo</strong><span>PNG o WEBP transparente recomendado.</span>
-                    {form.theme_config.hero_logo_url ? <img src={buildAssetUrl(form.theme_config.hero_logo_url)} alt="Logo actual" /> : <div className="theme-asset-empty">Sin logo</div>}
-                    <label className="btn btn-ghost file-btn">{logoUploading ? "Subiendo..." : "Elegir logo"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={logoUploading} onChange={(event) => handleLogoUpload(event.target.files?.[0])} /></label>
-                    {form.theme_config.hero_logo_url ? <button type="button" className="theme-remove-asset" onClick={() => updateConfig("hero_logo_url", "")}>Quitar logo</button> : null}
-                  </div>
-                  <div className="theme-asset-card">
-                    <strong>Imagen del banner</strong><span>Recomendado: 1600 × 700 px.</span>
-                    {form.theme_config.hero_image_url ? <img src={buildAssetUrl(form.theme_config.hero_image_url)} alt="Banner actual" /> : <div className="theme-asset-empty">Sin imagen</div>}
-                    <label className="btn btn-ghost file-btn">{uploading ? "Subiendo..." : "Elegir banner"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(event) => handleBannerUpload(event.target.files?.[0])} /></label>
-                    {form.theme_config.hero_image_url ? <button type="button" className="theme-remove-asset" onClick={() => updateConfig("hero_image_url", "")}>Quitar banner</button> : null}
-                  </div>
-                </div>
-
-                <div className="theme-palette-assistant">
-                  <div className="theme-section-head compact">
-                    <div><span>Color inteligente</span><h3>Paletas basadas en tu imagen</h3></div>
-                    <p>{analyzingPalette ? "Analizando colores…" : "Al elegir un logo o banner aparecerán sugerencias aquí."}</p>
-                  </div>
-                  {paletteSuggestions.length ? (
-                    <div className="theme-palette-grid">
-                      {paletteSuggestions.map((palette) => (
-                        <button type="button" key={palette.name} onClick={() => applyPalette(palette.colors)}>
-                          <div className="theme-palette-swatches" aria-hidden="true">
-                            {Object.values(palette.colors).map((color, index) => <span key={index} style={{ background: color }} />)}
-                          </div>
-                          <strong>{palette.name}</strong>
-                          <small>{palette.description}</small>
-                          <em>Aplicar esta paleta</em>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="theme-palette-empty">
-                      <span>Color</span>
-                      <p>Sube o vuelve a elegir una imagen para obtener tres combinaciones adecuadas automáticamente.</p>
-                    </div>
-                  )}
+                <div className="theme-asset-card">
+                  <strong>Imagen del banner</strong><span>Recomendado: 1600 × 400 px. No se agregará texto ni logo encima.</span>
+                  {form.theme_config.hero_image_url ? <img src={buildAssetUrl(form.theme_config.hero_image_url)} alt="Banner actual" /> : <div className="theme-asset-empty">Sin imagen</div>}
+                  <label className="btn btn-ghost file-btn">{uploading ? "Subiendo..." : "Elegir banner"}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(event) => handleBannerUpload(event.target.files?.[0])} /></label>
+                  {form.theme_config.hero_image_url ? <button type="button" className="theme-remove-asset" onClick={() => updateConfig("hero_image_url", "")}>Quitar banner</button> : null}
                 </div>
               </div>
-            ) : null}
+
+              <label>
+                Ajuste de la imagen del banner
+                <select value={form.theme_config.hero_image_fit || "cover"} onChange={(event) => updateConfig("hero_image_fit", event.target.value)}>
+                  <option value="cover">Llenar el espacio</option>
+                  <option value="contain">Mostrar imagen completa</option>
+                </select>
+              </label>
+
+              <div className="theme-palette-assistant">
+                <div className="theme-section-head compact">
+                  <div><span>Color inteligente</span><h3>Paletas basadas en tu imagen</h3></div>
+                  <p>{analyzingPalette ? "Analizando colores…" : "Al elegir un logo o banner aparecerán sugerencias aquí."}</p>
+                </div>
+                {paletteSuggestions.length ? (
+                  <div className="theme-palette-grid">
+                    {paletteSuggestions.map((palette) => (
+                      <button type="button" key={palette.name} onClick={() => applyPalette(palette.colors)}>
+                        <div className="theme-palette-swatches" aria-hidden="true">
+                          {Object.values(palette.colors).map((color, index) => <span key={index} style={{ background: color }} />)}
+                        </div>
+                        <strong>{palette.name}</strong>
+                        <small>{palette.description}</small>
+                        <em>Aplicar esta paleta</em>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="theme-palette-empty">
+                    <span>Color</span>
+                    <p>Sube o vuelve a elegir una imagen para obtener tres combinaciones adecuadas automáticamente.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="theme-editor-section">
+              <div className="theme-section-head compact">
+                <div><span>Menú lateral</span><h3>Contacto y redes de la tienda</h3></div>
+                <p>Sólo se mostrarán al cliente los datos que completes.</p>
+              </div>
+              <div className="theme-grid-2">
+                <label>
+                  Nombre en el menú
+                  <input value={form.theme_config.side_menu_title || ""} placeholder={store?.nombre_tienda || "Mi tienda"} onChange={(event) => updateConfig("side_menu_title", event.target.value)} />
+                </label>
+                <label>
+                  Descripción breve
+                  <input value={form.theme_config.side_menu_text || ""} placeholder="Atención, horarios o información útil" onChange={(event) => updateConfig("side_menu_text", event.target.value)} />
+                </label>
+                <label>
+                  Teléfono
+                  <input value={form.theme_config.contact_phone || ""} autoComplete="tel" placeholder="+591 70000000" onChange={(event) => updateConfig("contact_phone", event.target.value)} />
+                </label>
+                <label>
+                  Correo de contacto
+                  <input type="email" value={form.theme_config.contact_email || ""} autoComplete="email" placeholder="contacto@mitienda.com" onChange={(event) => updateConfig("contact_email", event.target.value)} />
+                </label>
+                <label>
+                  WhatsApp
+                  <input value={form.theme_config.contact_whatsapp || ""} placeholder="+591 70000000" onChange={(event) => updateConfig("contact_whatsapp", event.target.value)} />
+                </label>
+                <label>
+                  Instagram
+                  <input value={form.theme_config.social_instagram || ""} placeholder="@mitienda" onChange={(event) => updateConfig("social_instagram", event.target.value)} />
+                </label>
+                <label>
+                  TikTok
+                  <input value={form.theme_config.social_tiktok || ""} placeholder="@mitienda" onChange={(event) => updateConfig("social_tiktok", event.target.value)} />
+                </label>
+                <label>
+                  Facebook
+                  <input value={form.theme_config.social_facebook || ""} placeholder="mitienda o enlace completo" onChange={(event) => updateConfig("social_facebook", event.target.value)} />
+                </label>
+              </div>
+            </div>
 
             {form.theme_config.category_style === "round_icons" ? (
               <div className="theme-category-icons">

@@ -6,6 +6,7 @@ import {
   SoftBeigeTheme,
 } from "../components/catalog/ThemeLayouts";
 import { resolveTheme } from "../theme/theme";
+import StorefrontHeader from "../components/StorefrontHeader";
 
 const THEME_COMPONENTS = {
   modern_banner: ModernBannerTheme,
@@ -29,6 +30,7 @@ function isOfferProduct(product) {
 function CatalogPage({
   slug,
   storeName,
+  whatsappNumber,
   categories,
   products,
   offers,
@@ -171,7 +173,9 @@ function CatalogPage({
   const ThemeComponent = THEME_COMPONENTS[resolvedTheme.themeId] || ModernBannerTheme;
 
   return (
-    <ThemeComponent
+    <>
+      <StorefrontHeader storeName={storeName} themeConfig={resolvedTheme.config} whatsappNumber={whatsappNumber} />
+      <ThemeComponent
       slug={slug}
       storeName={storeName}
       categories={catalogCategories}
@@ -196,7 +200,8 @@ function CatalogPage({
       error={error}
       onRetry={onRetry}
       onViewDetail={onViewDetail}
-    />
+      />
+    </>
   );
 }
 

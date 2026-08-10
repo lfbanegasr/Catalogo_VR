@@ -2,12 +2,15 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { CartProvider } from "./context/CartContext";
+import { CustomerAccountProvider } from "./context/CustomerAccountContext";
 import "./styles/global.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <CartProvider>
-      <App />
-    </CartProvider>
+    <CustomerAccountProvider>
+      <CartProvider>
+        <App />
+      </CartProvider>
+    </CustomerAccountProvider>
   </React.StrictMode>
 );

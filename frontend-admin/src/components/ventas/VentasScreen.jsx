@@ -27,6 +27,7 @@ export default function VentasScreen({ user }) {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [currencySymbol, setCurrencySymbol] = useState("Bs");
   
   // Detalle expandido
   const [expandedSaleId, setExpandedSaleId] = useState(null);
@@ -53,8 +54,12 @@ export default function VentasScreen({ user }) {
     setLoading(true);
     setError("");
     try {
-      const data = await api.listVentas(user.id_tienda);
-      setSales(data || []);
+      const [salesData, storeData] = await Promise.all([
+        api.listVentas(user.id_tienda),
+        api.adminGetMyStore()
+      ]);
+      setSales(salesData || []);
+      setCurrencySymbol(storeData.currency_symbol || "S/");
     } catch (err) {
       console.error(err);
       setError("No se pudo cargar el historial de ventas.");
@@ -387,7 +392,7 @@ export default function VentasScreen({ user }) {
                             })()}
                           </td>
                           <td style={{ padding: '8px', fontWeight: 'bold', color: '#111827' }}>
-                            {parseFloat(v.total_venta).toFixed(2)} Bs
+                            {parseFloat(v.total_venta).toFixed(2)} {currencySymbol}
                           </td>
                           <td style={{ padding: '8px' }}>
                             <span style={{
@@ -524,8 +529,8 @@ export default function VentasScreen({ user }) {
                                               {d.nombre_variante ? <div style={{ fontSize: '9px', color: '#6b7280' }}>{d.nombre_variante}</div> : null}
                                             </td>
                                             <td style={{ padding: '6px 4px', textAlign: 'center' }}>{d.cantidad} u.</td>
-                                            <td style={{ padding: '6px 4px', textAlign: 'right' }}>{parseFloat(d.precio_unitario).toFixed(2)} Bs</td>
-                                            <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 'bold', color: '#059669' }}>{parseFloat(d.subtotal).toFixed(2)} Bs</td>
+                                            <td style={{ padding: '6px 4px', textAlign: 'right' }}>{parseFloat(d.precio_unitario).toFixed(2)} {currencySymbol}</td>
+                                            <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 'bold', color: '#059669' }}>{parseFloat(d.subtotal).toFixed(2)} {currencySymbol}</td>
                                           </tr>
                                         ))}
                                       </tbody>
@@ -763,7 +768,7 @@ export default function VentasScreen({ user }) {
                                     </select>
                                   ) : null}
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', fontSize: '9px', fontWeight: 'bold' }}>
-                                    <span style={{ color: '#059669' }}>{effectivePrice} Bs</span>
+                                    <span style={{ color: '#059669' }}>{effectivePrice} {currencySymbol}</span>
                                     <span style={{ color: isOutOfStock ? '#ef4444' : '#9ca3af' }}>
                                       {isOutOfStock ? 'Agotado' : `Stock: ${availableStock}`}
                                     </span>
@@ -842,11 +847,11 @@ export default function VentasScreen({ user }) {
                               <div style={{ fontSize: '9px', color: '#6b7280', marginTop: '2px' }}>{item.nombre_variante}</div>
                             ) : null}
                             <div style={{ fontSize: '9px', color: '#6b7280', marginTop: '2px' }}>
-                              {item.cantidad} x {item.precio_unitario.toFixed(2)} Bs
+                              {item.cantidad} x {item.precio_unitario.toFixed(2)} {currencySymbol}
                             </div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ fontWeight: 'extrabold', color: '#059669' }}>{item.subtotal.toFixed(2)} Bs</span>
+                            <span style={{ fontWeight: 'extrabold', color: '#059669' }}>{item.subtotal.toFixed(2)} {currencySymbol}</span>
                             <button
                               onClick={() => handleRemoveItem(item.cart_key)}
                               style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}
@@ -864,7 +869,7 @@ export default function VentasScreen({ user }) {
                 <div style={{ background: '#f9fafb', padding: '16px', borderRadius: '16px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 'black', color: '#111827' }}>
                     <span>Total de la Venta:</span>
-                    <span>{saleItems.reduce((acc, i) => acc + i.subtotal, 0).toFixed(2)} Bs</span>
+                    <span>{saleItems.reduce((acc, i) => acc + i.subtotal, 0).toFixed(2)} {currencySymbol}</span>
                   </div>
 
                   <button

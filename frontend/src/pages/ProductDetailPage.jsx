@@ -1,14 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { buildAssetUrl } from "../api/api";
 import { useCart } from "../context/CartContext";
-
-function formatPrice(value) {
-  return new Intl.NumberFormat("es-PE", {
-    style: "currency",
-    currency: "PEN",
-    minimumFractionDigits: 2,
-  }).format(Number(value || 0));
-}
+import { useCurrency } from "../context/CurrencyContext";
+import { formatPrice } from "../utils/price";
 
 function normalizeWhatsappNumber(raw) {
   return String(raw || "").replace(/[^\d]/g, "");
@@ -27,6 +21,7 @@ function ProductDetailPage({
   onPreviousProduct,
   onNextProduct,
 }) {
+  const currencySymbol = useCurrency();
   const { addToCart } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -179,12 +174,12 @@ function ProductDetailPage({
             <div className="detail-price-block">
               {displayOriginalPrice > displayFinalPrice ? (
                 <>
-                  <p className="detail-price-original">{formatPrice(displayOriginalPrice)}</p>
-                  <p className="detail-price">{formatPrice(displayFinalPrice)}</p>
+                  <p className="detail-price-original">{formatPrice(displayOriginalPrice, currencySymbol)}</p>
+                  <p className="detail-price">{formatPrice(displayFinalPrice, currencySymbol)}</p>
                   {displayDiscount != null ? <p className="detail-discount">-{Math.round(Number(displayDiscount))}%</p> : null}
                 </>
               ) : (
-                <p className="detail-price">{formatPrice(displayPrice)}</p>
+                <p className="detail-price">{formatPrice(displayPrice, currencySymbol)}</p>
               )}
             </div>
             <p className="detail-stock">{stockText}</p>

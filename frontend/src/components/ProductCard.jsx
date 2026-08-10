@@ -1,12 +1,8 @@
+import { useState } from "react";
 import { buildAssetUrl } from "../api/api";
-
-function formatPrice(value) {
-  return new Intl.NumberFormat("es-PE", {
-    style: "currency",
-    currency: "PEN",
-    minimumFractionDigits: 2,
-  }).format(Number(value || 0));
-}
+import { useCart } from "../context/CartContext";
+import { useCurrency } from "../context/CurrencyContext";
+import { formatPrice } from "../utils/price";
 
 function ProductImage({ src, alt }) {
   if (!src) {
@@ -29,6 +25,9 @@ function ProductImage({ src, alt }) {
 }
 
 function ProductCard({ product, onViewDetail, compact = false }) {
+  const { addToCart } = useCart();
+  const [justAdded, setJustAdded] = useState(false);
+  const currencySymbol = useCurrency();
   const nombre = product.nombre || product.name || "Producto sin nombre";
   const descripcion =
     product.descripcion ||
@@ -42,7 +41,27 @@ function ProductCard({ product, onViewDetail, compact = false }) {
   const stock = product.stock ?? null;
   const imagenUrl = product.imagen_url || product.imageUrl || "";
   const imageSrc = buildAssetUrl(imagenUrl);
+  const defaultVariant = (Array.isArray(product.variantes) ? product.variantes : [])
+    .find((variant) => variant.es_predeterminada)
+    || product.variantes?.[0]
+    || null;
+  const quickStock = Number(defaultVariant?.stock ?? stock ?? 0);
+  const quickProduct = defaultVariant ? {
+    ...product,
+    id_variante: defaultVariant.id_variante,
+    nombre_variante: defaultVariant.nombre,
+    precio_final: defaultVariant.precio_final,
+    precio: defaultVariant.precio,
+    stock: defaultVariant.stock,
+    imagen_url: defaultVariant.imagen_url || imagenUrl,
+  } : product;
 
+  const handleQuickAdd = () => {
+    if (quickStock <= 0) return;
+    addToCart(quickProduct);
+    setJustAdded(true);
+    window.setTimeout(() => setJustAdded(false), 1200);
+  };
   const stockLabel =
     stock == null
       ? "Disponibilidad no informada"
@@ -75,23 +94,39 @@ function ProductCard({ product, onViewDetail, compact = false }) {
         <div className="product-price-block">
           {precioOriginal > precioFinal ? (
             <>
-              <p className="product-price-original">{formatPrice(precioOriginal)}</p>
-              <p className="product-price">{formatPrice(precioFinal)}</p>
+              <p className="product-price-original">{formatPrice(precioOriginal, currencySymbol)}</p>
+              <p className="product-price">{formatPrice(precioFinal, currencySymbol)}</p>
               {descuentoPct != null ? (
                 <p className="product-discount">-{Math.round(Number(descuentoPct))}%</p>
               ) : null}
             </>
           ) : (
-            <p className="product-price">{formatPrice(precio)}</p>
+            <p className="product-price">{formatPrice(precio, currencySymbol)}</p>
           )}
         </div>
-        <button
-          className="btn btn-primary"
-          type="button"
-          onClick={() => onViewDetail(product)}
-        >
-          Ver detalle
-        </button>
+        <div className="product-card-actions">
+          <button
+            className="btn btn-primary product-detail-btn"
+            type="button"
+            onClick={() => onViewDetail(product)}
+          >
+            Ver detalle
+          </button>
+          <button
+            className="product-quick-add"
+            type="button"
+            onClick={handleQuickAdd}
+            disabled={quickStock <= 0}
+            aria-label={justAdded ? "Producto agregado" : "Agregar al carrito"}
+            title={quickStock <= 0 ? "Producto agotado" : "Agregar al carrito"}
+          >
+            {justAdded ? (
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+            )}
+          </button>
+        </div>
       </div>
     </article>
   );

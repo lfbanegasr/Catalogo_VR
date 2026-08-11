@@ -2551,4 +2551,35 @@ img {
   .share-panel-actions {
     grid-template-columns: 1fr;
   }
+}.set-detail-block {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  background: color-mix(in srgb, var(--color-surface) 94%, var(--color-primary));
+}
+
+.set-components-public {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.set-components-public li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.set-components-public li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.set-components-public span {
+  color: var(--color-text-muted);
+  text-align: right;
 }

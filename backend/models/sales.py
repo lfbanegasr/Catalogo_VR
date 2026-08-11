@@ -164,6 +164,11 @@ class DetalleVenta(Base):
     venta = relationship("Venta", back_populates="detalles")
     producto = relationship("Producto")
     variante = relationship("VarianteProducto")
+    consumos = relationship(
+        "DetalleVentaConsumo",
+        back_populates="detalle",
+        cascade="all, delete-orphan",
+    )
 
 
 class HistorialEstadoPedido(Base):

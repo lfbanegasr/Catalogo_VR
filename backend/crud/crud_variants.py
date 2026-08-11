@@ -191,6 +191,8 @@ def create_variant(
     product: Producto,
     payload: VariantCreate,
 ) -> VarianteProducto:
+    if product.tipo_producto == "SET":
+        raise ValueError("Los sets no pueden tener variantes propias.")
     combination = _validate_variant_attributes(db, product=product, items=payload.atributos)
     _ensure_unique_combination(db, product=product, combination=combination)
     sku = payload.sku or (

@@ -8,6 +8,15 @@ from models.catalog import Categoria, Producto, ProductoImagen
 from models.catalog_variant import VarianteProducto
 from models.tenant import Tienda
 from schemas.catalog_schema import CategoriaCreate, CategoriaUpdate, ProductoCreate, ProductoUpdate
+from crud.crud_product_sets import (
+    PRODUCT_TYPE_SET,
+    PRODUCT_TYPE_SIMPLE,
+    SETS_CATEGORY_CODE,
+    SETS_CATEGORY_NAME,
+    calculate_set_stock_map,
+    ensure_sets_category,
+    replace_set_components,
+)
 
 
 # -------------------------
@@ -137,6 +146,15 @@ def update_categoria(db: Session, id_categoria, data: CategoriaUpdate) -> Catego
     if not categoria:
         return None
     payload = data.model_dump(exclude_unset=True)
+    if categoria.codigo_sistema == SETS_CATEGORY_CODE:
+        protected = {
+            "nombre": SETS_CATEGORY_NAME,
+            "id_categoria_padre": None,
+            "activa": True,
+        }
+        for key, value in protected.items():
+            if key in payload and payload[key] != value:
+                raise ValueError("La categoria Sets es administrada automaticamente.")
     if "id_categoria_padre" in payload:
         _validate_category_parent(
             db,
@@ -176,6 +194,8 @@ def deactivate_categoria(db: Session, id_categoria) -> Categoria | None:
     categoria = get_categoria_by_id(db=db, id_categoria=id_categoria)
     if not categoria:
         return None
+    if categoria.codigo_sistema == SETS_CATEGORY_CODE:
+        return categoria
     categoria.activa = False
     db.commit()
     db.refresh(categoria)
@@ -186,16 +206,24 @@ def deactivate_categoria(db: Session, id_categoria) -> Categoria | None:
 # PRODUCTOS
 # -------------------------
 def create_producto(db: Session, id_tienda, data: ProductoCreate) -> Producto:
-    categoria_id = data.id_categoria_principal or data.id_categoria
+    components = data.componentes
+    if data.tipo_producto == PRODUCT_TYPE_SIMPLE and components:
+        raise ValueError("Los productos normales no pueden tener componentes.")
+
+    category_id = data.id_categoria_principal or data.id_categoria
+    if data.tipo_producto == PRODUCT_TYPE_SET:
+        category_id = ensure_sets_category(db, id_tienda).id_categoria
+
     producto = Producto(
         id_tienda=id_tienda,
-        id_categoria=categoria_id,
-        id_categoria_principal=categoria_id,
+        id_categoria=category_id,
+        id_categoria_principal=category_id,
         nombre=data.nombre,
         descripcion=data.descripcion,
+        tipo_producto=data.tipo_producto,
         precio_venta=data.precio_venta,
         costo_adquisicion=data.costo_adquisicion,
-        stock_actual=data.stock_actual,
+        stock_actual=0 if data.tipo_producto == PRODUCT_TYPE_SET else data.stock_actual,
         imagen_url=data.imagen_url,
         imagen_fit=data.imagen_fit,
         imagen_posicion_x=data.imagen_posicion_x,
@@ -204,10 +232,17 @@ def create_producto(db: Session, id_tienda, data: ProductoCreate) -> Producto:
         imagen_fondo=data.imagen_fondo,
         activo=data.activo,
     )
-    db.add(producto)
-    db.commit()
-    db.refresh(producto)
-    return producto
+    try:
+        db.add(producto)
+        db.flush()
+        if data.tipo_producto == PRODUCT_TYPE_SET:
+            replace_set_components(db, set_product=producto, components=components)
+        db.commit()
+        db.refresh(producto)
+        return producto
+    except Exception:
+        db.rollback()
+        raise
 
 
 def list_productos(db: Session, id_tienda) -> list[Producto]:
@@ -224,10 +259,33 @@ def get_producto_by_id(db: Session, id_producto) -> Producto | None:
 
 
 def update_producto(db: Session, id_producto, data: ProductoUpdate) -> Producto | None:
-    producto = get_producto_by_id(db=db, id_producto=id_producto)
+    producto = (
+        db.query(Producto)
+        .filter(Producto.id_producto == id_producto)
+        .with_for_update()
+        .first()
+    )
     if not producto:
         return None
+
+    components = data.componentes if "componentes" in data.model_fields_set else None
     payload = data.model_dump(exclude_unset=True)
+    payload.pop("componentes", None)
+    requested_type = payload.get("tipo_producto")
+    if requested_type is not None and requested_type != producto.tipo_producto:
+        raise ValueError("El tipo de producto no puede cambiarse despues de crearlo.")
+    payload.pop("tipo_producto", None)
+
+    if producto.tipo_producto == PRODUCT_TYPE_SET:
+        category = ensure_sets_category(db, producto.id_tienda)
+        payload["id_categoria"] = category.id_categoria
+        payload["id_categoria_principal"] = category.id_categoria
+        payload.pop("stock_actual", None)
+        if components is not None:
+            replace_set_components(db, set_product=producto, components=components)
+    elif components:
+        raise ValueError("Los productos normales no pueden tener componentes.")
+
     if "id_categoria_principal" in payload or "id_categoria" in payload:
         categoria_id = payload.get("id_categoria_principal", payload.get("id_categoria"))
         current_category_id = producto.id_categoria_principal or producto.id_categoria
@@ -245,11 +303,16 @@ def update_producto(db: Session, id_producto, data: ProductoUpdate) -> Producto 
                 )
         payload["id_categoria"] = categoria_id
         payload["id_categoria_principal"] = categoria_id
-    for key, value in payload.items():
-        setattr(producto, key, value)
-    db.commit()
-    db.refresh(producto)
-    return producto
+
+    try:
+        for key, value in payload.items():
+            setattr(producto, key, value)
+        db.commit()
+        db.refresh(producto)
+        return producto
+    except Exception:
+        db.rollback()
+        raise
 
 
 def deactivate_producto(db: Session, id_producto) -> Producto | None:
@@ -332,12 +395,32 @@ def get_tienda_by_name(db: Session, nombre_tienda: str) -> Tienda | None:
 
 
 def list_public_categorias(db: Session, id_tienda) -> list[Categoria]:
-    return (
+    categories = (
         db.query(Categoria)
         .filter(Categoria.id_tienda == id_tienda, Categoria.activa.is_(True))
         .order_by(Categoria.orden.asc(), Categoria.nombre.asc())
         .all()
     )
+    set_ids = [
+        product_id
+        for (product_id,) in (
+            db.query(Producto.id_producto)
+            .filter(
+                Producto.id_tienda == id_tienda,
+                Producto.tipo_producto == PRODUCT_TYPE_SET,
+                Producto.activo.is_(True),
+            )
+            .all()
+        )
+    ]
+    has_available_set = any(
+        stock > 0 for stock in calculate_set_stock_map(db, set_ids).values()
+    )
+    return [
+        category
+        for category in categories
+        if category.codigo_sistema != SETS_CATEGORY_CODE or has_available_set
+    ]
 
 
 def list_public_productos(db: Session, id_tienda, limit: int = 20, offset: int = 0) -> list[Producto]:
@@ -358,18 +441,30 @@ def list_public_productos(db: Session, id_tienda, limit: int = 20, offset: int =
         )
         .exists()
     )
-    return (
+    products = (
         db.query(Producto)
         .filter(
             Producto.id_tienda == id_tienda,
             Producto.activo.is_(True),
             or_(
+                Producto.tipo_producto == PRODUCT_TYPE_SET,
                 and_(active_variant_exists, available_variant_exists),
                 and_(~active_variant_exists, func.coalesce(Producto.stock_actual, 0) > 0),
             ),
         )
         .order_by(Producto.fecha_agregado.desc())
-        .offset(offset)
-        .limit(limit)
         .all()
     )
+    set_ids = [
+        product.id_producto
+        for product in products
+        if product.tipo_producto == PRODUCT_TYPE_SET
+    ]
+    set_stock = calculate_set_stock_map(db, set_ids)
+    available = [
+        product
+        for product in products
+        if product.tipo_producto != PRODUCT_TYPE_SET
+        or set_stock.get(product.id_producto, 0) > 0
+    ]
+    return available[offset:offset + limit]

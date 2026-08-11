@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 import secrets
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -21,6 +22,8 @@ from models.sales import (
 from models.catalog import Producto, Categoria
 from models.catalog_variant import VarianteProducto
 from models.public_event import PublicEvent
+from models.product_set import DetalleVentaConsumo
+from crud.crud_product_sets import PRODUCT_TYPE_SET, PRODUCT_TYPE_SIMPLE
 from schemas.sales_schema import VentaCreate
 
 
@@ -182,7 +185,219 @@ def _get_or_create_cliente(
 
 def create_venta(db: Session, id_tienda: UUID, payload: VentaCreate) -> Venta:
     try:
-        # cliente
+        requested_ids = sorted(
+            {item.id_producto for item in payload.detalles},
+            key=str,
+        )
+        products = db.execute(
+            select(Producto)
+            .where(
+                Producto.id_producto.in_(requested_ids),
+                Producto.id_tienda == id_tienda,
+            )
+            .order_by(Producto.id_producto.asc())
+            .with_for_update()
+        ).scalars().all()
+        products_by_id = {product.id_producto: product for product in products}
+        if len(products_by_id) != len(requested_ids):
+            missing = next(
+                product_id
+                for product_id in requested_ids
+                if product_id not in products_by_id
+            )
+            raise ValueError(f"Producto no existe o no pertenece a tu tienda: {missing}")
+
+        detail_plans = []
+        aggregated_requirements = defaultdict(int)
+
+        for item in payload.detalles:
+            product = products_by_id[item.id_producto]
+            if not product.activo:
+                raise ValueError(f"El producto '{product.nombre}' no esta disponible.")
+            active_variants = (
+                db.query(VarianteProducto)
+                .filter(
+                    VarianteProducto.id_producto == product.id_producto,
+                    VarianteProducto.activa.is_(True),
+                )
+                .all()
+            )
+            variant = None
+            consumptions = []
+
+            if product.tipo_producto == PRODUCT_TYPE_SET:
+                if item.id_variante is not None:
+                    raise ValueError("Los sets no admiten variantes propias.")
+                if not product.componentes:
+                    raise ValueError(f"El set '{product.nombre}' no tiene componentes.")
+                for component in product.componentes:
+                    component_product = component.producto_componente
+                    component_variant = component.variante_componente
+                    if (
+                        component_product is None
+                        or component_product.id_tienda != id_tienda
+                        or not component_product.activo
+                        or component_product.tipo_producto != PRODUCT_TYPE_SIMPLE
+                    ):
+                        raise StockInsuficienteError(
+                            f"El componente del set '{product.nombre}' ya no esta disponible.",
+                        )
+                    if component_variant is not None:
+                        if (
+                            not component_variant.activa
+                            or component_variant.id_producto != component_product.id_producto
+                        ):
+                            raise StockInsuficienteError(
+                                f"Una variante de '{component_product.nombre}' ya no esta disponible.",
+                            )
+                    else:
+                        component_has_variants = (
+                            db.query(VarianteProducto.id_variante)
+                            .filter(
+                                VarianteProducto.id_producto == component_product.id_producto,
+                                VarianteProducto.activa.is_(True),
+                            )
+                            .first()
+                            is not None
+                        )
+                        if component_has_variants:
+                            raise StockInsuficienteError(
+                                f"El set requiere seleccionar una variante de '{component_product.nombre}'.",
+                            )
+                    variant_label = None
+                    if component_variant is not None:
+                        variant_label = " / ".join(
+                            attribute.opcion.valor
+                            for attribute in component_variant.atributos
+                            if attribute.opcion is not None
+                        ) or component_variant.sku
+                    consumption = {
+                        "product_id": component_product.id_producto,
+                        "variant_id": (
+                            component_variant.id_variante
+                            if component_variant is not None
+                            else None
+                        ),
+                        "quantity": component.cantidad * item.cantidad,
+                        "product_name": component_product.nombre,
+                        "variant_sku": (
+                            component_variant.sku
+                            if component_variant is not None
+                            else None
+                        ),
+                        "variant_name": variant_label,
+                    }
+                    consumptions.append(consumption)
+                    aggregated_requirements[
+                        (consumption["product_id"], consumption["variant_id"])
+                    ] += consumption["quantity"]
+            else:
+                if item.id_variante is not None:
+                    variant = next(
+                        (
+                            candidate
+                            for candidate in active_variants
+                            if candidate.id_variante == item.id_variante
+                        ),
+                        None,
+                    )
+                    if variant is None:
+                        raise ValueError(
+                            "La variante seleccionada no existe o no esta disponible.",
+                        )
+                elif active_variants:
+                    raise ValueError(f"Selecciona una variante para '{product.nombre}'.")
+
+                variant_label = None
+                if variant is not None:
+                    variant_label = " / ".join(
+                        attribute.opcion.valor
+                        for attribute in variant.atributos
+                        if attribute.opcion is not None
+                    ) or variant.sku
+                consumption = {
+                    "product_id": product.id_producto,
+                    "variant_id": variant.id_variante if variant is not None else None,
+                    "quantity": item.cantidad,
+                    "product_name": product.nombre,
+                    "variant_sku": variant.sku if variant is not None else None,
+                    "variant_name": variant_label,
+                }
+                consumptions.append(consumption)
+                aggregated_requirements[
+                    (consumption["product_id"], consumption["variant_id"])
+                ] += consumption["quantity"]
+
+            detail_plans.append(
+                {
+                    "item": item,
+                    "product": product,
+                    "variant": variant,
+                    "consumptions": consumptions,
+                },
+            )
+
+        stock_product_ids = sorted(
+            {key[0] for key in aggregated_requirements},
+            key=str,
+        )
+        locked_products = db.execute(
+            select(Producto)
+            .where(Producto.id_producto.in_(stock_product_ids))
+            .order_by(Producto.id_producto.asc())
+            .with_for_update()
+        ).scalars().all()
+        locked_products_by_id = {
+            product.id_producto: product for product in locked_products
+        }
+
+        stock_variant_ids = sorted(
+            {key[1] for key in aggregated_requirements if key[1] is not None},
+            key=str,
+        )
+        locked_variants = []
+        if stock_variant_ids:
+            locked_variants = db.execute(
+                select(VarianteProducto)
+                .where(VarianteProducto.id_variante.in_(stock_variant_ids))
+                .order_by(VarianteProducto.id_variante.asc())
+                .with_for_update()
+            ).scalars().all()
+        locked_variants_by_id = {
+            variant.id_variante: variant for variant in locked_variants
+        }
+
+        stock_targets = {}
+        for (product_id, variant_id), required in aggregated_requirements.items():
+            product = locked_products_by_id.get(product_id)
+            if product is None or not product.activo:
+                raise StockInsuficienteError("Uno de los componentes ya no esta disponible.")
+            target = (
+                locked_variants_by_id.get(variant_id)
+                if variant_id is not None
+                else product
+            )
+            if (
+                target is None
+                or (
+                    variant_id is not None
+                    and (
+                        not target.activa
+                        or target.id_producto != product_id
+                    )
+                )
+            ):
+                raise StockInsuficienteError(
+                    f"Una variante de '{product.nombre}' ya no esta disponible.",
+                )
+            available = max(int(target.stock_actual or 0), 0)
+            if available < required:
+                raise StockInsuficienteError(
+                    f"Stock insuficiente para '{product.nombre}'. "
+                    f"Disponible={available}, solicitado={required}",
+                )
+            stock_targets[(product_id, variant_id)] = target
+
         cliente = _get_or_create_cliente(
             db,
             id_tienda=id_tienda,
@@ -210,7 +425,7 @@ def create_venta(db: Session, id_tienda: UUID, payload: VentaCreate) -> Venta:
             total_venta=Decimal("0.00"),
         )
         db.add(venta)
-        db.flush()  # id_venta
+        db.flush()
         db.add(
             HistorialEstadoPedido(
                 id_venta=venta.id_venta,
@@ -223,78 +438,38 @@ def create_venta(db: Session, id_tienda: UUID, payload: VentaCreate) -> Venta:
 
         total = Decimal("0.00")
         detalles_creados: List[DetalleVenta] = []
-
-        for item in payload.detalles:
-            stmt = (
-                select(Producto)
-                .where(Producto.id_producto == item.id_producto)
-                .where(Producto.id_tienda == id_tienda)
-                .with_for_update()
-            )
-            producto = db.execute(stmt).scalar_one_or_none()
-            if not producto:
-                raise ValueError(f"Producto no existe o no pertenece a tu tienda: {item.id_producto}")
-
-            active_variants_exist = (
-                db.query(VarianteProducto.id_variante)
-                .filter(
-                    VarianteProducto.id_producto == producto.id_producto,
-                    VarianteProducto.activa.is_(True),
-                )
-                .first()
-                is not None
-            )
-            variant = None
-            stock_target = producto
-            if item.id_variante is not None:
-                variant = db.execute(
-                    select(VarianteProducto)
-                    .where(
-                        VarianteProducto.id_variante == item.id_variante,
-                        VarianteProducto.id_producto == producto.id_producto,
-                        VarianteProducto.id_tienda == id_tienda,
-                        VarianteProducto.activa.is_(True),
-                    )
-                    .with_for_update()
-                ).scalar_one_or_none()
-                if variant is None:
-                    raise ValueError("La variante seleccionada no existe o no esta disponible.")
-                stock_target = variant
-            elif active_variants_exist:
-                raise ValueError(f"Selecciona una variante para '{producto.nombre}'.")
-
-            if stock_target.stock_actual is None:
-                stock_target.stock_actual = 0
-            if stock_target.stock_actual < item.cantidad:
-                raise StockInsuficienteError(
-                    f"Stock insuficiente para '{producto.nombre}'. "
-                    f"Disponible={stock_target.stock_actual}, solicitado={item.cantidad}"
-                )
-
+        for plan in detail_plans:
+            item = plan["item"]
+            product = plan["product"]
+            variant = plan["variant"]
             base_price = _decimal(
                 variant.precio_venta
                 if variant is not None and variant.precio_venta is not None
-                else producto.precio_venta
+                else product.precio_venta
             )
             if payload.origen == "whatsapp":
-                effective_category = producto.id_categoria_principal or producto.id_categoria
+                effective_category = product.id_categoria_principal or product.id_categoria
                 priced, _ = apply_offer_to_products(
                     db=db,
                     id_tienda=id_tienda,
                     products=[{
-                        "id": str(producto.id_producto),
+                        "id": str(product.id_producto),
                         "precio": base_price,
-                        "categoria_id": str(effective_category) if effective_category else None,
+                        "categoria_id": (
+                            str(effective_category) if effective_category else None
+                        ),
                     }],
                 )
-                precio_unit = _decimal(priced[0]["precio_final"])
+                unit_price = _decimal(priced[0]["precio_final"])
             else:
-                precio_unit = (
+                unit_price = (
                     _decimal(item.precio_unitario)
                     if item.precio_unitario is not None
                     else base_price
                 )
-            subtotal = (precio_unit * _decimal(item.cantidad)).quantize(Decimal("0.00"))
+            subtotal = (unit_price * _decimal(item.cantidad)).quantize(
+                Decimal("0.00"),
+            )
             variant_label = None
             if variant is not None:
                 variant_label = " / ".join(
@@ -303,31 +478,59 @@ def create_venta(db: Session, id_tienda: UUID, payload: VentaCreate) -> Venta:
                     if attribute.opcion is not None
                 ) or variant.sku
 
-            detalle = DetalleVenta(
+            detail = DetalleVenta(
                 id_venta=venta.id_venta,
-                id_producto=producto.id_producto,
+                id_producto=product.id_producto,
                 id_variante=variant.id_variante if variant is not None else None,
                 sku_variante=variant.sku if variant is not None else None,
                 nombre_variante=variant_label,
                 cantidad=item.cantidad,
-                precio_unitario=precio_unit,
+                precio_unitario=unit_price,
                 subtotal=subtotal,
             )
-            db.add(detalle)
-            detalles_creados.append(detalle)
+            db.add(detail)
+            db.flush()
+            detalles_creados.append(detail)
 
-            stock_target.stock_actual -= item.cantidad
+            for consumption in plan["consumptions"]:
+                component_product = locked_products_by_id[consumption["product_id"]]
+                component_variant = (
+                    locked_variants_by_id.get(consumption["variant_id"])
+                    if consumption["variant_id"] is not None
+                    else None
+                )
+                unit_cost = (
+                    component_variant.costo_adquisicion
+                    if component_variant is not None
+                    and component_variant.costo_adquisicion is not None
+                    else component_product.costo_adquisicion
+                )
+                db.add(
+                    DetalleVentaConsumo(
+                        id_detalle=detail.id_detalle,
+                        id_producto_componente=consumption["product_id"],
+                        id_variante_componente=consumption["variant_id"],
+                        cantidad=consumption["quantity"],
+                        nombre_producto=consumption["product_name"],
+                        sku_variante=consumption["variant_sku"],
+                        nombre_variante=consumption["variant_name"],
+                        costo_unitario=unit_cost,
+                    ),
+                )
             total += subtotal
+
+        if requested_state in ACTIVE_ORDER_STATES:
+            for key, required in aggregated_requirements.items():
+                stock_targets[key].stock_actual -= required
 
         venta.total_venta = total.quantize(Decimal("0.00"))
         venta.detalles = detalles_creados
-
         db.commit()
         db.refresh(venta)
         return venta
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise e
+        raise
 
 
 def list_ventas(db: Session, id_tienda: UUID, limit: int = 50, offset: int = 0) -> List[Venta]:
@@ -544,57 +747,74 @@ def update_venta_estado(
         if next_rank < current_rank:
             raise ValueError("No puedes retroceder el estado operativo del pedido.")
 
-    def lock_stock_target(detalle):
-        if detalle.id_variante is not None:
+    inventory_requirements = {}
+    for detail in venta.detalles:
+        sources = detail.consumos or [detail]
+        for source in sources:
+            if detail.consumos:
+                product_id = source.id_producto_componente
+                variant_id = source.id_variante_componente
+                quantity = source.cantidad
+                label = source.nombre_producto
+            else:
+                product_id = detail.id_producto
+                variant_id = detail.id_variante
+                quantity = detail.cantidad
+                label = detail.producto.nombre if detail.producto else str(product_id)
+            key = (product_id, variant_id)
+            if key not in inventory_requirements:
+                inventory_requirements[key] = {
+                    "quantity": 0,
+                    "label": label,
+                }
+            inventory_requirements[key]["quantity"] += quantity
+
+    locked_targets = {}
+    for product_id, variant_id in sorted(
+        inventory_requirements,
+        key=lambda key: (str(key[0]), str(key[1] or "")),
+    ):
+        if variant_id is not None:
             target = db.execute(
                 select(VarianteProducto)
-                .where(VarianteProducto.id_variante == detalle.id_variante)
+                .where(VarianteProducto.id_variante == variant_id)
                 .with_for_update()
             ).scalar_one_or_none()
-            if target is None:
-                raise ValueError(
-                    f"La variante {detalle.sku_variante or detalle.id_variante} ya no existe.",
-                )
-            return target
-        if detalle.sku_variante:
+        else:
+            target = db.execute(
+                select(Producto)
+                .where(Producto.id_producto == product_id)
+                .with_for_update()
+            ).scalar_one_or_none()
+        if target is None:
             raise ValueError(
-                f"No se puede ajustar el stock de la variante eliminada {detalle.sku_variante}.",
+                f"No se puede ajustar el inventario de {inventory_requirements[(product_id, variant_id)]['label']}.",
             )
-        return db.execute(
-            select(Producto)
-            .where(Producto.id_producto == detalle.id_producto)
-            .with_for_update()
-        ).scalar_one_or_none()
+        locked_targets[(product_id, variant_id)] = target
 
-    # 1. Si era activa (generada_whatsapp, pendiente o completada) y pasa a cancelada -> RESTAURAR stock
-    if estado_anterior in ACTIVE_ORDER_STATES and nuevo_estado == EstadoVenta.cancelada.value:
-        for detalle in venta.detalles:
-            stock_target = lock_stock_target(detalle)
-            if stock_target:
-                if stock_target.stock_actual is None:
-                    stock_target.stock_actual = 0
-                stock_target.stock_actual += detalle.cantidad
+    if (
+        estado_anterior in ACTIVE_ORDER_STATES
+        and nuevo_estado == EstadoVenta.cancelada.value
+    ):
+        for key, requirement in inventory_requirements.items():
+            target = locked_targets[key]
+            target.stock_actual = int(target.stock_actual or 0) + requirement["quantity"]
 
-    # 2. Si era cancelada y pasa a activa -> DESCONTAR stock
-    elif estado_anterior == EstadoVenta.cancelada.value and nuevo_estado in ACTIVE_ORDER_STATES:
-        # Primero validar si hay stock suficiente para todos
-        for detalle in venta.detalles:
-            stock_target = lock_stock_target(detalle)
-            if not stock_target:
-                raise ValueError(f"El producto con ID {detalle.id_producto} ya no existe.")
-            if stock_target.stock_actual is None:
-                stock_target.stock_actual = 0
-            if stock_target.stock_actual < detalle.cantidad:
+    elif (
+        estado_anterior == EstadoVenta.cancelada.value
+        and nuevo_estado in ACTIVE_ORDER_STATES
+    ):
+        for key, requirement in inventory_requirements.items():
+            target = locked_targets[key]
+            available = int(target.stock_actual or 0)
+            if available < requirement["quantity"]:
                 raise StockInsuficienteError(
-                    f"Stock insuficiente para reactivar la venta. "
-                    f"Disponible={stock_target.stock_actual}, solicitado={detalle.cantidad}"
+                    f"Stock insuficiente para reactivar la venta de "
+                    f"'{requirement['label']}'. Disponible={available}, "
+                    f"solicitado={requirement['quantity']}",
                 )
-
-        # Si todos tienen stock, descontar
-        for detalle in venta.detalles:
-            stock_target = lock_stock_target(detalle)
-            stock_target.stock_actual -= detalle.cantidad
-
+        for key, requirement in inventory_requirements.items():
+            locked_targets[key].stock_actual -= requirement["quantity"]
     # Guardar el nuevo estado
     venta.estado = nuevo_estado
     venta.fecha_actualizacion = datetime.utcnow()

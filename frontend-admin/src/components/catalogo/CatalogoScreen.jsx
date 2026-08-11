@@ -6,6 +6,7 @@ import ImageDropZone from '../ImageDropZone';
 import { getImageSrc } from '../../utils';
 import { ToastStack } from '../Toast';
 import ProductCoverEditor, { categoryCoverDefaults } from './ProductCoverEditor';
+import ProductPicker from './ProductPicker';
 
 const CATEGORY_FORM_DEFAULTS = {
   nombre: "",
@@ -20,6 +21,8 @@ const CATEGORY_FORM_DEFAULTS = {
 };
 
 const PRODUCT_FORM_DEFAULTS = {
+  tipo_producto: "SIMPLE",
+  componentes: [],
   nombre: "",
   descripcion: "",
   precio_venta: 0,
@@ -55,20 +58,259 @@ function CategoryCoverDefaultsFields({ value, onChange }) {
   );
 }
 
+function SetComponentsEditor({
+  value = [],
+  onChange,
+  products,
+  categoryOptions = [],
+  excludeProductId = "",
+}) {
+  const [variantsByProduct, setVariantsByProduct] = useState({});
+  const [pickerTargetIndex, setPickerTargetIndex] = useState(null);
+  const candidates = useMemo(
+    () => (products || []).filter(
+      (product) => product.activo
+        && product.tipo_producto !== "SET"
+        && product.id_producto !== excludeProductId,
+    ),
+    [products, excludeProductId],
+  );
+
+  useEffect(() => {
+    const selectedIds = [...new Set(
+      value.map((item) => item.id_producto_componente).filter(Boolean),
+    )];
+    selectedIds.forEach((productId) => {
+      const product = candidates.find((item) => item.id_producto === productId);
+      if (!product?.tiene_variantes || variantsByProduct[productId]) return;
+      api.listVariantes(productId)
+        .then((variants) => {
+          setVariantsByProduct((current) => ({
+            ...current,
+            [productId]: (variants || []).filter((variant) => variant.activa),
+          }));
+        })
+        .catch(() => {
+          setVariantsByProduct((current) => ({ ...current, [productId]: [] }));
+        });
+    });
+  }, [value, candidates, variantsByProduct]);
+
+  const updateComponent = (index, changes) => {
+    onChange(value.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, ...changes } : item
+    )));
+  };
+
+  const selectProduct = (product) => {
+    const nextComponent = {
+      id_producto_componente: product.id_producto,
+      id_variante_componente: null,
+      cantidad: 1,
+    };
+    if (pickerTargetIndex === -1) {
+      onChange([...value, nextComponent]);
+    } else {
+      onChange(value.map((item, index) => (
+        index === pickerTargetIndex
+          ? { ...nextComponent, id_componente: item.id_componente }
+          : item
+      )));
+    }
+    setPickerTargetIndex(null);
+  };
+
+  const totalUnits = value.reduce(
+    (total, item) => total + Number(item.cantidad || 0),
+    0,
+  );
+  const categoryMap = useMemo(
+    () => new Map(categoryOptions.map((category) => [
+      String(category.id_categoria),
+      category.label || category.nombre,
+    ])),
+    [categoryOptions],
+  );
+  const availability = value.map((componentItem) => {
+    const product = candidates.find(
+      (item) => item.id_producto === componentItem.id_producto_componente,
+    );
+    const variants = variantsByProduct[componentItem.id_producto_componente] || [];
+    const variant = variants.find(
+      (item) => item.id_variante === componentItem.id_variante_componente,
+    );
+    const requiresVariant = Boolean(product?.tiene_variantes);
+    const ready = Boolean(product) && (!requiresVariant || Boolean(variant));
+    const availableStock = ready
+      ? Number(variant?.stock_actual ?? product?.stock_actual ?? 0)
+      : 0;
+    const quantity = Math.max(1, Number(componentItem.cantidad || 1));
+    return { product, variants, variant, requiresVariant, ready, availableStock, quantity };
+  });
+  const estimatedStock = availability.length > 0
+    ? Math.min(...availability.map((item) => Math.floor(item.availableStock / item.quantity)))
+    : 0;
+  const hasIncompleteComponent = availability.some((item) => !item.ready);
+
+  return (
+    <section className="set-components-editor">
+      <div className="set-components-head">
+        <div>
+          <strong>Productos incluidos ({value.length})</strong>
+          <span>El inventario se calcula desde estos productos.</span>
+        </div>
+        <div className={"set-stock-summary " + (hasIncompleteComponent ? "is-incomplete" : "")}>
+          <span>Stock estimado</span>
+          <strong>{estimatedStock} {estimatedStock === 1 ? "set" : "sets"}</strong>
+        </div>
+      </div>
+      {value.map((componentItem, index) => {
+        const {
+          product,
+          variants,
+          variant,
+          requiresVariant,
+          availableStock,
+          quantity,
+        } = availability[index];
+        const productCategoryId = String(
+          product?.id_categoria_principal || product?.id_categoria || "",
+        );
+        return (
+          <div className="set-component-row" key={componentItem.id_componente || index}>
+            <div className="set-component-product">
+              <span className="set-component-thumb">
+                {product?.imagen_url ? (
+                  <img src={getImageSrc(product.imagen_url)} alt="" />
+                ) : (
+                  <span>{String(product?.nombre || componentItem.nombre_producto || "P").slice(0, 1).toUpperCase()}</span>
+                )}
+              </span>
+              <div>
+                <strong>{product?.nombre || componentItem.nombre_producto || "Producto no disponible"}</strong>
+                <small>{categoryMap.get(productCategoryId) || "Sin categoria"}</small>
+              </div>
+              <button type="button" className="btn-link" onClick={() => setPickerTargetIndex(index)}>
+                Cambiar
+              </button>
+            </div>
+
+            {requiresVariant ? (
+              <label className="set-component-variant">Variante incluida
+                <select
+                  required
+                  value={componentItem.id_variante_componente || ""}
+                  onChange={(event) => updateComponent(index, {
+                    id_variante_componente: event.target.value || null,
+                  })}
+                >
+                  <option value="">Selecciona una variante</option>
+                  {variants.map((option) => (
+                    <option key={option.id_variante} value={option.id_variante}>
+                      {(option.atributos || []).map((item) => item.valor).join(" / ")
+                        || option.sku} - stock {option.stock_actual}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : <span className="set-component-no-variant">Sin variantes</span>}
+
+            <div className="set-quantity-control" aria-label="Cantidad incluida">
+              <span>Cantidad</span>
+              <div>
+                <button
+                  type="button"
+                  disabled={quantity <= 1}
+                  onClick={() => updateComponent(index, { cantidad: Math.max(1, quantity - 1) })}
+                  aria-label="Reducir cantidad"
+                >-</button>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={quantity}
+                  onChange={(event) => updateComponent(index, {
+                    cantidad: Math.max(1, Number(event.target.value || 1)),
+                  })}
+                />
+                <button
+                  type="button"
+                  onClick={() => updateComponent(index, { cantidad: quantity + 1 })}
+                  aria-label="Aumentar cantidad"
+                >+</button>
+              </div>
+            </div>
+
+            <div className={"set-component-availability " + (requiresVariant && !variant ? "is-warning" : "")}>
+              <span>{requiresVariant && !variant ? "Falta seleccionar variante" : "Disponible"}</span>
+              <strong>{requiresVariant && !variant ? "-" : availableStock}</strong>
+            </div>
+            <button
+              type="button"
+              className="set-remove-component"
+              onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}
+              aria-label={"Quitar " + (product?.nombre || "producto")}
+            >
+              x
+            </button>
+          </div>
+        );
+      })}
+      {value.length === 0 ? (
+        <div className="set-components-empty">
+          <strong>Aun no agregaste productos</strong>
+          <span>Elige al menos dos unidades para formar el set.</span>
+        </div>
+      ) : null}
+      <div className="set-components-footer">
+        <button
+          type="button"
+          className="btn btn-primary-ghost"
+          disabled={value.length >= candidates.length}
+          onClick={() => setPickerTargetIndex(-1)}
+        >
+          + Agregar otro producto
+        </button>
+        <span className={totalUnits < 2 || hasIncompleteComponent ? "text-danger small" : "muted small"}>
+          {hasIncompleteComponent
+            ? "Selecciona la variante exacta de cada producto."
+            : totalUnits < 2
+              ? "El set debe incluir al menos 2 unidades en total."
+              : totalUnits + " unidades incluidas en total."}
+        </span>
+      </div>
+      <ProductPicker
+        open={pickerTargetIndex !== null}
+        products={candidates}
+        categoryOptions={categoryOptions}
+        selectedIds={value
+          .filter((_, index) => index !== pickerTargetIndex)
+          .map((item) => item.id_producto_componente)}
+        title={pickerTargetIndex === -1 ? "Agregar producto al set" : "Cambiar producto del set"}
+        onSelect={selectProduct}
+        onClose={() => setPickerTargetIndex(null)}
+      />
+    </section>
+  );
+}
+
 export default function CatalogoScreen({ isSuperadmin }) {
   const editorRef = useRef(null);
 
   const handleOpenCreateForm = () => {
     setEditing(null);
-    if (editorRef.current) {
-      editorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-      const firstInput = editorRef.current.querySelector("input, select, textarea");
-      if (firstInput) {
-        setTimeout(() => firstInput.focus(), 350);
-      }
-    }
+    resetFormForTab(tab);
+    setPendingImageFile(null);
+    setError("");
+    setEditorOpen(true);
   };
 
+  const closeEntityEditor = () => {
+    if (isSaving) return;
+    setEditorOpen(false);
+    setEditing(null);
+    setPendingImageFile(null);
+  };
   const [tab, setTab] = useState("categorias");
   const [stores, setStores] = useState([]);
   const [ownStore, setOwnStore] = useState(null);
@@ -80,6 +322,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   const [error, setError] = useState("");
   const [replacingImageUrl, setReplacingImageUrl] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [pendingImageFile, setPendingImageFile] = useState(null);
   const [busyImageProductId, setBusyImageProductId] = useState("");
   const [uploadMetaByProduct, setUploadMetaByProduct] = useState({});
@@ -117,6 +360,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   const [coverEditor, setCoverEditor] = useState(null);
   const [coverEditorBusy, setCoverEditorBusy] = useState(false);
   const [pendingImagePreviewUrl, setPendingImagePreviewUrl] = useState("");
+  const editorType = editing?.mode || (tab === "categorias" ? "categoria" : "producto");
 
   const pushToast = (message, type = "success") => {
     const id = Date.now() + Math.random();
@@ -231,6 +475,26 @@ export default function CatalogoScreen({ isSuperadmin }) {
   const assertStoreSelected = () => {
     if (isSuperadmin && !selectedStoreRef) {
       throw new Error("Selecciona una tienda");
+    }
+  };
+  const validateSetComposition = (components = []) => {
+    const totalUnits = components.reduce(
+      (total, item) => total + Number(item.cantidad || 0),
+      0,
+    );
+    if (totalUnits < 2) {
+      throw new Error("El set debe incluir al menos 2 unidades en total.");
+    }
+    for (const component of components) {
+      const product = rows.find(
+        (item) => item.id_producto === component.id_producto_componente,
+      );
+      if (!product || !product.activo) {
+        throw new Error("Uno de los productos del set ya no esta disponible.");
+      }
+      if (product.tiene_variantes && !component.id_variante_componente) {
+        throw new Error("Selecciona la variante exacta de " + product.nombre + ".");
+      }
     }
   };
   const copyCatalogUrl = async () => {
@@ -398,6 +662,8 @@ export default function CatalogoScreen({ isSuperadmin }) {
       es_predeterminada: false,
       atributos: {},
     });
+    if (product.tipo_producto === "SET") return;
+
     try {
       const variantsPromise = api.listVariantes(product.id_producto);
       if (!categoryId) {
@@ -656,6 +922,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   useEffect(() => {
     resetFormForTab(tab);
     setEditing(null);
+    setEditorOpen(false);
     setPendingImageFile(null);
     setProductQuery("");
     setCategoriaFiltro("");
@@ -681,19 +948,36 @@ export default function CatalogoScreen({ isSuperadmin }) {
   }, [tab, attributeCategoryId, selectedStoreRef]);
 
   useEffect(() => {
-    if (editing) {
-      const timer = setTimeout(() => {
-        if (editorRef.current) {
-          editorRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-          const firstInput = editorRef.current.querySelector("input, select, textarea");
-          if (firstInput) {
-            firstInput.focus();
-          }
-        }
-      }, 100);
-      return () => clearTimeout(timer);
-    }
+    if (editing) setEditorOpen(true);
   }, [editing]);
+
+  useEffect(() => {
+    if (!editorOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => {
+      const firstInput = editorRef.current?.querySelector(
+        "input:not([disabled]), select:not([disabled]), textarea:not([disabled])",
+      );
+      firstInput?.focus();
+    }, 100);
+    const handleKeyDown = (event) => {
+      if (
+        event.key === "Escape"
+        && !isSaving
+        && !coverEditor
+        && !document.querySelector(".product-picker-dialog")
+      ) {
+        closeEntityEditor();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.clearTimeout(focusTimer);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [editorOpen, isSaving, coverEditor]);
 
   if (tab === "atributos") {
     return (
@@ -975,7 +1259,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                 return (
                   <tr key={r.id_producto}>
                     <td className="small-id">{r.id_producto.substring(0, 8)}...</td>
-                    <td className="font-semibold">{r.nombre}</td>
+                    <td className="font-semibold">{r.nombre}{r.tipo_producto === "SET" ? " (Set)" : ""}</td>
                     <td className="price-cell">{r.precio_venta} Bs.</td>
                     <td>
                       <span className={`stock-badge ${r.stock_actual <= 5 ? "low" : ""}`}>
@@ -1062,11 +1346,11 @@ export default function CatalogoScreen({ isSuperadmin }) {
                   </div>
                   <div className="product-card-main">
                     <span className="card-id">ID: {r.id_producto.substring(0, 8)}...</span>
-                    <h4 className="card-name">{r.nombre}</h4>
+                    <h4 className="card-name">{r.nombre}{r.tipo_producto === "SET" ? " (Set)" : ""}</h4>
                     <div className="product-card-metrics">
                       <span className="price-tag">{r.precio_venta} Bs.</span>
                       <span className={`stock-tag ${r.stock_actual <= 5 ? "low" : ""}`}>
-                        {r.stock_actual} {r.tiene_variantes ? "entre variantes" : "en stock"}
+                        {r.stock_actual} {r.tipo_producto === "SET" ? "sets disponibles" : r.tiene_variantes ? "entre variantes" : "en stock"}
                       </span>
                     </div>
                   </div>
@@ -1110,10 +1394,37 @@ export default function CatalogoScreen({ isSuperadmin }) {
         )}
       </div>
 
-      <div className="inline-editor" ref={editorRef}>
-        <h4>{editing ? `Editar ${editing.mode}` : `Crear ${tab === "categorias" ? "categoría" : "producto"}`}</h4>
+      {editorOpen ? (
+        <div
+          className={"catalog-editor-backdrop " + (editorType === "producto" ? "is-product" : "is-category")}
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeEntityEditor();
+          }}
+        >
+          <section
+            className={"catalog-entity-editor " + (editorType === "producto" ? "is-product" : "is-category")}
+            ref={editorRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="catalog-editor-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="catalog-editor-head">
+              <div>
+                <span className="catalog-editor-eyebrow">{editorType === "categoria" ? "Organizacion del catalogo" : "Inventario y publicacion"}</span>
+                <h2 id="catalog-editor-title">
+                  {(editing ? "Editar " : "Crear ") + (editorType === "categoria" ? "categoria" : "producto")}
+                </h2>
+                <p>{editorType === "categoria"
+                  ? "Define como se agrupan y presentan tus productos."
+                  : "Completa la informacion y guarda cuando todo este listo."}</p>
+              </div>
+              <button type="button" className="icon-close-btn" onClick={closeEntityEditor} aria-label="Cerrar editor">x</button>
+            </header>
+            <div className="catalog-editor-body">
         {editing ? (
-          <div className="grid-form">
+          <div className="grid-form catalog-editor-form">
             <label>Nombre<input value={editing.row.nombre || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, nombre: e.target.value } }))} /></label>
             {editing.mode === "categoria" ? (
               <>
@@ -1126,19 +1437,37 @@ export default function CatalogoScreen({ isSuperadmin }) {
               <>
                 <label>Descripción<textarea value={editing.row.descripcion || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, descripcion: e.target.value } }))} /></label>
                 <label>Precio<input type="number" step="0.01" value={editing.row.precio_venta || 0} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, precio_venta: e.target.value } }))} /></label>
-                <label>{editing.row.tiene_variantes ? "Stock total de variantes" : "Stock"}
+                <label>{editing.row.tipo_producto === "SET" ? "Disponibilidad calculada" : editing.row.tiene_variantes ? "Stock total de variantes" : "Stock"}
                   <input
                     type="number"
                     value={editing.row.stock_actual || 0}
-                    disabled={editing.row.tiene_variantes}
-                    title={editing.row.tiene_variantes ? "Edita el stock individual de cada variante debajo" : undefined}
+                    disabled={editing.row.tipo_producto === "SET" || editing.row.tiene_variantes}
+                    title={editing.row.tipo_producto === "SET" ? "Se calcula desde los productos incluidos" : editing.row.tiene_variantes ? "Edita el stock individual de cada variante debajo" : undefined}
                     onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, stock_actual: e.target.value } }))}
                   />
-                  {editing.row.tiene_variantes ? (
+                  {editing.row.tipo_producto === "SET" ? (
+                    <small className="muted">Se calcula automaticamente segun la disponibilidad de los productos incluidos.</small>
+                  ) : editing.row.tiene_variantes ? (
                     <small className="muted">Se calcula automáticamente. Edita cada variante debajo.</small>
                   ) : null}
                 </label>
+                {editing.row.tipo_producto === "SET" ? (
+                  <label>Categoria<input value="Sets (asignada automaticamente)" disabled /></label>
+                ) : (
                 <label>Categoría<select value={editing.row.id_categoria_principal || editing.row.id_categoria || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, id_categoria_principal: e.target.value || null } }))}><option value="">Sin categoría</option>{categoryOptions.map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
+                )}
+                {editing.row.tipo_producto === "SET" ? (
+                  <SetComponentsEditor
+                    value={editing.row.componentes || []}
+                    onChange={(componentes) => setEditing((current) => ({
+                      ...current,
+                      row: { ...current.row, componentes },
+                    }))}
+                    products={rows}
+                    categoryOptions={categoryOptions}
+                    excludeProductId={editing.row.id_producto}
+                  />
+                ) : null}
                 {editingProductAttributeConfig.length > 0 ? (
                   <div className="grid-form">
                     <strong>Caracteristicas del producto</strong>
@@ -1180,7 +1509,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                   </div>
                 ) : null}
                 {/* --- NUEVO GESTOR DE IMÁGENES INTERACTIVO --- */}
-                <div className="variant-manager">
+                {editing.row.tipo_producto !== "SET" ? <div className="variant-manager">
                   <div className="image-manager-gallery-title">
                     <span>Variantes e inventario ({editingVariants.length})</span>
                     <span className="muted small">Cada combinacion mantiene su propio precio y stock</span>
@@ -1385,7 +1714,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                       </table>
                     </div>
                   ) : null}
-                </div>
+                </div> : null}
 
                 <div className="image-manager-gallery-wrapper">
                   <div className="image-manager-gallery-title">
@@ -1535,7 +1864,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
                 <label className="check-row"><input type="checkbox" checked={!!editing.row.activo} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, activo: e.target.checked } }))} />Activo</label>
               </>
             )}
-            <div className="row">
+            <div className="row catalog-editor-actions">
               <button className="btn btn-primary" disabled={isSaving} style={{ opacity: isSaving ? 0.6 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }} onClick={async () => {
                 if (isSaving) return;
                 setIsSaving(true);
@@ -1554,12 +1883,24 @@ export default function CatalogoScreen({ isSuperadmin }) {
                       imagen_fondo_default: editing.row.imagen_fondo_default || null,
                     }, selectedStoreRef);
                   } else {
+                    if (editing.row.tipo_producto === "SET") {
+                      validateSetComposition(editing.row.componentes || []);
+                    }
                     await api.updateProducto(editing.row.id_producto, {
                       nombre: editing.row.nombre,
                       descripcion: editing.row.descripcion || "",
                       precio_venta: Number(editing.row.precio_venta || 0),
-                      stock_actual: Number(editing.row.stock_actual || 0),
-                      id_categoria_principal: editing.row.id_categoria_principal || editing.row.id_categoria || null,
+                      ...(editing.row.tipo_producto === "SET" ? {
+                        tipo_producto: "SET",
+                        componentes: (editing.row.componentes || []).map((item) => ({
+                          id_producto_componente: item.id_producto_componente,
+                          id_variante_componente: item.id_variante_componente || null,
+                          cantidad: Number(item.cantidad || 1),
+                        })),
+                      } : {
+                        stock_actual: Number(editing.row.stock_actual || 0),
+                        id_categoria_principal: editing.row.id_categoria_principal || editing.row.id_categoria || null,
+                      }),
                       activo: editing.row.activo,
                       imagen_fit: editing.row.imagen_fit || null,
                       imagen_posicion_x: editing.row.imagen_posicion_x ?? null,
@@ -1575,15 +1916,16 @@ export default function CatalogoScreen({ isSuperadmin }) {
                     }
                   }
                   setEditing(null);
+                  setEditorOpen(false);
                   await load();
                   pushToast(editing.mode === "categoria" ? "Categoría guardada correctamente" : "Producto guardado correctamente");
                 } catch (e) { setError(e.message); pushToast(e.message, "error"); } finally { setIsSaving(false); }
               }}>{isSaving ? "Guardando..." : "Guardar"}</button>
-              <button className="btn btn-ghost" onClick={() => setEditing(null)}>Cancelar</button>
+              <button type="button" className="btn btn-ghost" onClick={closeEntityEditor}>Cancelar</button>
             </div>
           </div>
         ) : (
-          <form className="grid-form" onSubmit={async (e) => {
+          <form className="grid-form catalog-editor-form" onSubmit={async (e) => {
             e.preventDefault();
             if (isSaving) return;
             setIsSaving(true);
@@ -1592,6 +1934,9 @@ export default function CatalogoScreen({ isSuperadmin }) {
               if (tab === "categorias") {
                 await api.createCategoria(form, selectedStoreRef);
               } else {
+                if (form.tipo_producto === "SET") {
+                  validateSetComposition(form.componentes || []);
+                }
                 const created = await api.createProducto({
                   ...form,
                   precio_venta: Number(form.precio_venta || 0),
@@ -1604,6 +1949,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
               }
               resetFormForTab(tab);
               setPendingImageFile(null);
+              setEditorOpen(false);
               await load();
               pushToast(tab === "categorias" ? "✅ Categoría creada correctamente" : "✅ Producto creado correctamente");
             } catch (err) { setError(err.message); pushToast(err.message, "error"); } finally { setIsSaving(false); }
@@ -1618,10 +1964,38 @@ export default function CatalogoScreen({ isSuperadmin }) {
               </>
             ) : (
               <>
+                <label>Tipo de producto
+                  <select
+                    value={form.tipo_producto || "SIMPLE"}
+                    onChange={(event) => setForm((current) => ({
+                      ...current,
+                      tipo_producto: event.target.value,
+                      componentes: event.target.value === "SET" ? current.componentes || [] : [],
+                      stock_actual: event.target.value === "SET" ? 0 : current.stock_actual,
+                      id_categoria_principal: event.target.value === "SET" ? null : current.id_categoria_principal,
+                    }))}
+                  >
+                    <option value="SIMPLE">Producto normal</option>
+                    <option value="SET">Set de productos</option>
+                  </select>
+                </label>
                 <label>Descripción<textarea value={form.descripcion || ""} onChange={(e) => setForm((s) => ({ ...s, descripcion: e.target.value }))} /></label>
                 <label>Precio<input type="number" step="0.01" value={form.precio_venta || 0} onChange={(e) => setForm((s) => ({ ...s, precio_venta: e.target.value }))} required /></label>
-                <label>Stock<input type="number" value={form.stock_actual || 0} onChange={(e) => setForm((s) => ({ ...s, stock_actual: e.target.value }))} /></label>
+                {form.tipo_producto !== "SET" ? <label>Stock<input type="number" value={form.stock_actual || 0} onChange={(e) => setForm((s) => ({ ...s, stock_actual: e.target.value }))} /></label> : null}
+                {form.tipo_producto !== "SET" ? (
                 <label>Categoría<select value={form.id_categoria_principal || ""} onChange={(e) => setForm((s) => ({ ...s, id_categoria_principal: e.target.value || null }))}><option value="">Sin categoría</option>{categoryOptions.map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
+                ) : <small className="muted">La categoria Sets se asignara automaticamente.</small>}
+                {form.tipo_producto === "SET" ? (
+                  <SetComponentsEditor
+                    value={form.componentes || []}
+                    onChange={(componentes) => setForm((current) => ({
+                      ...current,
+                      componentes,
+                    }))}
+                    products={rows}
+                    categoryOptions={categoryOptions}
+                  />
+                ) : null}
                 <ImageDropZone
                   title="Portada del producto"
                   subtitle="Arrastra una imagen para ajustar y previsualizar antes de subir"
@@ -1639,25 +2013,18 @@ export default function CatalogoScreen({ isSuperadmin }) {
                 <label className="check-row"><input type="checkbox" checked={!!form.activo} onChange={(e) => setForm((s) => ({ ...s, activo: e.target.checked }))} />Activo</label>
               </>
             )}
-            <button className="btn btn-primary" disabled={isSaving} style={{ opacity: isSaving ? 0.6 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }}>
-              {isSaving ? "Guardando..." : "Crear"}
-            </button>
+            <div className="row catalog-editor-actions">
+              <button className="btn btn-primary" disabled={isSaving} style={{ opacity: isSaving ? 0.6 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }}>
+                {isSaving ? "Guardando..." : "Crear"}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={closeEntityEditor}>Cancelar</button>
+            </div>
           </form>
         )}
-      </div>
-      {tab !== "atributos" && (
-        <button
-          type="button"
-          className="catalog-fab-btn"
-          title={tab === "categorias" ? "Crear categoría" : "Crear producto"}
-          onClick={handleOpenCreateForm}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-          </svg>
-          <span>{tab === "categorias" ? "Nueva categoría" : "Nuevo producto"}</span>
-        </button>
-      )}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </Card>
     <ProductCoverEditor
       open={Boolean(coverEditor)}

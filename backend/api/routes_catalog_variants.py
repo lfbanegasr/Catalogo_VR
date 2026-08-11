@@ -26,6 +26,15 @@ router = APIRouter(
     dependencies=[Depends(require_role("superadmin", "admin", "empleado"))],
 )
 
+def _invalidate_public_catalog(db: Session, product) -> None:
+    from api.routes_public_catalog import invalidate_public_catalog_cache
+    from models.tenant import Tienda
+
+    store = db.query(Tienda).filter(Tienda.id_tienda == product.id_tienda).first()
+    if store is not None:
+        invalidate_public_catalog_cache(store.slug)
+
+
 
 def _ensure_product_access(current_user: Usuario, product) -> None:
     if current_user.rol != "superadmin" and current_user.id_tienda != product.id_tienda:
@@ -65,7 +74,9 @@ def api_create_variant(
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     _ensure_product_access(current_user, product)
     try:
-        return serialize_variant(create_variant(db, product=product, payload=payload))
+        result = serialize_variant(create_variant(db, product=product, payload=payload))
+        _invalidate_public_catalog(db, product)
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -83,9 +94,11 @@ def api_update_variant(
     product = get_producto_by_id(db, variant.id_producto)
     _ensure_product_access(current_user, product)
     try:
-        return serialize_variant(
+        result = serialize_variant(
             update_variant(db, product=product, variant=variant, payload=payload),
         )
+        _invalidate_public_catalog(db, product)
+        return result
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -103,7 +116,7 @@ def api_upload_variant_image(
     product = get_producto_by_id(db, variant.id_producto)
     _ensure_product_access(current_user, product)
     image_url = save_upload_file(file, "variants", id_variante)
-    return serialize_variant(
+    result = serialize_variant(
         update_variant(
             db,
             product=product,
@@ -111,6 +124,8 @@ def api_upload_variant_image(
             payload=VariantUpdate(imagen_url=image_url),
         ),
     )
+    _invalidate_public_catalog(db, product)
+    return result
 
 
 @router.delete("/variants/{id_variante}", response_model=VariantOut)
@@ -124,4 +139,6 @@ def api_deactivate_variant(
         raise HTTPException(status_code=404, detail="Variante no encontrada")
     product = get_producto_by_id(db, variant.id_producto)
     _ensure_product_access(current_user, product)
-    return serialize_variant(deactivate_variant(db, variant=variant))
+    result = serialize_variant(deactivate_variant(db, variant=variant))
+    _invalidate_public_catalog(db, product)
+    return result

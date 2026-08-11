@@ -23,9 +23,18 @@ from crud.crud_sales import (
     get_dashboard_metrics,
     StockInsuficienteError,
 )
-from models.tenant import Usuario
+from models.tenant import Tienda, Usuario
 
 router = APIRouter(prefix="/api/sales", tags=["Sales"])
+def _invalidate_public_catalog(db: Session, id_tienda: UUID) -> None:
+    store = db.query(Tienda).filter(Tienda.id_tienda == id_tienda).first()
+    if store is None:
+        return
+    from api.routes_public_catalog import invalidate_public_catalog_cache
+
+    invalidate_public_catalog_cache(store.slug)
+
+
 
 
 def _venta_out(venta) -> VentaOut:
@@ -145,6 +154,7 @@ def api_create_venta(
             requested_tienda_id=id_tienda_target,
         )
         venta = create_venta(db=db, id_tienda=target_tienda_id, payload=payload)
+        _invalidate_public_catalog(db, target_tienda_id)
 
         return _venta_out(venta)
     except StockInsuficienteError as e:
@@ -230,6 +240,7 @@ def api_update_venta_estado(
             id_usuario=current_user.id_usuario,
             nota=payload.nota,
         )
+        _invalidate_public_catalog(db, target_tienda_id)
         return _venta_out(venta)
     except StockInsuficienteError as e:
         raise HTTPException(status_code=409, detail=str(e))

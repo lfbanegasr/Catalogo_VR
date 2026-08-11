@@ -29,6 +29,7 @@ from crud.crud_catalog import (
     update_categoria,
     update_producto,
 )
+from crud.crud_product_sets import PRODUCT_TYPE_SET, calculate_set_stock_map
 from models.catalog import ProductoImagen
 from models.catalog_variant import VarianteProducto
 from crud.crud_offers import (
@@ -430,7 +431,10 @@ def api_create_producto(
     create_payload["id_categoria_principal"] = categoria_id
     create_payload.pop("nombre_categoria", None)
     normalized_data = ProductoCreate(**create_payload)
-    created = create_producto(db=db, id_tienda=target_tienda_id, data=normalized_data)
+    try:
+        created = create_producto(db=db, id_tienda=target_tienda_id, data=normalized_data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     _invalidate_public_catalog_for_tenant(db, target_tienda_id)
     return created
 
@@ -473,14 +477,24 @@ def api_list_productos(
         product_id: int(stock or 0)
         for product_id, stock in variant_stock_rows
     }
+    set_ids = [
+        product.id_producto
+        for product in products
+        if product.tipo_producto == PRODUCT_TYPE_SET
+    ]
+    set_stock = calculate_set_stock_map(db, set_ids)
     return [
         ProductoOut.model_validate(product).model_copy(
             update={
-                "stock_actual": variant_stock.get(
-                    product.id_producto,
-                    product.stock_actual,
+                "stock_actual": (
+                    set_stock.get(product.id_producto, 0)
+                    if product.tipo_producto == PRODUCT_TYPE_SET
+                    else variant_stock.get(product.id_producto, product.stock_actual)
                 ),
-                "tiene_variantes": product.id_producto in variant_stock,
+                "tiene_variantes": (
+                    product.tipo_producto != PRODUCT_TYPE_SET
+                    and product.id_producto in variant_stock
+                ),
             },
         )
         for product in products

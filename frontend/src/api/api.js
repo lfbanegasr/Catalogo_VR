@@ -153,6 +153,9 @@ function normalizeProduct(item) {
     atributos,
     variantes,
     tiene_variantes: Boolean(item.tiene_variantes || variantes.length > 0),
+    tipo_producto: item.tipo_producto || (item.es_set ? "SET" : "SIMPLE"),
+    es_set: Boolean(item.es_set || item.tipo_producto === "SET"),
+    componentes: Array.isArray(item.componentes) ? item.componentes : [],
     // aliases de compatibilidad temporal
     name: nombre,
     description: descripcion,

@@ -90,6 +90,8 @@ function ProductCard({ product, onViewDetail, compact = false }) {
   const stockLabel =
     stock == null
       ? "Disponibilidad no informada"
+      : product.es_set && stock > 0
+        ? "Sets disponibles: " + stock
       : stock > 0
         ? `Disponible: ${stock}`
         : "Agotado";
@@ -104,7 +106,7 @@ function ProductCard({ product, onViewDetail, compact = false }) {
       <div className="product-media" style={imageAdjustment.background ? { backgroundColor: imageAdjustment.background } : undefined}>
         <ProductImage src={imageSrc} alt={nombre} adjustment={imageAdjustment} />
         <div className="product-image-fallback hidden">Imagen no disponible</div>
-        {badgeText ? <span className="product-badge">{badgeText}</span> : null}
+        {badgeText || product.es_set ? <span className="product-badge">{badgeText || "Set"}</span> : null}
       </div>
 
       <div className="product-body">

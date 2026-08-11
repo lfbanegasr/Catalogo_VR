@@ -3,6 +3,7 @@ from .catalog import Categoria, Oferta, OfertaCategoria, OfertaProducto, Product
 from .catalog_attribute import Atributo, AtributoOpcion, CategoriaAtributo, ProductoAtributo
 from .catalog_variant import VarianteAtributo, VarianteProducto
 from .sales import Cliente, DetalleVenta, DireccionCliente, HistorialEstadoPedido, Venta
+from .product_set import DetalleVentaConsumo, ProductoComponente
 from .audit_log import AuditLog
 from .public_event import PublicEvent
 from .password_reset import PasswordResetToken
@@ -20,6 +21,8 @@ __all__ = [
     "AtributoOpcion",
     "CategoriaAtributo",
     "ProductoAtributo",
+    "ProductoComponente",
+    "DetalleVentaConsumo",
     "VarianteProducto",
     "VarianteAtributo",
     "Cliente",

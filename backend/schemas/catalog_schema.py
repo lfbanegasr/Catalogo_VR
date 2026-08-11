@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_serializer
 from core.storage import build_public_asset_url
 
 ImageFit = Literal["cover", "contain", "auto"]
+ProductType = Literal["SIMPLE", "SET"]
 IMAGE_COLOR_PATTERN = r"^#[0-9A-Fa-f]{6}$"
 
 # -------------------------
@@ -42,6 +43,7 @@ class CategoriaOut(BaseModel):
     nombre: str
     id_categoria_padre: Optional[UUID] = None
     slug: Optional[str] = None
+    codigo_sistema: Optional[str] = None
     orden: int = 0
     activa: bool
     imagen_fit_default: ImageFit = "cover"
@@ -57,6 +59,26 @@ class CategoriaOut(BaseModel):
 # -------------------------
 # PRODUCTOS
 # -------------------------
+class ProductoComponenteIn(BaseModel):
+    id_producto_componente: UUID
+    id_variante_componente: Optional[UUID] = None
+    cantidad: int = Field(default=1, ge=1)
+
+
+class ProductoComponenteOut(BaseModel):
+    id_componente: UUID
+    id_producto_componente: UUID
+    id_variante_componente: Optional[UUID] = None
+    cantidad: int
+    nombre_producto: str
+    sku_variante: Optional[str] = None
+    nombre_variante: Optional[str] = None
+    stock_disponible: int = 0
+
+    class Config:
+        from_attributes = True
+
+
 class ProductoCreate(BaseModel):
     id_categoria: Optional[UUID] = None
     id_categoria_principal: Optional[UUID] = None
@@ -64,11 +86,13 @@ class ProductoCreate(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=150)
     descripcion: Optional[str] = None
 
+    tipo_producto: ProductType = "SIMPLE"
     precio_venta: Decimal = Field(..., gt=0)
     costo_adquisicion: Optional[Decimal] = Field(default=None, ge=0)
 
     stock_actual: int = Field(default=0, ge=0)
     imagen_url: Optional[str] = Field(default=None, max_length=255)
+    componentes: list[ProductoComponenteIn] = Field(default_factory=list)
     imagen_fit: Optional[ImageFit] = None
     imagen_posicion_x: Optional[int] = Field(default=None, ge=0, le=100)
     imagen_posicion_y: Optional[int] = Field(default=None, ge=0, le=100)
@@ -84,9 +108,11 @@ class ProductoUpdate(BaseModel):
     nombre: Optional[str] = Field(default=None, min_length=1, max_length=150)
     descripcion: Optional[str] = None
     precio_venta: Optional[Decimal] = Field(default=None, gt=0)
+    tipo_producto: Optional[ProductType] = None
     costo_adquisicion: Optional[Decimal] = Field(default=None, ge=0)
     stock_actual: Optional[int] = Field(default=None, ge=0)
     imagen_url: Optional[str] = Field(default=None, max_length=255)
+    componentes: Optional[list[ProductoComponenteIn]] = None
     imagen_fit: Optional[ImageFit] = None
     imagen_posicion_x: Optional[int] = Field(default=None, ge=0, le=100)
     imagen_posicion_y: Optional[int] = Field(default=None, ge=0, le=100)
@@ -103,10 +129,12 @@ class ProductoOut(BaseModel):
     nombre: str
     descripcion: Optional[str]
     precio_venta: Decimal
+    tipo_producto: ProductType = "SIMPLE"
     costo_adquisicion: Optional[Decimal]
     stock_actual: int
     tiene_variantes: bool = False
     imagen_url: Optional[str]
+    componentes: list[ProductoComponenteOut] = Field(default_factory=list)
     imagenes: list[str] = []
     imagen_fit: Optional[ImageFit] = None
     imagen_posicion_x: Optional[int] = None

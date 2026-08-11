@@ -23,6 +23,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from core.database import Base
 
 OFFER_TYPES = ("PERCENT", "PRICE_OVERRIDE")
+PRODUCT_TYPES = ("SIMPLE", "SET")
 
 
 class Categoria(Base):
@@ -35,6 +36,7 @@ class Categoria(Base):
         CheckConstraint("imagen_posicion_x_default BETWEEN 0 AND 100", name="ck_categorias_imagen_pos_x_default"),
         CheckConstraint("imagen_posicion_y_default BETWEEN 0 AND 100", name="ck_categorias_imagen_pos_y_default"),
         CheckConstraint("imagen_zoom_default BETWEEN 80 AND 200", name="ck_categorias_imagen_zoom_default"),
+        UniqueConstraint("id_tienda", "codigo_sistema", name="uq_categorias_tienda_codigo_sistema"),
     )
     id_categoria = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     id_tienda = Column(
@@ -50,6 +52,7 @@ class Categoria(Base):
         nullable=True,
     )
     slug = Column(String(120), nullable=False)
+    codigo_sistema = Column(String(30), nullable=True)
     orden = Column(Integer, nullable=False, default=0)
     activa = Column(Boolean, default=True)
     imagen_fit_default = Column(String(12), nullable=False, default="cover")
@@ -98,6 +101,7 @@ class Producto(Base):
         CheckConstraint("imagen_posicion_x IS NULL OR imagen_posicion_x BETWEEN 0 AND 100", name="ck_productos_imagen_pos_x"),
         CheckConstraint("imagen_posicion_y IS NULL OR imagen_posicion_y BETWEEN 0 AND 100", name="ck_productos_imagen_pos_y"),
         CheckConstraint("imagen_zoom IS NULL OR imagen_zoom BETWEEN 80 AND 200", name="ck_productos_imagen_zoom"),
+        CheckConstraint("tipo_producto IN ('SIMPLE', 'SET')", name="ck_productos_tipo_producto"),
     )
 
     id_producto = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -119,6 +123,7 @@ class Producto(Base):
 
     nombre = Column(String(150), nullable=False)
     descripcion = Column(Text, nullable=True)
+    tipo_producto = Column(String(10), nullable=False, default="SIMPLE")
 
     precio_venta = Column(Numeric(10, 2), nullable=False)
     costo_adquisicion = Column(Numeric(10, 2), nullable=True)
@@ -156,6 +161,14 @@ class Producto(Base):
         back_populates="producto",
         cascade="all, delete-orphan",
     )
+    componentes = relationship(
+        "ProductoComponente",
+        foreign_keys="ProductoComponente.id_set",
+        back_populates="set_producto",
+        cascade="all, delete-orphan",
+        order_by="ProductoComponente.created_at.asc()",
+    )
+
 
     @property
     def imagenes(self) -> list[str]:

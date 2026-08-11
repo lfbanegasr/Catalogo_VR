@@ -97,8 +97,9 @@ function ProductDetailPage({
   const displayFinalPrice = selectedVariant?.precio_final ?? precioFinal;
   const displayDiscount = selectedVariant?.descuento_pct ?? descuentoPct;
   const selectedStock = selectedVariant?.stock ?? product.stock;
-  const stockText =
-    selectedStock == null ? "Stock no disponible" : "Stock: " + selectedStock;
+  const stockText = selectedStock == null
+    ? "Stock no disponible"
+    : (product.es_set ? "Sets disponibles: " : "Stock: ") + selectedStock;
 
   useEffect(() => {
     setSelectedImageIndex(0);
@@ -193,6 +194,7 @@ function ProductDetailPage({
           <div className="detail-content">
             <p className="detail-store">{storeName || "Tienda"}</p>
             <h1 className="detail-title">{nombre}</h1>
+            {product.es_set ? <span className="offer-badge detail-badge">Set</span> : null}
             {badgeText ? <span className="offer-badge detail-badge">{badgeText}</span> : null}
             <div className="detail-price-block">
               {displayOriginalPrice > displayFinalPrice ? (
@@ -206,6 +208,19 @@ function ProductDetailPage({
               )}
             </div>
             <p className="detail-stock">{stockText}</p>
+            {product.es_set && Array.isArray(product.componentes) && product.componentes.length > 0 ? (
+              <div className="detail-block set-detail-block">
+                <h2 className="detail-subtitle">Este set incluye</h2>
+                <ul className="set-components-public">
+                  {product.componentes.map((component) => (
+                    <li key={String(component.id_producto) + String(component.id_variante || "")}>
+                      <strong>{component.cantidad} x {component.nombre}</strong>
+                      {component.variante ? <span>{component.variante}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             {variants.length > 0 ? (
               <div className="detail-block">

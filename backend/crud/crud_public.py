@@ -14,6 +14,13 @@ from models.catalog_attribute import (
 )
 from models.catalog_variant import VarianteAtributo, VarianteProducto
 from models.tenant import Tienda
+from crud.crud_product_sets import (
+    PRODUCT_TYPE_SET,
+    SETS_CATEGORY_CODE,
+    calculate_set_stock_map,
+    public_set_components,
+)
+
 
 
 def _decimal_to_float(value):
@@ -53,6 +60,7 @@ def get_catalog_public(db: Session, slug: str):
             Categoria.nombre,
             Categoria.id_categoria_padre,
             Categoria.slug,
+            Categoria.codigo_sistema,
             Categoria.orden,
             Categoria.imagen_fit_default,
             Categoria.imagen_posicion_x_default,
@@ -83,6 +91,7 @@ def get_catalog_public(db: Session, slug: str):
         .exists()
     )
     has_public_stock = or_(
+        Producto.tipo_producto == PRODUCT_TYPE_SET,
         and_(active_variant_exists, available_variant_exists),
         and_(~active_variant_exists, func.coalesce(Producto.stock_actual, 0) > 0),
     )
@@ -94,6 +103,7 @@ def get_catalog_public(db: Session, slug: str):
             Producto.descripcion,
             Producto.precio_venta,
             Producto.stock_actual,
+            Producto.tipo_producto,
             func.coalesce(
                 Producto.id_categoria_principal,
                 Producto.id_categoria,
@@ -143,6 +153,8 @@ def get_catalog_public(db: Session, slug: str):
             "descripcion": descripcion,
             "precio": _decimal_to_float(precio_venta),
             "stock": stock_actual,
+            "tipo_producto": tipo_producto,
+            "es_set": tipo_producto == PRODUCT_TYPE_SET,
             "categoria_id": str(categoria_id) if categoria_id else None,
             "imagen_url": build_public_asset_url(imagen_url),
             "imagen_fit": imagen_fit,
@@ -164,6 +176,7 @@ def get_catalog_public(db: Session, slug: str):
             descripcion,
             precio_venta,
             stock_actual,
+            tipo_producto,
             categoria_id,
             imagen_url,
             imagen_fit,
@@ -172,6 +185,25 @@ def get_catalog_public(db: Session, slug: str):
             imagen_zoom,
             imagen_fondo,
         ) in productos_rows
+    ]
+    set_ids = [
+        row[0] for row in productos_rows if row[5] == PRODUCT_TYPE_SET
+    ]
+    set_stock = {
+        str(set_id): stock
+        for set_id, stock in calculate_set_stock_map(db, set_ids).items()
+    }
+    components_by_set = public_set_components(db, set_ids)
+    for product in productos:
+        if not product["es_set"]:
+            product["componentes"] = []
+            continue
+        product["stock"] = set_stock.get(product["id"], 0)
+        product["componentes"] = components_by_set.get(product["id"], [])
+    productos = _filter_products_with_public_stock(productos)
+    available_product_ids = {product["id"] for product in productos}
+    product_ids = [
+        row[0] for row in productos_rows if str(row[0]) in available_product_ids
     ]
     atributos_por_producto: dict[str, list[dict]] = {}
     if product_ids:
@@ -375,6 +407,11 @@ def get_catalog_public(db: Session, slug: str):
         product["descuento_pct"] = cheapest["descuento_pct"]
         if cheapest.get("imagen_url") and not product.get("imagen_url"):
             product["imagen_url"] = cheapest["imagen_url"]
+    has_available_set = any(product.get("es_set") for product in productos)
+    if not has_available_set:
+        categorias_rows = [
+            row for row in categorias_rows if row[4] != SETS_CATEGORY_CODE
+        ]
 
     # Defensa adicional: nunca publicar un producto cuyo stock total sea cero.
     productos = _filter_products_with_public_stock(productos)
@@ -430,6 +467,7 @@ def get_catalog_public(db: Session, slug: str):
                 nombre,
                 id_categoria_padre,
                 slug,
+                codigo_sistema,
                 orden,
                 imagen_fit_default,
                 imagen_posicion_x_default,

@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, JSON, String
+from sqlalchemy import Integer
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
@@ -21,6 +22,7 @@ class Tienda(Base):
     theme_id = Column(String(50), nullable=False, default="default")
     theme_config = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
     currency_symbol = Column(String(10), nullable=False, default="S/")
+    catalog_revision = Column(Integer, nullable=False, default=1)
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     activa = Column(Boolean, default=True)
 

@@ -76,7 +76,9 @@ def _invalidate_public_catalog_for_tenant(db: Session, id_tienda: UUID) -> None:
     if not tienda:
         return
     from api.routes_public_catalog import invalidate_public_catalog_cache
+    from api.routes_public_catalog import bump_public_catalog_revision
 
+    bump_public_catalog_revision(db, tienda.id_tienda, tienda.slug)
     invalidate_public_catalog_cache(tienda.slug)
 
 
@@ -1070,6 +1072,7 @@ def api_delete_product_image(
             if main_filename == target_filename:
                 _delete_physical_image_file(producto.imagen_url)
                 producto.imagen_url = None
+                _invalidate_public_catalog_for_tenant(db, producto.id_tienda)
                 db.commit()
                 db.refresh(producto)
                 return producto
@@ -1100,6 +1103,7 @@ def api_delete_product_image(
                 producto.imagen_url = remaining[0].imagen_url
             else:
                 producto.imagen_url = None
+    _invalidate_public_catalog_for_tenant(db, producto.id_tienda)
 
     db.commit()
     db.refresh(producto)
@@ -1161,6 +1165,7 @@ def api_reorder_product_images(
 
     db.commit()
     db.refresh(producto)
+    _invalidate_public_catalog_for_tenant(db, producto.id_tienda)
     return producto
 
 
@@ -1209,6 +1214,7 @@ def api_replace_product_image(
                 producto.imagen_url = new_imagen_url
                 db.commit()
                 db.refresh(producto)
+                _invalidate_public_catalog_for_tenant(db, producto.id_tienda)
                 return producto
         raise HTTPException(status_code=404, detail="Imagen objetivo no encontrada en el producto")
 
@@ -1227,4 +1233,5 @@ def api_replace_product_image(
 
     db.commit()
     db.refresh(producto)
+    _invalidate_public_catalog_for_tenant(db, producto.id_tienda)
     return producto

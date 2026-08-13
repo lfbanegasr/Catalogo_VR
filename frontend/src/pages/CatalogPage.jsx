@@ -27,6 +27,52 @@ function isOfferProduct(product) {
     || Number(product.precio_original || 0) > Number(product.precio_final || 0);
 }
 
+function expandVariantCards(products) {
+  return products.flatMap((product) => {
+    const variants = Array.isArray(product.variantes) ? product.variantes : [];
+    if (variants.length === 0) {
+      return [{ ...product, catalog_card_id: String(product.id) }];
+    }
+    return variants.map((variant) => {
+      const variantId = String(variant.id_variante);
+      const variantAttributes = (Array.isArray(variant.atributos) ? variant.atributos : [])
+        .map((attribute) => ({
+          ...attribute,
+          tipo_dato: attribute.tipo_dato || "OPTION",
+          filtrable: attribute.filtrable ?? true,
+        }));
+      const variantAttributeIds = new Set(
+        variantAttributes.map((attribute) => String(attribute.id_atributo)),
+      );
+      const baseAttributes = (Array.isArray(product.atributos) ? product.atributos : [])
+        .filter((attribute) => !variantAttributeIds.has(String(attribute.id_atributo)));
+      return {
+        ...product,
+        catalog_card_id: String(product.id) + ":" + variantId,
+        catalog_variant_id: variantId,
+        nombre: product.nombre + " - " + (variant.nombre || variant.sku),
+        precio: variant.precio ?? product.precio,
+        precio_original: variant.precio_original ?? product.precio_original,
+        precio_final: variant.precio_final ?? product.precio_final,
+        descuento_pct: variant.descuento_pct ?? product.descuento_pct,
+        stock: Number(variant.stock ?? 0),
+        imagen_url: variant.imagen_url || product.imagen_url,
+        imagen_fit: variant.imagen_fit || product.imagen_fit,
+        imagen_posicion_x: variant.imagen_posicion_x ?? product.imagen_posicion_x,
+        imagen_posicion_y: variant.imagen_posicion_y ?? product.imagen_posicion_y,
+        imagen_zoom: variant.imagen_zoom ?? product.imagen_zoom,
+        imagen_fondo: variant.imagen_fondo || product.imagen_fondo,
+        atributos: [...baseAttributes, ...variantAttributes],
+        variantes: variants.map((item) => ({
+          ...item,
+          es_predeterminada: String(item.id_variante) === variantId,
+        })),
+      };
+    });
+  });
+}
+
+
 function CatalogPage({
   slug,
   storeName,
@@ -46,6 +92,7 @@ function CatalogPage({
   const [attributeFilters, setAttributeFilters] = useState({});
   const trackedSearches = useRef(new Set());
   const resolvedTheme = resolveTheme(theme);
+  products = expandVariantCards(products);
   const offerProducts = useMemo(() => products.filter(isOfferProduct), [products]);
   const catalogCategories = useMemo(
     () => offerProducts.length

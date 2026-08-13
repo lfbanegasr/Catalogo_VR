@@ -8,12 +8,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from core.database import get_db
 from core.request_security import get_client_ip
 from crud.crud_public import get_catalog_public
 from crud.crud_public_events import create_public_event
 from api.routes_customer_account import get_optional_current_customer
+from models.tenant import Tienda
 from models.sales import Cliente
 from crud.crud_catalog import (
     get_producto_by_id,
@@ -36,6 +38,23 @@ _catalog_cache_lock = Lock()
 def invalidate_public_catalog_cache(slug: str) -> None:
     with _catalog_cache_lock:
         _catalog_cache.pop(slug, None)
+
+
+def bump_public_catalog_revision(
+    db: Session,
+    id_tienda,
+    slug: str | None = None,
+) -> None:
+    db.query(Tienda).filter(Tienda.id_tienda == id_tienda).update(
+        {Tienda.catalog_revision: Tienda.catalog_revision + 1},
+        synchronize_session=False,
+    )
+    db.commit()
+    if slug is None:
+        slug = db.execute(select(Tienda.slug).where(Tienda.id_tienda == id_tienda)).scalar_one_or_none()
+    if slug:
+        invalidate_public_catalog_cache(slug)
+
 
 
 def _get_active_tienda_or_404(db: Session, slug: str):
@@ -75,23 +94,37 @@ def _public_product_out(producto) -> ProductoPublicOut:
         fecha_agregado=producto.fecha_agregado,
     )
 
-
 def _get_cached_public_catalog(db: Session, slug: str):
+    revision = db.execute(
+        select(Tienda.catalog_revision).where(
+            Tienda.slug == slug,
+            Tienda.activa.is_(True),
+        ),
+    ).scalar_one_or_none()
+    if revision is None:
+        return None
     now = monotonic()
     with _catalog_cache_lock:
         cached = _catalog_cache.get(slug)
-        if cached is not None and now - cached[0] < CATALOG_CACHE_TTL_SECONDS:
+        if (
+            cached is not None
+            and len(cached) == 3
+            and cached[1] == revision
+            and now - cached[0] < CATALOG_CACHE_TTL_SECONDS
+        ):
             _catalog_cache.move_to_end(slug)
-            return cached[1]
+            return cached[2]
     catalog = get_catalog_public(db=db, slug=slug)
     if catalog is None:
         return None
     with _catalog_cache_lock:
-        _catalog_cache[slug] = (now, catalog)
+        _catalog_cache[slug] = (now, revision, catalog)
         _catalog_cache.move_to_end(slug)
         while len(_catalog_cache) > CATALOG_CACHE_MAX_STORES:
             _catalog_cache.popitem(last=False)
     return catalog
+
+
 
 
 @router.get("/catalog/{slug}")
@@ -113,7 +146,7 @@ def get_public_catalog(
     etag = '"' + hashlib.sha256(serialized).hexdigest() + '"'
     headers = {
         "ETag": etag,
-        "Cache-Control": "public, max-age=15, stale-while-revalidate=45",
+        "Cache-Control": "no-cache, must-revalidate",
     }
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
@@ -212,6 +245,7 @@ def api_public_checkout(
         
         venta = create_venta(db=db, id_tienda=tienda.id_tienda, payload=payload)
         invalidate_public_catalog_cache(slug)
+        bump_public_catalog_revision(db, tienda.id_tienda, slug)
 
         # Logs mínimos requeridos para confirmar la operación
         print(f"[checkout] Venta creada con ID: {venta.id_venta}", flush=True)

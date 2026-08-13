@@ -316,7 +316,7 @@ function FeaturedSection({ products, onViewDetail }) {
       </div>
       <div className="product-row">
         {products.map((product) => (
-          <ProductCard key={product.id} product={product} onViewDetail={onViewDetail} compact />
+          <ProductCard key={product.catalog_card_id || product.id} product={product} onViewDetail={onViewDetail} compact />
         ))}
       </div>
     </section>
@@ -340,7 +340,7 @@ function ProductGridSection({ title, products, onViewDetail }) {
       ) : (
         <div className="products-grid">
           {products.map((product) => (
-            <ProductCard key={product.id} product={product} onViewDetail={onViewDetail} />
+            <ProductCard key={product.catalog_card_id || product.id} product={product} onViewDetail={onViewDetail} />
           ))}
         </div>
       )}

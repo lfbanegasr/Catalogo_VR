@@ -101,7 +101,7 @@ function ProductCard({ product, onViewDetail, compact = false }) {
   return (
     <article
       className={`product-card ${compact ? "compact" : ""}`.trim()}
-      data-product-id={String(product.id)}
+      data-product-id={String(product.catalog_card_id || product.id)}
     >
       <div className="product-media" style={imageAdjustment.background ? { backgroundColor: imageAdjustment.background } : undefined}>
         <ProductImage src={imageSrc} alt={nombre} adjustment={imageAdjustment} />

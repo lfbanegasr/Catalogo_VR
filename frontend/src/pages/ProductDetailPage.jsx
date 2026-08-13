@@ -112,6 +112,17 @@ function ProductDetailPage({
   }, [product.id, product.id_producto]);
 
   useEffect(() => {
+    const requestedVariantId = product.catalog_variant_id;
+    if (
+      requestedVariantId
+      && variants.some((variant) => String(variant.id_variante) === String(requestedVariantId))
+    ) {
+      setSelectedVariantId(String(requestedVariantId));
+    }
+  }, [product.catalog_variant_id, product.id]);
+
+
+  useEffect(() => {
     setSelectedImageIndex(0);
     setFailedImageSrc("");
   }, [selectedVariantId]);

@@ -200,7 +200,12 @@ def get_catalog_public(db: Session, slug: str):
             continue
         product["stock"] = set_stock.get(product["id"], 0)
         product["componentes"] = components_by_set.get(product["id"], [])
-    productos = _filter_products_with_public_stock(productos)
+    # La consulta ya valida el stock de productos simples y variantes. En este
+    # punto solo recalculamos los sets; volver a mirar el stock del producto
+    # padre ocultaria productos cuyo inventario vive en sus variantes.
+    productos = [
+        product for product in productos if not product["es_set"] or int(product.get("stock") or 0) > 0
+    ]
     available_product_ids = {product["id"] for product in productos}
     product_ids = [
         row[0] for row in productos_rows if str(row[0]) in available_product_ids
@@ -295,6 +300,11 @@ def get_catalog_public(db: Session, slug: str):
             VarianteProducto.stock_actual,
             VarianteProducto.imagen_url,
             VarianteProducto.es_predeterminada,
+            VarianteProducto.imagen_fit,
+            VarianteProducto.imagen_posicion_x,
+            VarianteProducto.imagen_posicion_y,
+            VarianteProducto.imagen_zoom,
+            VarianteProducto.imagen_fondo,
         )
         .where(
             VarianteProducto.id_tienda == tienda_id,
@@ -348,7 +358,7 @@ def get_catalog_public(db: Session, slug: str):
     products_by_id = {product["id"]: product for product in productos}
     variant_price_inputs = []
     for variant_row in variant_rows:
-        variant_id, product_id, _sku, variant_price, _stock, _image, _default = variant_row
+        variant_id, product_id, _sku, variant_price, _stock, _image, _default, _fit, _pos_x, _pos_y, _zoom, _background = variant_row
         product = products_by_id.get(str(product_id))
         if product is None:
             continue
@@ -371,6 +381,11 @@ def get_catalog_public(db: Session, slug: str):
         variant_stock,
         variant_image,
         is_default,
+        variant_fit,
+        variant_position_x,
+        variant_position_y,
+        variant_zoom,
+        variant_background,
     ) in variant_rows:
         product = products_by_id.get(str(product_id))
         if product is None:
@@ -389,6 +404,11 @@ def get_catalog_public(db: Session, slug: str):
                 "stock": variant_stock,
                 "imagen_url": build_public_asset_url(variant_image),
                 "es_predeterminada": is_default,
+                "imagen_fit": variant_fit,
+                "imagen_posicion_x": variant_position_x,
+                "imagen_posicion_y": variant_position_y,
+                "imagen_zoom": variant_zoom,
+                "imagen_fondo": variant_background,
                 "atributos": attributes,
                 "nombre": " / ".join(item["valor"] for item in attributes) or sku,
             },

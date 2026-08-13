@@ -13,6 +13,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
+from sqlalchemy import CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -23,6 +24,22 @@ class VarianteProducto(Base):
     __tablename__ = "variantes_producto"
     __table_args__ = (
         UniqueConstraint("id_tienda", "sku", name="uq_variantes_tienda_sku"),
+        CheckConstraint(
+            "imagen_fit IS NULL OR imagen_fit IN ('cover', 'contain', 'auto')",
+            name="ck_variantes_imagen_fit",
+        ),
+        CheckConstraint(
+            "imagen_posicion_x IS NULL OR imagen_posicion_x BETWEEN 0 AND 100",
+            name="ck_variantes_imagen_pos_x",
+        ),
+        CheckConstraint(
+            "imagen_posicion_y IS NULL OR imagen_posicion_y BETWEEN 0 AND 100",
+            name="ck_variantes_imagen_pos_y",
+        ),
+        CheckConstraint(
+            "imagen_zoom IS NULL OR imagen_zoom BETWEEN 80 AND 200",
+            name="ck_variantes_imagen_zoom",
+        ),
     )
 
     id_variante = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -40,6 +57,11 @@ class VarianteProducto(Base):
     precio_venta = Column(Numeric(10, 2), nullable=True)
     costo_adquisicion = Column(Numeric(10, 2), nullable=True)
     stock_actual = Column(Integer, nullable=False, default=0)
+    imagen_fit = Column(String(12), nullable=True)
+    imagen_posicion_x = Column(Integer, nullable=True)
+    imagen_posicion_y = Column(Integer, nullable=True)
+    imagen_zoom = Column(Integer, nullable=True)
+    imagen_fondo = Column(String(20), nullable=True)
     imagen_url = Column(String(255), nullable=True)
     activa = Column(Boolean, nullable=False, default=True)
     es_predeterminada = Column(Boolean, nullable=False, default=False)

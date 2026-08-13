@@ -28,11 +28,13 @@ router = APIRouter(
 
 def _invalidate_public_catalog(db: Session, product) -> None:
     from api.routes_public_catalog import invalidate_public_catalog_cache
+    from api.routes_public_catalog import bump_public_catalog_revision
     from models.tenant import Tienda
 
     store = db.query(Tienda).filter(Tienda.id_tienda == product.id_tienda).first()
     if store is not None:
         invalidate_public_catalog_cache(store.slug)
+        bump_public_catalog_revision(db, store.id_tienda, store.slug)
 
 
 

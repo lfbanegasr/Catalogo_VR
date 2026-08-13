@@ -73,6 +73,7 @@ export default function ProductCoverEditor({
   file,
   product,
   category,
+  entityLabel = "producto",
   busy = false,
   onCancel,
   onApply,
@@ -157,7 +158,7 @@ export default function ProductCoverEditor({
       <section className="cover-editor-modal" role="dialog" aria-modal="true" aria-labelledby="cover-editor-title">
         <header className="cover-editor-head">
           <div>
-            <span>Portada del producto</span>
+            <span>Portada de {entityLabel}</span>
             <h2 id="cover-editor-title">{file ? "Previsualizar antes de subir" : "Ajustar imagen existente"}</h2>
             <p>La imagen original se conserva; solo cambia cómo se muestra en las tarjetas.</p>
           </div>

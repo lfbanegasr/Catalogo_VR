@@ -63,6 +63,11 @@ class TestCatalogVariants(unittest.TestCase):
             costo_adquisicion=Decimal("60.00"),
             stock_actual=5,
             imagen_url=None,
+            imagen_fit="contain",
+            imagen_posicion_x=42,
+            imagen_posicion_y=58,
+            imagen_zoom=125,
+            imagen_fondo="#ffffff",
             activa=True,
             es_predeterminada=True,
             created_at=datetime(2026, 8, 2),
@@ -80,6 +85,9 @@ class TestCatalogVariants(unittest.TestCase):
         self.assertEqual(result["sku"], "CAM-AZ-M")
         self.assertEqual(result["atributos"][0]["valor"], "Azul")
         self.assertEqual(result["stock_actual"], 5)
+        self.assertEqual(result["imagen_fit"], "contain")
+        self.assertEqual(result["imagen_zoom"], 125)
+        self.assertEqual(result["imagen_fondo"], "#ffffff")
 
 
 if __name__ == "__main__":

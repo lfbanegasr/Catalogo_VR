@@ -472,6 +472,31 @@ export default function CatalogoScreen({ isSuperadmin }) {
     ),
     [editingProductAttributeConfig],
   );
+  const missingVariantCombinations = useMemo(() => {
+    const optionGroups = variantAttributeConfig.map((config) => ({
+      id_atributo: config.id_atributo,
+      options: (config.atributo?.opciones || []).filter((option) => option.activo),
+    }));
+    if (optionGroups.length === 0 || optionGroups.some((group) => group.options.length === 0)) {
+      return [];
+    }
+    const combinations = optionGroups.reduce(
+      (current, group) => current.flatMap((combination) => group.options.map((option) => ([
+        ...combination,
+        { id_atributo: group.id_atributo, id_opcion: option.id_opcion },
+      ]))),
+      [[]],
+    );
+    const combinationKey = (attributes) => attributes
+      .map((attribute) => String(attribute.id_atributo) + ":" + String(attribute.id_opcion))
+      .sort()
+      .join("|");
+    const existingKeys = new Set(
+      editingVariants.map((variant) => combinationKey(variant.atributos || [])),
+    );
+    return combinations.filter((combination) => !existingKeys.has(combinationKey(combination)));
+  }, [editingVariants, variantAttributeConfig]);
+
   const assertStoreSelected = () => {
     if (isSuperadmin && !selectedStoreRef) {
       throw new Error("Selecciona una tienda");
@@ -569,6 +594,34 @@ export default function CatalogoScreen({ isSuperadmin }) {
     });
   };
 
+  const openVariantCoverEditor = (variant, options = {}) => {
+    const parentProduct = editing?.row || {};
+    const categoryDefaults = categoryCoverDefaults(findProductCategory(parentProduct));
+    const inheritedDefaults = {
+      nombre: "Portada general del producto",
+      imagen_fit_default: parentProduct.imagen_fit || categoryDefaults.fit,
+      imagen_posicion_x_default: parentProduct.imagen_posicion_x ?? categoryDefaults.positionX,
+      imagen_posicion_y_default: parentProduct.imagen_posicion_y ?? categoryDefaults.positionY,
+      imagen_zoom_default: parentProduct.imagen_zoom ?? categoryDefaults.zoom,
+
+      imagen_fondo_default: parentProduct.imagen_fondo || categoryDefaults.background,
+    };
+    const variantName = (variant.atributos || []).map((item) => item.valor).join(" / ")
+      || variant.sku
+      || "Variante";
+    setCoverEditor({
+      target: "variant",
+      variant,
+      product: { ...variant, nombre: parentProduct.nombre + " - " + variantName },
+      category: inheritedDefaults,
+      file: options.file || null,
+      imageUrl: options.imageUrl
+        || getImageSrc(variant.imagen_url || parentProduct.imagen_url || ""),
+      replaceUrl: "",
+    });
+  };
+
+
   const applyProductCover = async ({ file, payload }) => {
     if (!coverEditor) return;
     if (coverEditor.target === "new") {
@@ -576,6 +629,31 @@ export default function CatalogoScreen({ isSuperadmin }) {
       setForm((current) => ({ ...current, ...payload }));
       setCoverEditor(null);
       pushToast("Portada preparada. Crea el producto para subirla.");
+      return;
+    }
+    if (coverEditor.target === "variant") {
+      const variantId = coverEditor.variant?.id_variante;
+      if (!variantId) return;
+      setCoverEditorBusy(true);
+      setError("");
+      try {
+        if (file) {
+          await api.uploadVarianteImage(variantId, file);
+        }
+        const updated = await api.updateVariante(variantId, payload);
+        setEditingVariants((current) => current.map((item) => (
+          item.id_variante === variantId ? updated : item
+        )));
+        await load();
+        setCoverEditor(null);
+        pushToast(file ? "Imagen de variante subida y ajustada" : "Ajuste de variante guardado");
+      } catch (err) {
+        const message = err.message || "No se pudo ajustar la imagen de la variante";
+        setError(message);
+        pushToast(message, "error");
+      } finally {
+        setCoverEditorBusy(false);
+      }
       return;
     }
 
@@ -739,6 +817,45 @@ export default function CatalogoScreen({ isSuperadmin }) {
         es_predeterminada: false,
         atributos: {},
       });
+    } finally {
+      setVariantBusy(false);
+    }
+  };
+
+  const createMissingVariantCombinations = async () => {
+    if (!editing?.row?.id_producto) return;
+    if (missingVariantCombinations.length === 0) {
+      throw new Error("No hay combinaciones nuevas para crear.");
+    }
+    if (missingVariantCombinations.length > 50) {
+      throw new Error("Hay demasiadas combinaciones. Reduce las opciones antes de continuar.");
+    }
+    if (missingVariantCombinations.length > 12 && !window.confirm(
+      "Se crearan " + missingVariantCombinations.length + " variantes. Deseas continuar?",
+    )) {
+      return;
+    }
+    const optionalNumber = (value) => value === "" || value == null ? null : Number(value);
+    setVariantBusy(true);
+    try {
+      for (const [index, atributos] of missingVariantCombinations.entries()) {
+        await api.createVariante(editing.row.id_producto, {
+          sku: null,
+          precio_venta: optionalNumber(variantForm.precio_venta),
+          costo_adquisicion: optionalNumber(variantForm.costo_adquisicion),
+          stock_actual: Number(variantForm.stock_actual || 0),
+          es_predeterminada: editingVariants.length === 0 && index === 0,
+          atributos,
+        });
+      }
+      const refreshedVariants = await api.listVariantes(editing.row.id_producto);
+      setEditingVariants(refreshedVariants);
+      await load();
+      pushToast("Combinaciones de variantes creadas correctamente");
+    } catch (err) {
+      const message = err.message || "No se pudieron crear todas las combinaciones";
+      setError(message);
+      pushToast(message, "error");
     } finally {
       setVariantBusy(false);
     }
@@ -1591,6 +1708,15 @@ export default function CatalogoScreen({ isSuperadmin }) {
                       >
                         {variantBusy ? "Guardando..." : "Crear variante"}
                       </button>
+                      <button
+                        className="btn btn-ghost"
+                        type="button"
+                        disabled={variantBusy || missingVariantCombinations.length === 0}
+                        onClick={() => createMissingVariantCombinations().catch((e) => setError(e.message))}
+                      >
+                        Crear combinaciones faltantes ({missingVariantCombinations.length})
+                      </button>
+                      <small className="muted">Usa el precio, costo y stock indicados arriba para todas las combinaciones nuevas.</small>
                     </div>
                   ) : (
                     <p className="muted small">
@@ -1606,10 +1732,10 @@ export default function CatalogoScreen({ isSuperadmin }) {
                           <tr>
                             <th>Combinacion</th>
                             <th>SKU</th>
+                            <th>Imagen</th>
                             <th>Precio</th>
                             <th>Costo</th>
                             <th>Stock</th>
-                            <th>Imagen</th>
                             <th>Estado</th>
                             <th></th>
                           </tr>
@@ -1641,9 +1767,17 @@ export default function CatalogoScreen({ isSuperadmin }) {
                                     title={busyVariantImageId === variant.id_variante ? "Subiendo..." : "Imagen de variante"}
                                     subtitle="Selecciona JPG, PNG o WEBP"
                                     disabled={busyVariantImageId === variant.id_variante}
-                                    onFileSelected={(file) => uploadVariantImage(variant, file)
-                                      .catch((e) => setError(e.message))}
+                                    onFileSelected={(file) => openVariantCoverEditor(variant, { file })}
+                                    statusText="Podras ajustar el encuadre antes de guardar"
                                   />
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost variant-cover-button"
+                                    disabled={busyVariantImageId === variant.id_variante}
+                                    onClick={() => openVariantCoverEditor(variant)}
+                                  >
+                                    Ajustar encuadre
+                                  </button>
                                 </div>
                               </td>
                               <td>
@@ -2032,6 +2166,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
       file={coverEditor?.file || null}
       product={coverEditor?.product || null}
       category={coverEditor?.category || null}
+      entityLabel={coverEditor?.target === "variant" ? "variante" : "producto"}
       busy={coverEditorBusy}
       onCancel={() => { if (!coverEditorBusy) setCoverEditor(null); }}
       onApply={applyProductCover}

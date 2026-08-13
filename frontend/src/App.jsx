@@ -133,6 +133,16 @@ function App() {
 
   const selectedProductFull = useMemo(() => {
     if (!selectedProduct) return null;
+    if (selectedProduct.catalog_variant_id) {
+      const latestProduct = catalog.products.find(
+        (product) => String(product.id) === String(selectedProduct.id),
+      ) || selectedProduct;
+      return {
+        ...latestProduct,
+        catalog_card_id: selectedProduct.catalog_card_id,
+        catalog_variant_id: selectedProduct.catalog_variant_id,
+      };
+    }
     return (
       catalog.products.find(
         (product) => String(product.id) === String(selectedProduct.id)
@@ -175,7 +185,7 @@ function App() {
   }, [catalog.products, requestedProductId, selectedProduct]);
 
   const openProduct = (product) => {
-    returnProductIdRef.current = String(product?.id || "");
+    returnProductIdRef.current = String(product?.catalog_card_id || product?.id || "");
     setSelectedProduct(product);
     window.history.pushState({ type: "product", id: product?.id }, "", buildProductLink(product?.id));
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -184,7 +194,7 @@ function App() {
 
   const closeProduct = () => {
     const productId = String(selectedProductFull?.id || returnProductIdRef.current || "");
-    returnProductIdRef.current = productId;
+    returnProductIdRef.current = String(selectedProduct?.catalog_card_id || productId);
     setSelectedProduct(null);
     window.history.replaceState({ type: "catalog" }, "", buildProductLink(null));
   };

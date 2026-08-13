@@ -22,6 +22,21 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
+    environment:
+      # Docker Compose es exclusivamente local: estas variables prevalecen sobre
+      # cualquier configuracion de produccion presente en backend/.env.
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-local_dev_only_change_me}@db:5432/${POSTGRES_DB:-tienda_db}
+      ENVIRONMENT: development
+      STORAGE_BACKEND: local
+      PUBLIC_ASSET_BASE_URL: http://127.0.0.1:8000
+      R2_ACCOUNT_ID: ""
+      R2_ACCESS_KEY_ID: ""
+      R2_SECRET_ACCESS_KEY: ""
+      R2_BUCKET_NAME: ""
+      R2_ENDPOINT_URL: ""
+      R2_PUBLIC_BASE_URL: ""
+    depends_on:
+      - db
     volumes:
       - ./backend:/app
 

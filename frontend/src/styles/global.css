@@ -12,6 +12,7 @@
   --shadow-card: 0 10px 24px rgba(31, 31, 31, 0.06);
   --border-soft: rgba(31, 31, 31, 0.08);
   --font-sans: "Segoe UI", Arial, sans-serif;
+  --body-background: radial-gradient(circle at top left, color-mix(in srgb, var(--color-secondary) 35%, transparent), transparent 36%), linear-gradient(180deg, color-mix(in srgb, var(--color-background) 92%, #ffffff), var(--color-background));
 }
 
 * {
@@ -27,9 +28,7 @@ body,
 body {
   margin: 0;
   font-family: var(--font-sans);
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--color-secondary) 35%, transparent), transparent 36%),
-    linear-gradient(180deg, color-mix(in srgb, var(--color-background) 92%, #ffffff), var(--color-background));
+  background: var(--body-background);
   color: var(--color-text);
   font-size: calc(16px * var(--font-scale));
   line-height: 1.5;
@@ -1891,24 +1890,32 @@ img {
   border-radius: 14px;
 }
 
-.toolbar {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  column-gap: 10px;
-}
+@media (min-width: 721px) {
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
 
-.toolbar > .catalog-search {
-  grid-column: 1;
-  grid-row: 1;
-}
+  .toolbar > .catalog-search {
+    flex: 0 0 300px;
+    width: 300px;
+  }
 
-.toolbar > .catalog-filters-wrapper {
-  grid-column: 2;
-  grid-row: 1;
-}
+  .toolbar > .category-nav {
+    flex: 1;
+    min-width: 0;
+    scrollbar-width: none;
+  }
 
-.toolbar > .category-nav {
-  grid-column: 1 / -1;
+  .toolbar > .category-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar > .catalog-filters-wrapper {
+    flex: 0 0 auto;
+    width: auto;
+  }
 }
 
 .catalog-search {
@@ -2372,12 +2379,11 @@ img {
 }
 
 .catalog-section.toolbar {
-  position: sticky;
+  position: relative;
   align-self: start;
-  top: 68px;
   z-index: 650;
-  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
-  backdrop-filter: blur(16px);
+  background: var(--color-surface);
+  padding: 12px 20px;
 }
 
 @media (max-width: 720px) {
@@ -2408,6 +2414,7 @@ img {
   }
 
   .catalog-section.toolbar {
+    position: sticky;
     top: 58px;
     min-height: 50px;
     margin-inline: -12px;
@@ -2419,6 +2426,8 @@ img {
     border-inline: 0;
     border-radius: 0;
     box-shadow: 0 8px 20px rgba(15, 23, 42, .08);
+    background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+    backdrop-filter: blur(16px);
   }
 
   .toolbar > .catalog-search {

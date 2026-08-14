@@ -2,6 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { api, buildAssetUrl } from "../api";
 import ImageDropZone from "./ImageDropZone";
 
+const GRADIENT_PRESETS = [
+  { name: "Beige Suave", start: "#F6EFEA", end: "#E7D3CA", angle: 135, type: "linear" },
+  { name: "Atardecer Rosa", start: "#FFF7FA", end: "#F8BBD0", angle: 135, type: "linear" },
+  { name: "Lavanda Elegante", start: "#F3F4F6", end: "#EDE9FE", angle: 135, type: "linear" },
+  { name: "Menta Fresca", start: "#F0FDF4", end: "#DCFCE7", angle: 135, type: "linear" },
+  { name: "Cielo Azul", start: "#E0F2FE", end: "#BAE6FD", angle: 135, type: "linear" },
+  { name: "Urbano Oscuro", start: "#1E293B", end: "#0F172A", angle: 135, type: "linear" },
+];
+
 const THEME_PRESETS = {
   modern_banner: {
     label: "Modern Banner",
@@ -212,10 +221,26 @@ function PreviewCategory({ category, config, active }) {
 }
 
 function LiveThemePreview({ storeName, form, categories }) {
+  const next = form.theme_config;
+  let liveBodyBackground = "";
+  if (next.background_type === "linear") {
+    const angle = next.background_gradient_angle ?? 135;
+    const start = next.background_gradient_start || next.secondary;
+    const end = next.background_gradient_end || next.background;
+    liveBodyBackground = `linear-gradient(${angle}deg, ${start}, ${end})`;
+  } else if (next.background_type === "radial") {
+    const start = next.background_gradient_start || next.secondary;
+    const end = next.background_gradient_end || next.background;
+    liveBodyBackground = `radial-gradient(circle, ${start}, ${end})`;
+  } else {
+    liveBodyBackground = `radial-gradient(circle at top left, color-mix(in srgb, ${next.secondary} 35%, transparent), transparent 36%), linear-gradient(180deg, color-mix(in srgb, ${next.background} 92%, #ffffff), ${next.background})`;
+  }
+
   const previewStyle = {
     "--live-primary": form.theme_config.primary,
     "--live-secondary": form.theme_config.secondary,
     "--live-background": form.theme_config.background,
+    "--live-body-background": liveBodyBackground,
     "--live-text": form.theme_config.text,
     "--live-muted": form.theme_config.muted,
     "--live-radius": `${form.theme_config.radius}px`,
@@ -557,14 +582,93 @@ function ThemeAppearanceScreen({ isSuperadmin, Card, HelperText, StoreRefPicker 
                   onChange={(event) => updateConfig("secondary", event.target.value)}
                 />
               </label>
-              <label>
-                Fondo
-                <input
-                  type="color"
-                  value={form.theme_config.background}
-                  onChange={(event) => updateConfig("background", event.target.value)}
-                />
-              </label>
+              <div className="theme-background-control-group">
+                <label>
+                  Tipo de fondo
+                  <select
+                    value={form.theme_config.background_type || "solid"}
+                    onChange={(event) => updateConfig("background_type", event.target.value)}
+                  >
+                    <option value="solid">Color sólido (con brillo sutil)</option>
+                    <option value="linear">Degradado lineal</option>
+                    <option value="radial">Degradado radial</option>
+                  </select>
+                </label>
+
+                {form.theme_config.background_type === "linear" || form.theme_config.background_type === "radial" ? (
+                  <>
+                    <label>
+                      Color inicio
+                      <input
+                        type="color"
+                        value={form.theme_config.background_gradient_start || form.theme_config.secondary}
+                        onChange={(event) => updateConfig("background_gradient_start", event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Color fin
+                      <input
+                        type="color"
+                        value={form.theme_config.background_gradient_end || form.theme_config.background}
+                        onChange={(event) => updateConfig("background_gradient_end", event.target.value)}
+                      />
+                    </label>
+                    {form.theme_config.background_type === "linear" ? (
+                      <label>
+                        Ángulo: {form.theme_config.background_gradient_angle ?? 135}°
+                        <input
+                          type="range"
+                          min="0"
+                          max="360"
+                          step="15"
+                          value={form.theme_config.background_gradient_angle ?? 135}
+                          onChange={(event) => updateConfig("background_gradient_angle", Number(event.target.value))}
+                        />
+                      </label>
+                    ) : <div />}
+                  </>
+                ) : (
+                  <label>
+                    Color de fondo
+                    <input
+                      type="color"
+                      value={form.theme_config.background}
+                      onChange={(event) => updateConfig("background", event.target.value)}
+                    />
+                  </label>
+                )}
+
+                {form.theme_config.background_type === "linear" || form.theme_config.background_type === "radial" ? (
+                  <div className="theme-gradient-presets">
+                    <span className="preset-label">Prediseñados:</span>
+                    <div className="preset-swatches">
+                      {GRADIENT_PRESETS.map((preset) => (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          className="preset-swatch-btn"
+                          title={preset.name}
+                          style={{
+                            background: `linear-gradient(135deg, ${preset.start}, ${preset.end})`,
+                          }}
+                          onClick={() => {
+                            setForm((current) => ({
+                              ...current,
+                              theme_config: {
+                                ...current.theme_config,
+                                background_type: preset.type,
+                                background_gradient_start: preset.start,
+                                background_gradient_end: preset.end,
+                                background_gradient_angle: preset.angle,
+                              },
+                            }));
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               <label>
                 Texto principal
                 <input

@@ -33,6 +33,10 @@ const DEFAULT_THEME_CONFIG = {
   social_instagram: "",
   social_tiktok: "",
   social_facebook: "",
+  background_type: "solid",
+  background_gradient_start: "",
+  background_gradient_end: "",
+  background_gradient_angle: 135,
 };
 
 function prettifySlug(slug = "") {

@@ -99,6 +99,22 @@ export function applyThemeVariables(config = DEFAULT_THEME_CONFIG) {
   const surface = darkBackground
     ? blendHex(next.background, { r: 255, g: 255, b: 255 }, 0.08)
     : "#FFFFFF";
+
+  let bodyBackgroundStyle = "";
+  if (next.background_type === "linear") {
+    const angle = next.background_gradient_angle ?? 135;
+    const start = next.background_gradient_start || next.secondary;
+    const end = next.background_gradient_end || next.background;
+    bodyBackgroundStyle = `linear-gradient(${angle}deg, ${start}, ${end})`;
+  } else if (next.background_type === "radial") {
+    const start = next.background_gradient_start || next.secondary;
+    const end = next.background_gradient_end || next.background;
+    bodyBackgroundStyle = `radial-gradient(circle, ${start}, ${end})`;
+  } else {
+    // Default solid + glow
+    bodyBackgroundStyle = `radial-gradient(circle at top left, color-mix(in srgb, ${next.secondary} 35%, transparent), transparent 36%), linear-gradient(180deg, color-mix(in srgb, ${next.background} 92%, #ffffff), ${next.background})`;
+  }
+
   const variables = {
     "--color-primary": next.primary,
     "--color-secondary": next.secondary,
@@ -110,6 +126,7 @@ export function applyThemeVariables(config = DEFAULT_THEME_CONFIG) {
     "--radius-base": `${next.radius}px`,
     "--radius-lg": `${Math.max(next.radius + 6, next.radius)}px`,
     "--font-scale": String(FONT_SCALE_MAP[next.font_scale] || FONT_SCALE_MAP.md),
+    "--body-background": bodyBackgroundStyle,
   };
 
   Object.entries(variables).forEach(([key, value]) => {

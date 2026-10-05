@@ -51,6 +51,22 @@ class Settings(BaseSettings):
     R2_BUCKET_NAME: str = ""
     R2_ENDPOINT_URL: str = ""
     R2_PUBLIC_BASE_URL: str = ""
+    CATALOG_AI_ENABLED: bool = False
+    CATALOG_AI_MODEL: str = "microsoft/Florence-2-base"
+    CATALOG_AI_ALLOW_DOWNLOAD: bool = False
+
+    # ── Optimización de imágenes ──────────────────────────────────────────────
+    # Tamaño máximo de archivo de entrada en bytes (por defecto 10 MB)
+    IMAGE_MAX_INPUT_BYTES: int = 10 * 1024 * 1024
+    # Dimensiones máximas permitidas en píxeles
+    IMAGE_MAX_WIDTH: int = 4096
+    IMAGE_MAX_HEIGHT: int = 4096
+    # Límite total de píxeles (anti-decompression bomb). 25 MP por defecto.
+    IMAGE_MAX_PIXELS: int = 25_000_000
+    # Calidad WebP de salida (0-100). 82 ofrece buen equilibrio calidad/peso.
+    IMAGE_WEBP_QUALITY: int = 82
+    # Desactivar optimización (para tests o casos excepcionales)
+    IMAGE_OPTIMIZE_ENABLED: bool = True
 
     @property
     def UPLOADS_PATH(self) -> Path:
@@ -114,7 +130,49 @@ class Settings(BaseSettings):
         if self.PASSWORD_RESET_DEBUG_RETURN_TOKEN:
             problems.append("PASSWORD_RESET_DEBUG_RETURN_TOKEN debe ser false en producci?n")
         if problems:
-            raise RuntimeError("Configuraci?n insegura de producci?n: " + "; ".join(problems))
+            raise RuntimeError("Configuración insegura de producción: " + "; ".join(problems))
+
+    def validate_image_and_storage_config(self) -> None:
+        problems: list[str] = []
+        if self.IMAGE_MAX_INPUT_BYTES <= 0:
+            problems.append("IMAGE_MAX_INPUT_BYTES debe ser mayor que 0")
+        if self.IMAGE_MAX_WIDTH <= 0:
+            problems.append("IMAGE_MAX_WIDTH debe ser mayor que 0")
+        if self.IMAGE_MAX_HEIGHT <= 0:
+            problems.append("IMAGE_MAX_HEIGHT debe ser mayor que 0")
+        if self.IMAGE_MAX_PIXELS <= 0:
+            problems.append("IMAGE_MAX_PIXELS debe ser mayor que 0")
+        if not (1 <= self.IMAGE_WEBP_QUALITY <= 100):
+            problems.append("IMAGE_WEBP_QUALITY debe estar entre 1 y 100")
+
+        backend = (self.STORAGE_BACKEND or "").strip().lower()
+        if backend not in ("local", "r2"):
+            problems.append(f"STORAGE_BACKEND '{self.STORAGE_BACKEND}' no es válido. Solo se admite 'local' o 'r2'")
+        elif backend == "r2":
+            from urllib.parse import urlparse
+            if not self.R2_ACCOUNT_ID:
+                problems.append("R2_ACCOUNT_ID es obligatorio cuando STORAGE_BACKEND=r2")
+            if not self.R2_ACCESS_KEY_ID:
+                problems.append("R2_ACCESS_KEY_ID es obligatorio cuando STORAGE_BACKEND=r2")
+            if not self.R2_SECRET_ACCESS_KEY:
+                problems.append("R2_SECRET_ACCESS_KEY es obligatorio cuando STORAGE_BACKEND=r2")
+            if not self.R2_BUCKET_NAME:
+                problems.append("R2_BUCKET_NAME es obligatorio cuando STORAGE_BACKEND=r2")
+            if not self.R2_ENDPOINT_URL:
+                problems.append("R2_ENDPOINT_URL es obligatorio cuando STORAGE_BACKEND=r2")
+            else:
+                p_end = urlparse(self.R2_ENDPOINT_URL)
+                if p_end.scheme not in ("http", "https") or not p_end.netloc:
+                    problems.append("R2_ENDPOINT_URL debe ser una URL HTTP/HTTPS válida")
+            if not self.R2_PUBLIC_BASE_URL:
+                problems.append("R2_PUBLIC_BASE_URL es obligatorio cuando STORAGE_BACKEND=r2")
+            else:
+                p_pub = urlparse(self.R2_PUBLIC_BASE_URL)
+                if p_pub.scheme not in ("http", "https") or not p_pub.netloc:
+                    problems.append("R2_PUBLIC_BASE_URL debe ser una URL HTTP/HTTPS válida")
+
+        if problems:
+            raise ValueError("Configuración inválida de almacenamiento e imágenes: " + "; ".join(problems))
 
 
 settings = Settings()

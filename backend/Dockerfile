@@ -19,6 +19,6 @@ COPY . .
 # Exponer el puerto de FastAPI
 EXPOSE 8000
 
-# Railway injects PORT on each deployment. The default keeps local and
-# Docker Compose executions compatible.
+# Render (y otros proveedores cloud) inyectan PORT dinámicamente. El valor por defecto 8000
+# mantiene la compatibilidad con Docker Compose y entornos locales.
 CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -1,7 +1,19 @@
 const TOKEN_KEY = "tienda_admin_token";
-const DEFAULT_DEV_API_BASE = "http://127.0.0.1:8000";
-const ENV_API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
-const API_BASE = ENV_API_BASE ? `${ENV_API_BASE}/api` : "/api";
+
+export function getApiBaseUrl() {
+  const envBase = (import.meta.env.VITE_API_BASE || "").trim().replace(/\/+$/, "");
+  if (envBase) {
+    return envBase;
+  }
+  if (import.meta.env.PROD) {
+    const errorMsg = "Error de configuración: La variable de entorno VITE_API_BASE es obligatoria en producción para comunicarse con Render.";
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  return "http://127.0.0.1:8000";
+}
+
+const API_BASE = `${getApiBaseUrl()}/api`;
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY) || "";
@@ -41,6 +53,32 @@ export async function request(path, options = {}) {
   return res.json();
 }
 
+export async function requestBlob(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: "no-store" });
+  if (!res.ok) {
+    let message = `Error ${res.status}`;
+    try {
+      const data = await res.json();
+      message = data?.detail || message;
+    } catch {
+      // La respuesta no contiene JSON.
+    }
+    throw new Error(message);
+  }
+  const disposition = res.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  return {
+    blob: await res.blob(),
+    filename: match?.[1] || "catalogo.pdf",
+  };
+}
+
 function withQuery(path, params = {}) {
   const search = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
@@ -53,24 +91,12 @@ function withQuery(path, params = {}) {
 
 export function buildAssetUrl(path) {
   if (!path) return "https://placehold.co/600x400/e2e8f0/475569?text=Sin+Imagen";
-  if (/^https?:\/\//i.test(path)) return path;
+  if (/^https?:\/\//i.test(path)) return path; // URLs absolutas (Cloudflare R2)
   if (/^(data|blob):/i.test(path)) return path;
 
-  const base = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
+  const base = getApiBaseUrl();
   const cleanPath = String(path).startsWith("/") ? path : `/${path}`;
-
-  // Never build images using Vercel domains
-  if (base && !base.includes("vercel.app")) {
-    return `${base}${cleanPath}`;
-  }
-
-  // Fallback depending on production or development environment
-  const isProd = import.meta.env.PROD;
-  const apiBase = isProd
-    ? "https://catalogovr-production.up.railway.app"
-    : "http://127.0.0.1:8000";
-
-  return `${apiBase}${cleanPath}`;
+  return `${base}${cleanPath}`;
 }
 
 export const api = {
@@ -234,6 +260,29 @@ export const api = {
     const path = withQuery("/catalog/theme/banner", tiendaRef ? { tienda: tiendaRef } : {});
     return request(path, { method: "POST", body: form });
   },
+  downloadCatalogPdf: (payload, tiendaRef) =>
+    requestBlob(withQuery("/catalog/pdf/download", tiendaRef ? { tienda: tiendaRef } : {}), {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  uploadCatalogPdfCover: (file, tiendaRef) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request(withQuery("/catalog/pdf/cover", tiendaRef ? { tienda: tiendaRef } : {}), { method: "POST", body: form });
+  },
+  clearCatalogPdfCover: (tiendaRef) =>
+    request(withQuery("/catalog/pdf/cover", tiendaRef ? { tienda: tiendaRef } : {}), { method: "DELETE" }),
+  extractCatalogPdfPalette: (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request("/catalog/pdf/palette", { method: "POST", body: form });
+  },
+  analyzeCatalogPdf: (payload, tiendaRef) =>
+    request(withQuery("/catalog/pdf/analyze", tiendaRef ? { tienda: tiendaRef } : {}), {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  catalogPdfAiStatus: () => request("/catalog/pdf/ai/status"),
   listVentas: (idTienda) =>
     request(withQuery("/sales/ventas", { id_tienda: idTienda })),
   listClientes: (search, idTienda) =>

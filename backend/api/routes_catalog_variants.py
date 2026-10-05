@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -5,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.deps import get_current_tienda_id, get_current_user, require_role
-from core.storage import save_upload_file
+from core.storage import delete_asset_file, save_upload_file
 from crud.crud_catalog import get_producto_by_id
 from crud.crud_variants import (
     create_variant,
@@ -20,21 +21,34 @@ from models.tenant import Usuario
 from schemas.catalog_variant_schema import VariantCreate, VariantOut, VariantUpdate
 
 
+logger = logging.getLogger("routes_catalog_variants")
+
 router = APIRouter(
     prefix="/api/catalog",
     tags=["Catalog Variants"],
     dependencies=[Depends(require_role("superadmin", "admin", "empleado"))],
 )
 
-def _invalidate_public_catalog(db: Session, product) -> None:
-    from api.routes_public_catalog import invalidate_public_catalog_cache
+
+def _safe_invalidate_catalog_cache_only(db: Session, product) -> None:
+    try:
+        from api.routes_public_catalog import invalidate_public_catalog_cache
+        from models.tenant import Tienda
+
+        store = db.query(Tienda).filter(Tienda.id_tienda == product.id_tienda).first()
+        if store is not None and store.slug:
+            invalidate_public_catalog_cache(store.slug)
+    except Exception as e:
+        logger.warning("Fallo al invalidar cache en memoria para tienda %s: %s", getattr(product, "id_tienda", None), e)
+
+
+def _invalidate_public_catalog(db: Session, product, commit: bool = True) -> None:
     from api.routes_public_catalog import bump_public_catalog_revision
     from models.tenant import Tienda
 
     store = db.query(Tienda).filter(Tienda.id_tienda == product.id_tienda).first()
     if store is not None:
-        invalidate_public_catalog_cache(store.slug)
-        bump_public_catalog_revision(db, store.id_tienda, store.slug)
+        bump_public_catalog_revision(db, store.id_tienda, store.slug, commit=commit)
 
 
 
@@ -117,16 +131,35 @@ def api_upload_variant_image(
         raise HTTPException(status_code=404, detail="Variante no encontrada")
     product = get_producto_by_id(db, variant.id_producto)
     _ensure_product_access(current_user, product)
+    previous_image = variant.imagen_url
     image_url = save_upload_file(file, "variants", id_variante)
-    result = serialize_variant(
-        update_variant(
+    try:
+        updated = update_variant(
             db,
             product=product,
             variant=variant,
             payload=VariantUpdate(imagen_url=image_url),
-        ),
-    )
-    _invalidate_public_catalog(db, product)
+            commit=False,
+        )
+        _invalidate_public_catalog(db, product, commit=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        try:
+            delete_asset_file(image_url)
+        except Exception:
+            pass
+        raise
+
+    _safe_invalidate_catalog_cache_only(db, product)
+
+    if previous_image and previous_image != image_url:
+        try:
+            delete_asset_file(previous_image)
+        except Exception as e:
+            logger.warning("Error eliminando imagen anterior de variante %s: %s", previous_image, e)
+
+    result = serialize_variant(updated)
     return result
 
 

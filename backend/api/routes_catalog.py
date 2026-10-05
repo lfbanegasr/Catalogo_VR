@@ -1,10 +1,11 @@
+import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
-import os
-from sqlalchemy import func
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from core.config import settings
@@ -62,7 +63,9 @@ from schemas.catalog_schema import (
     ProductoUpdate,
 )
 
-from core.storage import save_upload_file, build_public_asset_url
+from core.storage import save_upload_file, build_public_asset_url, delete_asset_file
+
+logger = logging.getLogger("routes_catalog")
 
 router = APIRouter(prefix="/api/catalog", tags=["Catalog"])
 
@@ -71,15 +74,25 @@ OFFERS_UPLOAD_DIR = settings.OFFERS_UPLOAD_PATH
 THEME_UPLOAD_DIR = settings.THEME_UPLOAD_PATH
 
 
-def _invalidate_public_catalog_for_tenant(db: Session, id_tienda: UUID) -> None:
+def _safe_invalidate_catalog_cache_only(db: Session, id_tienda: UUID) -> None:
+    try:
+        from api.routes_public_catalog import invalidate_public_catalog_cache
+        from models.tenant import Tienda
+
+        tienda = db.query(Tienda).filter(Tienda.id_tienda == id_tienda).first()
+        if tienda is not None and tienda.slug:
+            invalidate_public_catalog_cache(tienda.slug)
+    except Exception as e:
+        logger.warning("Fallo al invalidar cache en memoria para tienda %s: %s", id_tienda, e)
+
+
+def _invalidate_public_catalog_for_tenant(db: Session, id_tienda: UUID, commit: bool = True) -> None:
     tienda = db.query(Tienda).filter(Tienda.id_tienda == id_tienda).first()
     if not tienda:
         return
-    from api.routes_public_catalog import invalidate_public_catalog_cache
     from api.routes_public_catalog import bump_public_catalog_revision
 
-    bump_public_catalog_revision(db, tienda.id_tienda, tienda.slug)
-    invalidate_public_catalog_cache(tienda.slug)
+    bump_public_catalog_revision(db, tienda.id_tienda, tienda.slug, commit=commit)
 
 
 def _resolve_target_tienda_id(
@@ -226,27 +239,7 @@ def _ensure_product_images_sync(db: Session, producto) -> list[ProductoImagen]:
 
 
 def _delete_physical_image_file(imagen_url: str) -> None:
-    try:
-        path_str = imagen_url
-        # Si es una URL completa, extraemos la ruta
-        if path_str.startswith("http://") or path_str.startswith("https://"):
-            from urllib.parse import urlparse
-            path_str = urlparse(path_str).path
-
-        if path_str.startswith("/uploads/"):
-            path_str = path_str[len("/uploads/"):]
-        elif path_str.startswith("uploads/"):
-            path_str = path_str[len("uploads/"):]
-            
-        uploads_base_path = settings.UPLOADS_PATH
-        target_file = (uploads_base_path / path_str).resolve()
-        
-        if str(target_file).startswith(str(uploads_base_path)):
-            if target_file.exists() and target_file.is_file():
-                os.remove(target_file)
-                print(f"[storage] deleted physical file: {target_file}", flush=True)
-    except Exception as e:
-        print(f"[storage] error deleting physical file {imagen_url}: {e}", flush=True)
+    delete_asset_file(imagen_url)
 
 
 def _get_target_tienda_id_for_catalog(
@@ -601,7 +594,7 @@ def api_delete_producto(
     "/products/{id_producto}/image",
     summary="Subir imagen de producto",
     description=(
-        "Sube una imagen (JPG/PNG/WEBP, max 5MB) y actualiza `imagen_url` del producto.\n\n"
+        "Sube una imagen (JPG/PNG/WEBP, max 10MB) y actualiza `imagen_url` del producto.\n\n"
         "Ejemplo curl:\n"
         'curl -X POST "http://127.0.0.1:8000/api/catalog/products/<ID>/image" '
         '-H "Authorization: Bearer <TOKEN>" '
@@ -625,11 +618,27 @@ def api_upload_product_image(
         raise HTTPException(status_code=403, detail="No autorizado para este producto")
 
     imagen_url = _save_product_image_file(id_producto=id_producto, file=file)
-    updated = set_product_image(db=db, id_producto=id_producto, imagen_url=imagen_url)
-    add_product_image(db=db, id_producto=id_producto, imagen_url=imagen_url)
-    if not updated:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-    _invalidate_public_catalog_for_tenant(db, producto.id_tienda)
+    try:
+        updated = set_product_image(db=db, id_producto=id_producto, imagen_url=imagen_url, commit=False)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Producto no encontrado")
+        add_product_image(db=db, id_producto=id_producto, imagen_url=imagen_url, commit=False)
+        _invalidate_public_catalog_for_tenant(db, producto.id_tienda, commit=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        try:
+            delete_asset_file(imagen_url)
+        except Exception:
+            pass
+        raise
+
+    try:
+        db.refresh(updated)
+    except Exception as e:
+        logger.warning("Fallo post-commit al refrescar producto %s: %s", id_producto, e)
+
+    _safe_invalidate_catalog_cache_only(db, producto.id_tienda)
 
     return {
         "id_producto": str(updated.id_producto),
@@ -996,8 +1005,33 @@ def api_upload_offer_banner(
     )
     _ensure_user_can_access_tenant(current_user, target_tienda_id)
     _ensure_resource_matches_target_tienda(offer.id_tienda, target_tienda_id)
+    old_banner_url = offer.banner_url
     banner_url = _save_offer_banner_file(id_oferta=id_oferta, file=file)
-    updated = update_offer(db=db, offer=offer, payload=OfferUpdate(banner_url=banner_url))
+    try:
+        updated = update_offer(db=db, offer=offer, payload=OfferUpdate(banner_url=banner_url), commit=False)
+        _invalidate_public_catalog_for_tenant(db, target_tienda_id, commit=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        try:
+            delete_asset_file(banner_url)
+        except Exception:
+            pass
+        raise
+
+    try:
+        db.refresh(updated)
+    except Exception as e:
+        logger.warning("Fallo post-commit al refrescar oferta %s: %s", id_oferta, e)
+
+    _safe_invalidate_catalog_cache_only(db, target_tienda_id)
+
+    if old_banner_url and old_banner_url != banner_url:
+        try:
+            delete_asset_file(old_banner_url)
+        except Exception as e:
+            logger.warning("Error eliminando banner antiguo de oferta %s: %s", old_banner_url, e)
+
     return {"id_oferta": str(updated.id_oferta), "banner_url": build_public_asset_url(updated.banner_url)}
 
 
@@ -1024,7 +1058,37 @@ def api_upload_theme_banner(
         nombre_tienda_target=nombre_tienda_target,
     )
     _ensure_user_can_access_tenant(current_user, target_tienda_id)
+    tienda = db.query(Tienda).filter(Tienda.id_tienda == target_tienda_id).first()
+    old_banner = (tienda.theme_config or {}).get("hero_image_url") if tienda else None
     banner_url = _save_theme_banner_file(id_tienda=target_tienda_id, file=file)
+    if tienda:
+        try:
+            cfg = dict(tienda.theme_config or {})
+            cfg["hero_image_url"] = banner_url
+            tienda.theme_config = cfg
+            _invalidate_public_catalog_for_tenant(db, target_tienda_id, commit=False)
+            db.commit()
+        except Exception:
+            db.rollback()
+            try:
+                delete_asset_file(banner_url)
+            except Exception:
+                pass
+            raise
+
+        try:
+            db.refresh(tienda)
+        except Exception as e:
+            logger.warning("Fallo post-commit al refrescar tienda %s: %s", target_tienda_id, e)
+
+        _safe_invalidate_catalog_cache_only(db, target_tienda_id)
+
+        if old_banner and old_banner != banner_url:
+            try:
+                delete_asset_file(old_banner)
+            except Exception as e:
+                logger.warning("Error eliminando banner antiguo de tema %s: %s", old_banner, e)
+
     return {
         "id_tienda": str(target_tienda_id),
         "hero_image_url": build_public_asset_url(banner_url),
@@ -1070,16 +1134,30 @@ def api_delete_product_image(
         if producto.imagen_url:
             main_filename = producto.imagen_url.split("/")[-1].split("\\")[-1]
             if main_filename == target_filename:
-                _delete_physical_image_file(producto.imagen_url)
+                old_to_delete = producto.imagen_url
                 producto.imagen_url = None
-                _invalidate_public_catalog_for_tenant(db, producto.id_tienda)
-                db.commit()
-                db.refresh(producto)
+                try:
+                    _invalidate_public_catalog_for_tenant(db, producto.id_tienda, commit=False)
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                    raise
+
+                try:
+                    db.refresh(producto)
+                except Exception as e:
+                    logger.warning("Fallo post-commit al refrescar producto %s: %s", id_producto, e)
+
+                _safe_invalidate_catalog_cache_only(db, producto.id_tienda)
+
+                try:
+                    delete_asset_file(old_to_delete)
+                except Exception as e:
+                    logger.warning("Error eliminando archivo de imagen huérfano %s: %s", old_to_delete, e)
                 return producto
         raise HTTPException(status_code=404, detail="Imagen no encontrada en el producto")
 
-    # Borramos físicamente el archivo
-    _delete_physical_image_file(matched.imagen_url)
+    old_to_delete = matched.imagen_url
 
     # Borramos de la base de datos
     db.delete(matched)
@@ -1103,10 +1181,26 @@ def api_delete_product_image(
                 producto.imagen_url = remaining[0].imagen_url
             else:
                 producto.imagen_url = None
-    _invalidate_public_catalog_for_tenant(db, producto.id_tienda)
 
-    db.commit()
-    db.refresh(producto)
+    try:
+        _invalidate_public_catalog_for_tenant(db, producto.id_tienda, commit=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    try:
+        db.refresh(producto)
+    except Exception as e:
+        logger.warning("Fallo post-commit al refrescar producto %s: %s", id_producto, e)
+
+    _safe_invalidate_catalog_cache_only(db, producto.id_tienda)
+
+    try:
+        delete_asset_file(old_to_delete)
+    except Exception as e:
+        logger.warning("Error eliminando archivo de imagen huérfano %s: %s", old_to_delete, e)
+
     return producto
 
 
@@ -1164,7 +1258,10 @@ def api_reorder_product_images(
         producto.imagen_url = None
 
     db.commit()
-    db.refresh(producto)
+    try:
+        db.refresh(producto)
+    except Exception as e:
+        logger.warning("Fallo post-commit al refrescar producto %s: %s", id_producto, e)
     _invalidate_public_catalog_for_tenant(db, producto.id_tienda)
     return producto
 
@@ -1203,35 +1300,72 @@ def api_replace_product_image(
             matched = db_img
             break
 
-    # Subimos y guardamos el nuevo archivo
+    # Subimos y guardamos el nuevo archivo primero
     new_imagen_url = _save_product_image_file(id_producto=id_producto, file=file)
 
     if not matched:
         if producto.imagen_url:
             main_filename = producto.imagen_url.split("/")[-1].split("\\")[-1]
             if main_filename == target_filename:
-                _delete_physical_image_file(producto.imagen_url)
-                producto.imagen_url = new_imagen_url
-                db.commit()
-                db.refresh(producto)
-                _invalidate_public_catalog_for_tenant(db, producto.id_tienda)
+                old_url = producto.imagen_url
+                try:
+                    producto.imagen_url = new_imagen_url
+                    _invalidate_public_catalog_for_tenant(db, producto.id_tienda, commit=False)
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                    try:
+                        delete_asset_file(new_imagen_url)
+                    except Exception:
+                        pass
+                    raise
+
+                try:
+                    db.refresh(producto)
+                except Exception as e:
+                    logger.warning("Fallo post-commit al refrescar producto %s: %s", id_producto, e)
+
+                _safe_invalidate_catalog_cache_only(db, producto.id_tienda)
+
+                try:
+                    delete_asset_file(old_url)
+                except Exception as e:
+                    logger.warning("Error eliminando archivo huérfano tras reemplazo %s: %s", old_url, e)
                 return producto
+
+        try:
+            delete_asset_file(new_imagen_url)
+        except Exception:
+            pass
         raise HTTPException(status_code=404, detail="Imagen objetivo no encontrada en el producto")
 
-    # Borramos físicamente la imagen anterior
-    _delete_physical_image_file(matched.imagen_url)
-
-    # Actualizamos la URL en la base de datos
     old_url = matched.imagen_url
-    matched.imagen_url = new_imagen_url
+    try:
+        matched.imagen_url = new_imagen_url
+        if producto.imagen_url:
+            main_filename = producto.imagen_url.split("/")[-1].split("\\")[-1]
+            if main_filename == target_filename:
+                producto.imagen_url = new_imagen_url
+        _invalidate_public_catalog_for_tenant(db, producto.id_tienda, commit=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        try:
+            delete_asset_file(new_imagen_url)
+        except Exception:
+            pass
+        raise
 
-    # Si era la imagen principal, la actualizamos
-    if producto.imagen_url:
-        main_filename = producto.imagen_url.split("/")[-1].split("\\")[-1]
-        if main_filename == target_filename:
-            producto.imagen_url = new_imagen_url
+    try:
+        db.refresh(producto)
+    except Exception as e:
+        logger.warning("Fallo post-commit al refrescar producto %s: %s", id_producto, e)
 
-    db.commit()
-    db.refresh(producto)
-    _invalidate_public_catalog_for_tenant(db, producto.id_tienda)
+    _safe_invalidate_catalog_cache_only(db, producto.id_tienda)
+
+    try:
+        delete_asset_file(old_url)
+    except Exception as e:
+        logger.warning("Error eliminando archivo huérfano tras reemplazo %s: %s", old_url, e)
+
     return producto

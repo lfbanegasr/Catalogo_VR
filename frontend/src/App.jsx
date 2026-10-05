@@ -3,6 +3,8 @@ import { getPublicCatalog, registerPublicEvent, registerPublicWhatsappClick } fr
 import CatalogPage from "./pages/CatalogPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
 import OrderTrackingPage from "./pages/OrderTrackingPage";
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
 import { ThemeProvider } from "./theme/theme";
 import { useCart } from "./context/CartContext";
 import { CurrencyProvider } from "./context/CurrencyContext";
@@ -37,10 +39,16 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get("pedido") || "";
   });
+  const [legalPage, setLegalPage] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("page") || "";
+  });
 
   const buildProductLink = (productId) => {
     const url = new URL(window.location.href);
     url.searchParams.set("slug", storeSlug);
+    url.searchParams.delete("page");
+    url.searchParams.delete("pedido");
     if (productId) {
       url.searchParams.set("p", String(productId));
     } else {
@@ -88,10 +96,17 @@ function App() {
     }
   }, [storeSlug]);
 
+  // Sincronización del botón atrás/adelante del navegador con React (p, pedido, page)
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const productId = params.get("p");
+      const pedidoParam = params.get("pedido") || "";
+      const pageParam = params.get("page") || "";
+
+      setTrackingCode(pedidoParam);
+      setLegalPage(pageParam);
+
       if (productId) {
         const target = catalog.products.find(
           (product) => String(product.id) === String(productId),
@@ -150,6 +165,55 @@ function App() {
     );
   }, [catalog.products, selectedProduct]);
 
+  // Actualización dinámica de SEO (title, meta description, og:title, og:description)
+  useEffect(() => {
+    let title = "Catálogo | Tienda Virtual";
+    let description = "Catálogo público de productos. Navega nuestros productos, compara precios y realiza tu pedido por WhatsApp.";
+
+    if (legalPage === "privacy") {
+      title = catalog.storeName ? `Política de Privacidad | ${catalog.storeName}` : "Política de Privacidad";
+      description = `Política de privacidad y protección de datos para la tienda ${catalog.storeName || "virtual"}.`;
+    } else if (legalPage === "terms") {
+      title = catalog.storeName ? `Términos de Uso | ${catalog.storeName}` : "Términos de Uso";
+      description = `Términos y condiciones de uso del catálogo de ${catalog.storeName || "la tienda virtual"}.`;
+    } else if (trackingCode) {
+      title = catalog.storeName ? `Seguimiento de Pedido #${trackingCode} | ${catalog.storeName}` : `Seguimiento de Pedido #${trackingCode}`;
+      description = `Consulta el estado de tu pedido #${trackingCode} en ${catalog.storeName || "la tienda"}.`;
+    } else if (selectedProductFull) {
+      title = `${selectedProductFull.nombre} | ${catalog.storeName || "Catálogo"}`;
+      description = selectedProductFull.descripcion || description;
+    } else if (catalog.storeName) {
+      title = `${catalog.storeName} | Catálogo Virtual`;
+      description = catalog.tienda?.theme_config?.description || `Explora el catálogo de productos de ${catalog.storeName} y haz tu pedido directamente por WhatsApp.`;
+    }
+
+    document.title = title;
+
+    let metaDesc = document.querySelector('meta[name="description"]');
+    if (!metaDesc) {
+      metaDesc = document.createElement("meta");
+      metaDesc.name = "description";
+      document.head.appendChild(metaDesc);
+    }
+    metaDesc.content = description;
+
+    let ogTitle = document.querySelector('meta[property="og:title"]');
+    if (!ogTitle) {
+      ogTitle = document.createElement("meta");
+      ogTitle.setAttribute("property", "og:title");
+      document.head.appendChild(ogTitle);
+    }
+    ogTitle.content = title;
+
+    let ogDesc = document.querySelector('meta[property="og:description"]');
+    if (!ogDesc) {
+      ogDesc = document.createElement("meta");
+      ogDesc.setAttribute("property", "og:description");
+      document.head.appendChild(ogDesc);
+    }
+    ogDesc.content = description;
+  }, [catalog.storeName, catalog.tienda, selectedProductFull, legalPage, trackingCode]);
+
   const relatedProducts = useMemo(() => {
     if (!selectedProductFull) return [];
     const categoryId = selectedProductFull.categoria_id;
@@ -187,7 +251,14 @@ function App() {
   const openProduct = (product) => {
     returnProductIdRef.current = String(product?.catalog_card_id || product?.id || "");
     setSelectedProduct(product);
-    window.history.pushState({ type: "product", id: product?.id }, "", buildProductLink(product?.id));
+    const url = new URL(window.location.href);
+    url.searchParams.set("slug", storeSlug);
+    url.searchParams.delete("page");
+    url.searchParams.delete("pedido");
+    if (product?.id) {
+      url.searchParams.set("p", String(product.id));
+    }
+    window.history.pushState({ type: "product", id: product?.id }, "", url.toString());
     window.scrollTo({ top: 0, behavior: "instant" });
     registerPublicEvent(storeSlug, "product_view", product?.id);
   };
@@ -196,7 +267,9 @@ function App() {
     const productId = String(selectedProductFull?.id || returnProductIdRef.current || "");
     returnProductIdRef.current = String(selectedProduct?.catalog_card_id || productId);
     setSelectedProduct(null);
-    window.history.replaceState({ type: "catalog" }, "", buildProductLink(null));
+    const url = new URL(window.location.href);
+    url.searchParams.delete("p");
+    window.history.pushState({ type: "catalog" }, "", url.toString());
   };
 
   const navigateProduct = (product) => {
@@ -229,17 +302,39 @@ function App() {
     const url = new URL(window.location.href);
     url.searchParams.set("slug", storeSlug);
     url.searchParams.delete("p");
+    url.searchParams.delete("page");
     url.searchParams.set("pedido", normalized);
-    window.history.replaceState({}, "", url.toString());
+    window.history.pushState({ type: "tracking", pedido: normalized }, "", url.toString());
     setSelectedProduct(null);
+    setLegalPage("");
     setTrackingCode(normalized);
   };
 
   const closeTracking = () => {
     const url = new URL(window.location.href);
     url.searchParams.delete("pedido");
-    window.history.replaceState({}, "", url.toString());
+    window.history.pushState({ type: "catalog" }, "", url.toString());
     setTrackingCode("");
+  };
+
+  const openLegalPage = (pageName) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("slug", storeSlug);
+    url.searchParams.delete("p");
+    url.searchParams.delete("pedido");
+    url.searchParams.set("page", pageName);
+    window.history.pushState({ type: "legal", page: pageName }, "", url.toString());
+    setSelectedProduct(null);
+    setTrackingCode("");
+    setLegalPage(pageName);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const closeLegalPage = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("page");
+    window.history.pushState({ type: "catalog" }, "", url.toString());
+    setLegalPage("");
   };
 
   return (
@@ -265,6 +360,18 @@ function App() {
             onPreviousProduct={() => navigateProduct(previousProduct)}
             onNextProduct={() => navigateProduct(nextProduct)}
           />
+        ) : legalPage === "privacy" ? (
+          <PrivacyPage
+            slug={storeSlug}
+            onBack={closeLegalPage}
+            onNavigate={openLegalPage}
+          />
+        ) : legalPage === "terms" ? (
+          <TermsPage
+            slug={storeSlug}
+            onBack={closeLegalPage}
+            onNavigate={openLegalPage}
+          />
         ) : (
           <CatalogPage
             slug={storeSlug}
@@ -283,10 +390,8 @@ function App() {
           />
         )}
 
-        {/* Botón "Seguir pedido" ocultado — solo disponible via URL ?pedido=XXX */}
-        
         {/* Botón flotante del carrito */}
-        {cartCount > 0 && !isCartOpen && !trackingCode && (
+        {cartCount > 0 && !isCartOpen && !trackingCode && !legalPage && (
           <button
             onClick={() => setIsCartOpen(true)}
             className="cart-floating-btn"
@@ -308,6 +413,29 @@ function App() {
           whatsappNumber={catalog.whatsappNumber}
           slug={storeSlug}
         />
+
+        {/* Footer con enlaces legales */}
+        {!legalPage && !selectedProductFull && !trackingCode && (
+          <footer className="catalog-legal-footer" aria-label="Pie de página">
+            <nav aria-label="Información legal">
+              <button
+                type="button"
+                className="legal-footer-link"
+                onClick={() => openLegalPage("privacy")}
+              >
+                Privacidad
+              </button>
+              <span aria-hidden="true">·</span>
+              <button
+                type="button"
+                className="legal-footer-link"
+                onClick={() => openLegalPage("terms")}
+              >
+                Términos de uso
+              </button>
+            </nav>
+          </footer>
+        )}
       </CurrencyProvider>
     </ThemeProvider>
   );

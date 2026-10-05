@@ -1,8 +1,11 @@
 import hashlib
 import json
+import logging
 from collections import OrderedDict
 from threading import Lock
 from time import monotonic
+
+logger = logging.getLogger("routes_public_catalog")
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.encoders import jsonable_encoder
@@ -40,20 +43,32 @@ def invalidate_public_catalog_cache(slug: str) -> None:
         _catalog_cache.pop(slug, None)
 
 
-def bump_public_catalog_revision(
+def prepare_public_catalog_revision_bump(
     db: Session,
     id_tienda,
-    slug: str | None = None,
 ) -> None:
     db.query(Tienda).filter(Tienda.id_tienda == id_tienda).update(
         {Tienda.catalog_revision: Tienda.catalog_revision + 1},
         synchronize_session=False,
     )
-    db.commit()
-    if slug is None:
-        slug = db.execute(select(Tienda.slug).where(Tienda.id_tienda == id_tienda)).scalar_one_or_none()
-    if slug:
-        invalidate_public_catalog_cache(slug)
+
+
+def bump_public_catalog_revision(
+    db: Session,
+    id_tienda,
+    slug: str | None = None,
+    commit: bool = True,
+) -> None:
+    prepare_public_catalog_revision_bump(db, id_tienda)
+    if commit:
+        db.commit()
+        if slug is None:
+            slug = db.execute(select(Tienda.slug).where(Tienda.id_tienda == id_tienda)).scalar_one_or_none()
+        if slug:
+            try:
+                invalidate_public_catalog_cache(slug)
+            except Exception as e:
+                logger.warning("Fallo al invalidar cache del catalogo publico (%s): %s", slug, e)
 
 
 

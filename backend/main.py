@@ -15,6 +15,7 @@ from sqlalchemy import text
 from core.database import SessionLocal
 
 settings.validate_runtime_security()
+settings.validate_image_and_storage_config()
 
 app = FastAPI(title="Backend Tienda SaaS")
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -29,7 +30,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "If-None-Match"],
-    expose_headers=["ETag", "Retry-After"],
+    expose_headers=["ETag", "Retry-After", "Content-Disposition"],
 )
 
 app.add_middleware(AuditMiddleware)

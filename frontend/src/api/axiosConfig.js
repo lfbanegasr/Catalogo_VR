@@ -1,18 +1,26 @@
 import axios from "axios";
 
-// Obtener la URL base desde las variables de entorno de Vite o usar fallback de desarrollo/producción
-const rawBase = import.meta.env.VITE_API_BASE || (import.meta.env.PROD ? "https://catalogovr-production.up.railway.app" : "http://localhost:8000");
-const API_BASE_URL = String(rawBase).replace(/\/+$/, "");
+export function getApiBaseUrl() {
+  const envBase = (import.meta.env.VITE_API_BASE || "").trim().replace(/\/+$/, "");
+  if (envBase) {
+    return envBase;
+  }
+  if (import.meta.env.PROD) {
+    const errorMsg = "Error de configuración: La variable de entorno VITE_API_BASE es obligatoria en producción para comunicarse con Render.";
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  return "http://127.0.0.1:8000";
+}
 
 const axiosInstance = axios.create({
-  baseURL: `${API_BASE_URL}/api`,
+  baseURL: `${getApiBaseUrl()}/api`,
   timeout: 10000,
 });
 
 // Interceptor para inyectar el token JWT automáticamente en las cabeceras
 axiosInstance.interceptors.request.use(
   (config) => {
-    // Usamos la misma clave que ya se usa en la aplicación para guardar el token
     const token = localStorage.getItem("tienda_admin_token");
     if (token) {
       config.headers["Authorization"] = `Bearer ${token}`;
@@ -31,7 +39,6 @@ axiosInstance.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       console.warn("Token inválido o expirado. Limpiando sesión...");
       localStorage.removeItem("tienda_admin_token");
-      // Opcional: Redirigir al login si el contexto del router estuviera configurado
     }
     return Promise.reject(error);
   }

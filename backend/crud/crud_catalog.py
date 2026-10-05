@@ -325,13 +325,21 @@ def deactivate_producto(db: Session, id_producto) -> Producto | None:
     return producto
 
 
-def set_product_image(db: Session, id_producto, imagen_url: str) -> Producto | None:
+def set_product_image(
+    db: Session,
+    id_producto,
+    imagen_url: str,
+    commit: bool = True,
+) -> Producto | None:
     producto = get_producto_by_id(db=db, id_producto=id_producto)
     if not producto:
         return None
     producto.imagen_url = imagen_url
-    db.commit()
-    db.refresh(producto)
+    if commit:
+        db.commit()
+        db.refresh(producto)
+    else:
+        db.flush()
     return producto
 
 
@@ -344,7 +352,12 @@ def list_product_images(db: Session, id_producto) -> list[ProductoImagen]:
     )
 
 
-def add_product_image(db: Session, id_producto, imagen_url: str) -> ProductoImagen | None:
+def add_product_image(
+    db: Session,
+    id_producto,
+    imagen_url: str,
+    commit: bool = True,
+) -> ProductoImagen | None:
     producto = get_producto_by_id(db=db, id_producto=id_producto)
     if not producto:
         return None
@@ -365,8 +378,11 @@ def add_product_image(db: Session, id_producto, imagen_url: str) -> ProductoImag
     if not producto.imagen_url:
         producto.imagen_url = imagen_url
 
-    db.commit()
-    db.refresh(imagen)
+    if commit:
+        db.commit()
+        db.refresh(imagen)
+    else:
+        db.flush()
     return imagen
 
 

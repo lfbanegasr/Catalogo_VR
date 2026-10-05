@@ -1,0 +1,65 @@
+.catalog-pdf-advanced-layout { grid-template-columns: minmax(0, 1fr) 390px; }
+.catalog-pdf-template-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+.catalog-pdf-template-card { display: grid; gap: 7px; min-width: 0; padding: 10px; text-align: left; border: 1px solid #ddd5dc; border-radius: 12px; color: #443b45; background: #fff; cursor: pointer; }
+.catalog-pdf-template-card:hover { border-color: #b98a99; transform: translateY(-1px); }
+.catalog-pdf-template-card.is-selected { border-color: #9e4b63; background: #fff7fa; box-shadow: 0 0 0 2px rgba(158, 75, 99, .12); }
+.catalog-pdf-template-card small { color: #7d737e; font-size: 10px; line-height: 1.35; }
+.catalog-pdf-template-thumb { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; height: 58px; padding: 6px; overflow: hidden; border-radius: 7px; background: linear-gradient(145deg, #f7ecef, #fff); }
+.catalog-pdf-template-thumb i { border-radius: 3px; background: #d9a9b6; }
+.catalog-pdf-template-thumb.is-organic i { border-radius: 50%; }
+.catalog-pdf-template-thumb.is-organic i:last-child { position: absolute; width: 22px; height: 22px; right: -4px; bottom: -4px; opacity: .45; }
+.catalog-pdf-template-thumb.is-editorial { grid-template-columns: 1.5fr .8fr; }
+.catalog-pdf-template-thumb.is-editorial i:first-child { grid-row: 1 / 3; }
+.catalog-pdf-template-thumb.is-photographic i { background: linear-gradient(160deg, #b68d79, #efe2dc); }
+.catalog-pdf-design-fields { padding-top: 5px; border-top: 1px solid #eee7ec; }
+.catalog-pdf-inspiration { display: grid; grid-template-columns: 190px 1fr; gap: 15px; align-items: center; }
+.catalog-pdf-upload-box { display: grid; width: 190px; height: 125px; place-items: center; overflow: hidden; border: 1px dashed #bcaeb8; border-radius: 12px; color: #5e535e; background: #faf7f9; cursor: pointer; }
+.catalog-pdf-upload-box img { width: 100%; height: 100%; object-fit: cover; }
+.catalog-pdf-upload-box span { display: grid; gap: 4px; padding: 15px; text-align: center; }
+.catalog-pdf-upload-box small { color: #887d87; }
+.catalog-pdf-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.catalog-pdf-swatches span { width: 38px; height: 38px; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 1px 6px rgba(40, 30, 40, .2); }
+.catalog-pdf-palette-suggestions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 14px; }
+.catalog-pdf-palette-suggestions button { display: flex; gap: 9px; align-items: center; padding: 10px; border: 1px solid #ded6dd; border-radius: 10px; color: #493f49; background: #fff; cursor: pointer; }
+.catalog-pdf-palette-suggestions button > span { display: flex; }
+.catalog-pdf-palette-suggestions i { width: 16px; height: 28px; }
+.catalog-pdf-palette-suggestions i:first-child { border-radius: 6px 0 0 6px; }
+.catalog-pdf-palette-suggestions i:last-child { border-radius: 0 6px 6px 0; }
+.catalog-pdf-cover-options { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-bottom: 14px; }
+.catalog-pdf-cover-options label { display: flex; gap: 7px; align-items: center; color: #554b56; font-size: 12px; }
+.catalog-pdf-cover-options input { accent-color: #9e4b63; }
+.catalog-pdf-cover-uploader { display: grid; grid-template-columns: 180px 1fr; gap: 16px; align-items: start; }
+.catalog-pdf-cover-preview { display: grid; width: 180px; aspect-ratio: 210 / 297; place-items: center; overflow: hidden; border: 1px dashed #bcaeb8; border-radius: 10px; color: #5f545e; background: #f9f6f8; cursor: pointer; }
+.catalog-pdf-cover-preview img { width: 100%; height: 100%; object-fit: cover; }
+.catalog-pdf-cover-preview span { display: grid; gap: 5px; padding: 12px; text-align: center; }
+.catalog-pdf-cover-controls { display: grid; gap: 13px; }
+.catalog-pdf-cover-controls > label:not(.check-row) { display: grid; gap: 6px; color: #4a404a; font-size: 12px; font-weight: 700; }
+.catalog-pdf-cover-controls select { min-height: 40px; padding: 8px; border: 1px solid #ddd5dc; border-radius: 9px; background: #fff; }
+.catalog-pdf-advanced-preview { position: relative; isolation: isolate; }
+.catalog-pdf-advanced-preview.background-gradient, .catalog-pdf-advanced-preview.background-organic { background: linear-gradient(145deg, var(--pdf-background), var(--pdf-background-end)); }
+.catalog-pdf-preview-orb { display: none; position: absolute; z-index: -1; border-radius: 50%; opacity: .22; }
+.catalog-pdf-advanced-preview.background-organic .catalog-pdf-preview-orb { display: block; }
+.catalog-pdf-preview-orb.orb-one { width: 150px; height: 150px; top: -50px; right: -45px; background: var(--pdf-secondary); }
+.catalog-pdf-preview-orb.orb-two { width: 110px; height: 110px; bottom: -30px; left: -35px; background: var(--pdf-primary); }
+.catalog-pdf-advanced-preview.background-editorial::after { position: absolute; z-index: -1; content: ""; inset: 0 0 52% 62%; opacity: .2; background: var(--pdf-secondary); clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.catalog-pdf-advanced-preview.is-organic .catalog-pdf-preview-grid article { background: transparent; }
+.catalog-pdf-advanced-preview.is-organic .catalog-pdf-preview-grid article > div { aspect-ratio: 1; border-radius: 50%; }
+.catalog-pdf-advanced-preview.is-organic .catalog-pdf-preview-grid article small { justify-self: end; margin-top: -15px; padding: 7px; border-radius: 50%; color: #fff; background: var(--pdf-price); }
+.catalog-pdf-advanced-preview.is-editorial .catalog-pdf-preview-grid { grid-template-columns: 1.45fr .8fr; grid-template-rows: 1fr 1fr; }
+.catalog-pdf-advanced-preview.is-editorial .catalog-pdf-preview-grid article.is-featured { grid-row: 1 / 3; }
+.catalog-pdf-advanced-preview.is-editorial .catalog-pdf-preview-grid article > div { height: 100%; aspect-ratio: auto; }
+.catalog-pdf-advanced-preview.is-photographic .catalog-pdf-preview-grid article { position: relative; padding: 0; overflow: hidden; }
+.catalog-pdf-advanced-preview.is-photographic .catalog-pdf-preview-grid article > div { aspect-ratio: .9; }
+.catalog-pdf-advanced-preview.is-photographic .catalog-pdf-preview-grid article > strong { margin: -25px 5px 0; padding: 7px 5px 2px; background: rgba(255,255,255,.92); }
+.catalog-pdf-preview-grid article > div.shape-circle { border-radius: 50%; }
+.catalog-pdf-preview-grid article > div.shape-square { border-radius: 0; }
+.catalog-pdf-preview-grid article small.price-block { border-radius: 0; }
+
+@media (max-width: 1180px) {
+  .catalog-pdf-template-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 700px) {
+  .catalog-pdf-template-grid, .catalog-pdf-palette-suggestions { grid-template-columns: 1fr; }
+  .catalog-pdf-inspiration, .catalog-pdf-cover-uploader { grid-template-columns: 1fr; }
+}

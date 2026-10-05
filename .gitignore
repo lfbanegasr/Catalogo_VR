@@ -54,5 +54,26 @@ backend/.git_backend_old/
 backend/scripts/seed*.py
 !backend/scripts/seed_empty_jewelry_store.py
 !backend/scripts/seed_accessories_store.py
-backend/scripts/bootstrap_superadmin.py
+!backend/scripts/bootstrap_superadmin.py
+!backend/scripts/optimize_existing_images.py
 backend/scripts/e2e_password_reset_smoke.ps1
+
+# Test temporary directories
+test_uploads_tmp*/
+backend/test_uploads_tmp*/
+.docx_qa/
+
+# Local attendance documents/tools (unrelated to Catalogo VR)
+Planilla_de_asistencia*.docx
+build_attendance_form.py
+
+# Local/private cosmetics demo assets (excluded from the public portfolio)
+backend/catalog_assets/
+backend/scripts/README_cosmetics_seed.md
+
+# Mobile (Flutter / Android)
+mobile/android/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/build/
+mobile/.dart_tool/

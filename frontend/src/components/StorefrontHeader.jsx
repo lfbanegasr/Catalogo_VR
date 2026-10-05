@@ -105,6 +105,28 @@ function AccountPanel({ open, initialView, onClose }) {
               <label>Correo electrónico<input required type="email" autoComplete="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
               <label>Contraseña<input required minLength="6" type="password" autoComplete={view === "register" ? "new-password" : "current-password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></label>
               {error ? <p className="account-error">{error}</p> : null}
+              {view === "register" ? (
+                <p className="account-legal-hint" style={{ fontSize: "11px", color: "#64748b", margin: "6px 0 10px 0", textAlign: "center", lineHeight: "1.4" }}>
+                  Al registrarte aceptas el tratamiento de datos según nuestra{" "}
+                  <a
+                    href={`?slug=${encodeURIComponent(new URLSearchParams(window.location.search).get("slug") || "")}&page=privacy`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "#2563eb", textDecoration: "underline" }}
+                  >
+                    Política de Privacidad
+                  </a>{" "}
+                  y{" "}
+                  <a
+                    href={`?slug=${encodeURIComponent(new URLSearchParams(window.location.search).get("slug") || "")}&page=terms`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: "#2563eb", textDecoration: "underline" }}
+                  >
+                    Términos de Uso
+                  </a>.
+                </p>
+              ) : null}
               <button className="btn btn-primary" disabled={busy}>{busy ? "Procesando..." : view === "register" ? "Crear mi cuenta" : "Entrar"}</button>
             </form>
           </>
@@ -164,7 +186,7 @@ export default function StorefrontHeader({ storeName, themeConfig = {}, whatsapp
         <div className="storefront-topbar-inner">
           <button type="button" className="topbar-icon-btn" onClick={() => setMenuOpen(true)} aria-label="Abrir menú"><Icon name="menu" /></button>
           <div className="storefront-brand">
-            {logo ? <img src={buildAssetUrl(logo)} alt={"Logo de " + storeName} /> : <span className="storefront-brand-mark">{String(storeName || "T").slice(0, 1)}</span>}
+            {logo ? <img src={buildAssetUrl(logo)} alt={"Logo de " + storeName} loading="eager" decoding="async" /> : <span className="storefront-brand-mark">{String(storeName || "T").slice(0, 1)}</span>}
             <strong>{storeName || "Tienda"}</strong>
           </div>
           <div className="topbar-actions">

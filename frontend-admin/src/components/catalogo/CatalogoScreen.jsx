@@ -7,6 +7,7 @@ import { getImageSrc } from '../../utils';
 import { ToastStack } from '../Toast';
 import ProductCoverEditor, { categoryCoverDefaults } from './ProductCoverEditor';
 import ProductPicker from './ProductPicker';
+import CatalogPdfDownload from './CatalogPdfDownload';
 
 const CATEGORY_FORM_DEFAULTS = {
   nombre: "",
@@ -1105,6 +1106,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
             <button className="tab-btn" onClick={() => setTab("categorias")}>Categorias</button>
             <button className="tab-btn" onClick={() => setTab("productos")}>Productos</button>
             <button className="tab-btn active" onClick={() => setTab("atributos")}>Atributos</button>
+            <button className="tab-btn" onClick={() => setTab("descargar")}>Descargar</button>
           </div>
           <div className="catalog-controls">
             {isSuperadmin ? (
@@ -1247,6 +1249,44 @@ export default function CatalogoScreen({ isSuperadmin }) {
     );
   }
 
+  if (tab === "descargar") {
+    return (
+      <>
+        <Card title="Catálogo privado" className="catalog-compact">
+          {catalogSharePanel}
+          <div className="catalog-toolbar">
+            <div className="catalog-tabs">
+              <button className="tab-btn" onClick={() => setTab("categorias")}>Categorías</button>
+              <button className="tab-btn" onClick={() => setTab("productos")}>Productos</button>
+              <button className="tab-btn" onClick={() => setTab("atributos")}>Atributos</button>
+              <button className="tab-btn active" onClick={() => setTab("descargar")}>Descargar</button>
+            </div>
+            <div className="catalog-controls">
+              {isSuperadmin ? (
+                <StoreRefPicker
+                  stores={stores}
+                  value={tenantId}
+                  onChange={setTenantId}
+                  required
+                />
+              ) : <div className="catalog-controls-spacer" />}
+              <button className="btn btn-ghost catalog-refresh" onClick={() => handleReload().catch((e) => setError(e.message))}>Recargar</button>
+            </div>
+          </div>
+          {error ? <p className="error-text">{error}</p> : null}
+          <CatalogPdfDownload
+            categories={categoriasDisponibles}
+            products={rows}
+            store={catalogStore}
+            tiendaRef={selectedStoreRef}
+            disabled={isSuperadmin && !selectedStoreRef}
+          />
+        </Card>
+        <ToastStack items={toasts} onDismiss={dismissToast} />
+      </>
+    );
+  }
+
   return (
     <>
     <Card title="Catálogo privado" className="catalog-compact">
@@ -1255,7 +1295,8 @@ export default function CatalogoScreen({ isSuperadmin }) {
         <div className="catalog-tabs">
           <button className={`tab-btn ${tab === "categorias" ? "active" : ""}`} onClick={() => setTab("categorias")}>Categorías</button>
           <button className={`tab-btn ${tab === "productos" ? "active" : ""}`} onClick={() => setTab("productos")}>Productos</button>
-          <button className="tab-btn" onClick={() => setTab("atributos")}>Atributos</button>
+          <button className={`tab-btn ${tab === "atributos" ? "active" : ""}`} onClick={() => setTab("atributos")}>Atributos</button>
+          <button className={`tab-btn ${tab === "descargar" ? "active" : ""}`} onClick={() => setTab("descargar")}>Descargar</button>
         </div>
         <div className="catalog-controls">
           {tab !== "atributos" && (

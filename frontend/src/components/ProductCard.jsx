@@ -20,8 +20,9 @@ function ProductImage({ src, alt, adjustment }) {
     <img
       className={`product-image fit-${resolvedFit}`}
       src={src}
-      alt={alt}
+      alt={alt || "Imagen del producto"}
       loading="lazy"
+      decoding="async"
       style={{
         objectFit: resolvedFit,
         objectPosition: `${positionX}% ${positionY}%`,

@@ -1,8 +1,18 @@
-const isProd = import.meta.env.PROD;
-const API_BASE_URL = import.meta.env.VITE_API_BASE || (isProd ? "https://catalogovr-production.up.railway.app" : "");
-const BASE_URL = `${API_BASE_URL.replace(/\/+$/, "")}/api`;
-const DEFAULT_DEV_API_BASE = "http://127.0.0.1:8000";
-const ENV_API_BASE = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
+export function getApiBaseUrl() {
+  const envBase = (import.meta.env.VITE_API_BASE || "").trim().replace(/\/+$/, "");
+  if (envBase) {
+    return envBase;
+  }
+  if (import.meta.env.PROD) {
+    const errorMsg = "Error de configuración: La variable de entorno VITE_API_BASE es obligatoria en producción para comunicarse con Render.";
+    console.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  return "http://127.0.0.1:8000";
+}
+
+const API_BASE_URL = getApiBaseUrl();
+const BASE_URL = `${API_BASE_URL}/api`;
 const DEFAULT_THEME_ID = "modern_banner";
 const DEFAULT_THEME_CONFIG = {
   primary: "#E94B8A",
@@ -392,24 +402,12 @@ export function getCustomerOrders(slug, token) {
 
 export function buildAssetUrl(path) {
   if (!path) return "https://placehold.co/600x400/e2e8f0/475569?text=Sin+Imagen";
-  if (/^https?:\/\//i.test(path)) return path;
+  if (/^https?:\/\//i.test(path)) return path; // URLs absolutas (Cloudflare R2)
   if (/^(data|blob):/i.test(path)) return path;
 
-  const base = (import.meta.env.VITE_API_BASE || "").replace(/\/+$/, "");
+  const base = getApiBaseUrl();
   const cleanPath = String(path).startsWith("/") ? path : `/${path}`;
-
-  // Never build images using Vercel domains
-  if (base && !base.includes("vercel.app")) {
-    return `${base}${cleanPath}`;
-  }
-
-  // Fallback depending on production or development environment
-  const isProd = import.meta.env.PROD;
-  const apiBase = isProd
-    ? "https://catalogovr-production.up.railway.app"
-    : "http://127.0.0.1:8000";
-
-  return `${apiBase}${cleanPath}`;
+  return `${base}${cleanPath}`;
 }
 
 export { BASE_URL, DEFAULT_THEME_ID, DEFAULT_THEME_CONFIG };

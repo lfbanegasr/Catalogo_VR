@@ -72,7 +72,7 @@ class UserResetPasswordIn(BaseModel):
 
 class UsuarioOut(BaseModel):
     id_usuario: UUID
-    id_tienda: UUID
+    id_tienda: Optional[UUID] = None
     email: EmailStr
     rol: str
     activo: bool

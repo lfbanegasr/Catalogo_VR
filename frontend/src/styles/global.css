@@ -2592,3 +2592,198 @@ img {
   color: var(--color-text-muted);
   text-align: right;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PÁGINAS LEGALES (Privacidad y Términos de uso)
+═══════════════════════════════════════════════════════════════════════════ */
+
+.legal-page {
+  min-height: 100vh;
+  background: var(--color-background);
+  padding: 0 0 80px;
+}
+
+.legal-container {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+.legal-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 8px 14px;
+  margin-bottom: 28px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.legal-back-btn:hover {
+  background: var(--color-secondary);
+  color: var(--color-text);
+}
+
+.legal-back-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.legal-page h1 {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 8px;
+}
+
+.legal-meta {
+  font-size: 13px;
+  color: var(--color-muted);
+  margin: 0 0 16px;
+}
+
+.legal-disclaimer {
+  background: #fef9c3;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #78350f;
+  margin: 0 0 32px;
+  line-height: 1.5;
+}
+
+.legal-page section {
+  margin-bottom: 32px;
+}
+
+.legal-page h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.legal-page h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 16px 0 6px;
+}
+
+.legal-page p,
+.legal-page li {
+  font-size: 15px;
+  color: var(--color-text);
+  line-height: 1.65;
+  margin: 0 0 10px;
+}
+
+.legal-page ul {
+  padding-left: 20px;
+  margin: 8px 0 16px;
+}
+
+.legal-page a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.legal-page a:hover {
+  opacity: 0.8;
+}
+
+.legal-footer {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 13px;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FOOTER DEL CATÁLOGO (enlaces legales)
+═══════════════════════════════════════════════════════════════════════════ */
+
+.catalog-legal-footer {
+  padding: 20px 16px;
+  text-align: center;
+  border-top: 1px solid var(--border-soft);
+  margin-top: 16px;
+}
+
+.catalog-legal-footer nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.catalog-legal-footer span[aria-hidden="true"] {
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.legal-footer-link {
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 2px;
+  text-decoration: underline;
+  transition: color 0.15s;
+}
+
+.legal-footer-link:hover {
+  color: var(--color-primary);
+}
+
+.legal-footer-link:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MEJORAS DE ACCESIBILIDAD — Estados de foco visibles
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* Foco visible para todos los elementos interactivos del catálogo */
+.product-card button:focus-visible,
+.category-pill:focus-visible,
+.btn:focus-visible,
+.product-detail-btn:focus-visible,
+.product-quick-add:focus-visible,
+.search-clear-btn:focus-visible,
+.filter-toggle-btn:focus-visible,
+.filter-option-pill:focus-visible,
+.cart-floating-btn:focus-visible,
+.topbar-icon-btn:focus-visible,
+.topbar-account-btn:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Asegurar aspect-ratio estable en imágenes de producto para evitar layout shift */
+.product-media {
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  contain: layout size;
+}
+
+.product-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  decoding: async;
+}

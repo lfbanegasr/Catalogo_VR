@@ -1,22 +1,26 @@
 # Entornos virtuales
 venv/
 env/
-.env
 
 # Variables de entorno y secretos
 .env
+.env.*
 
 # Caché de Python
 __pycache__/
 *.pyc
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # VS Code
 .vscode/
-uploads/theme/
 
-uploads/theme/
+# Archivos subidos localmente
+uploads/
+test_uploads_tmp*/
 
-scripts/
-pycache/
-seed_empty_jewelry_store.py
+# Scripts privados locales (los públicos como optimize_existing_images.py y bootstrap_superadmin.py son versionables)
+scripts/seed_dev.py
+scripts/seed_superadmin_only.py
+scripts/e2e_password_reset_smoke.ps1

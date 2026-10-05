@@ -67,7 +67,12 @@ def get_offer_by_id(db: Session, id_oferta: UUID) -> Oferta | None:
     return db.query(Oferta).filter(Oferta.id_oferta == id_oferta).first()
 
 
-def update_offer(db: Session, offer: Oferta, payload: OfferUpdate) -> Oferta:
+def update_offer(
+    db: Session,
+    offer: Oferta,
+    payload: OfferUpdate,
+    commit: bool = True,
+) -> Oferta:
     data = payload.model_dump(exclude_unset=True)
     merged = {
         "tipo": offer.tipo,
@@ -94,8 +99,11 @@ def update_offer(db: Session, offer: Oferta, payload: OfferUpdate) -> Oferta:
     for key, value in data.items():
         setattr(offer, key, value)
 
-    db.commit()
-    db.refresh(offer)
+    if commit:
+        db.commit()
+        db.refresh(offer)
+    else:
+        db.flush()
     return offer
 
 

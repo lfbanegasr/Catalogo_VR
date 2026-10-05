@@ -151,6 +151,8 @@ function ProductDetailPage({
                 className="detail-image"
                 src={currentImageSrc}
                 alt={nombre}
+                loading="eager"
+                decoding="async"
                 onError={() => setFailedImageSrc(currentImageSrc)}
                 onClick={() => setIsZoomed(true)}
                 style={{ cursor: "zoom-in" }}
@@ -192,6 +194,8 @@ function ProductDetailPage({
                     <img
                       src={buildAssetUrl(url)}
                       alt={`Imagen ${index + 1} de ${nombre}`}
+                      loading="lazy"
+                      decoding="async"
                       onError={(event) => {
                         event.currentTarget.style.visibility = "hidden";
                       }}
@@ -385,6 +389,7 @@ function ProductDetailPage({
           <img
             src={currentImageSrc}
             alt={nombre}
+            decoding="async"
             onClick={(e) => e.stopPropagation()}
           />
         </div>

@@ -22,7 +22,11 @@ function ThemeHeader({ storeName, heroImageUrl, config = {} }) {
       <img
         src={buildAssetUrl(heroImageUrl)}
         alt=""
+        aria-hidden="true"
         className={"fit-" + (config.hero_image_fit || "cover")}
+        loading="eager"
+        decoding="async"
+        fetchPriority="high"
       />
     </section>
   );
@@ -89,7 +93,12 @@ function CategoryNav({
             {style === "round_icons" ? (
               <span className="category-icon">
                 {categoryImage ? (
-                  <img src={buildAssetUrl(categoryImage)} alt={category.nombre} />
+                  <img
+                    src={buildAssetUrl(categoryImage)}
+                    alt={category.nombre}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 ) : (
                   formatCategoryIcon(category.nombre)
                 )}
@@ -279,7 +288,12 @@ function OfferCarousel({ offers, products, onViewDetail }) {
         {cards.map((card) => (
           <article key={card.key} className="offer-carousel-card">
             {card.imageUrl ? (
-              <img src={buildAssetUrl(card.imageUrl)} alt={card.title} />
+              <img
+                src={buildAssetUrl(card.imageUrl)}
+                alt={card.title}
+                loading="lazy"
+                decoding="async"
+              />
             ) : (
               <div className="offer-carousel-empty">Oferta</div>
             )}

@@ -39,7 +39,7 @@ La cuenta `admin@demo-accesorios.local` solo se crea si la contraseña se entreg
 variable de entorno, para evitar contraseñas fijas dentro del repositorio:
 
 ```powershell
-$env:ACCESSORIES_SEED_ADMIN_PASSWORD = "una-clave-segura"
+$env:ACCESSORIES_SEED_ADMIN_PASSWORD = "<TU_PASSWORD_SEGURO>"
 .\venv\Scripts\python.exe scripts\seed_accessories_store.py --apply
 Remove-Item Env:ACCESSORIES_SEED_ADMIN_PASSWORD
 ```
@@ -47,7 +47,7 @@ Remove-Item Env:ACCESSORIES_SEED_ADMIN_PASSWORD
 Una repetición normal conserva la contraseña existente. Para reemplazarla deliberadamente:
 
 ```powershell
-$env:ACCESSORIES_SEED_ADMIN_PASSWORD = "otra-clave-segura"
+$env:ACCESSORIES_SEED_ADMIN_PASSWORD = "<TU_NUEVO_PASSWORD_SEGURO>"
 .\venv\Scripts\python.exe scripts\seed_accessories_store.py --apply --reset-admin-password
 Remove-Item Env:ACCESSORIES_SEED_ADMIN_PASSWORD
 ```

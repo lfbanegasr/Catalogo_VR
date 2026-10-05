@@ -1,0 +1,6 @@
+-r requirements.txt
+
+# Dependencias opcionales del asistente visual de catalogos.
+transformers>=4.52,<6
+torch>=2.4
+rembg[cpu]>=2.0.75

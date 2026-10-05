@@ -251,6 +251,7 @@ def update_variant(
     product: Producto,
     variant: VarianteProducto,
     payload: VariantUpdate,
+    commit: bool = True,
 ) -> VarianteProducto:
     data = payload.model_dump(exclude_unset=True)
     attribute_items = data.pop("atributos", None)
@@ -315,7 +316,10 @@ def update_variant(
                 ),
             )
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return get_variant(db, variant.id_variante)
 
 

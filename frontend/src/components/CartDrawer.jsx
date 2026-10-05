@@ -624,6 +624,27 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
               </div>
             )}
 
+            <p className="cart-legal-notice" style={{ fontSize: '11px', color: '#64748b', margin: '0 20px 10px 20px', textAlign: 'center', lineHeight: '1.4' }}>
+              Al enviar tu pedido, la orden se registra conforme a nuestra{" "}
+              <a
+                href={`?slug=${encodeURIComponent(slug)}&page=privacy`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#2563eb', textDecoration: 'underline' }}
+              >
+                Política de Privacidad
+              </a>{" "}
+              y{" "}
+              <a
+                href={`?slug=${encodeURIComponent(slug)}&page=terms`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: '#2563eb', textDecoration: 'underline' }}
+              >
+                Términos de Uso
+              </a>.
+            </p>
+
             <div className="cart-action-buttons">
               <button
                 onClick={clearCart}

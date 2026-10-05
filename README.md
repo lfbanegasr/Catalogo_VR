@@ -37,23 +37,53 @@ Catalogo VR provides each store with a mobile-first catalog that customers can b
 
 ## Architecture
 
-```text
- Public catalog (React) ─┐
-                         ├── REST API (FastAPI) ── PostgreSQL
- Admin panel (React) ────┘             │
-                                       └────────── Cloudflare R2
+```mermaid
+flowchart TB
+    subgraph Users["Users"]
+        Customer["Customers"]
+        Staff["Store staff and administrators"]
+    end
+
+    subgraph Frontend["Frontend layer · Vercel"]
+        Storefront["Public Catalog<br/>React + Vite"]
+        AdminPanel["Administration Panel<br/>React + Vite"]
+    end
+
+    subgraph Backend["Application layer · Render"]
+        API["FastAPI REST API"]
+        Access["Authentication<br/>Roles and tenant isolation"]
+        Commerce["Catalog, customers<br/>orders and analytics"]
+        Media["Image processing<br/>and PDF generation"]
+    end
+
+    subgraph Data["Managed data services"]
+        Database[("PostgreSQL<br/>Neon")]
+        Storage[("Media storage<br/>Cloudflare R2")]
+    end
+
+    Customer --> Storefront
+    Staff --> AdminPanel
+
+    Storefront -->|"HTTPS · JSON"| API
+    AdminPanel -->|"HTTPS · JSON · JWT"| API
+
+    API --> Access
+    API --> Commerce
+    API --> Media
+
+    Access --> Database
+    Commerce --> Database
+    Media --> Database
+    Media --> Storage
+
+    Storage -.->|"Optimized media URLs"| Storefront
 ```
 
-The public catalog and administration panel are independent React applications backed by a single FastAPI service.
+The public catalog and administration panel are independent React applications deployed on Vercel.
 
-PostgreSQL stores tenant and transactional data, while product media is processed by the backend and stored in Cloudflare R2.
+Both applications communicate securely with a shared FastAPI service running on Render. The backend centralizes authentication, tenant isolation, catalog operations, order management, image processing and PDF generation.
 
-The portfolio deployment uses:
-
-- Vercel for both React applications.
-- Render for the FastAPI service.
-- Neon for managed PostgreSQL.
-- Cloudflare R2 for media storage.
+Transactional and tenant data is stored in PostgreSQL through Neon, while optimized product images and other media assets are stored in Cloudflare R2.
 
 ## Engineering highlights
 

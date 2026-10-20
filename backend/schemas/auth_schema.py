@@ -4,8 +4,14 @@ from schemas.tenant_schema import UsuarioOut
 
 
 class LoginIn(BaseModel):
-    email: str
+    email: str | None = None
+    username: str | None = None
+    login: str | None = None
     password: str
+
+    @property
+    def identifier(self) -> str:
+        return (self.login or self.username or self.email or "").strip()
 
 
 class TokenOut(BaseModel):

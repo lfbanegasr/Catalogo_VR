@@ -292,15 +292,18 @@ function normalizeCatalogPayload(payload, slug) {
   };
 }
 
-async function fetchCombinedCatalog(slug) {
-  const payload = await fetchJson(`${BASE_URL}/public/catalog/${slug}`);
+async function fetchCombinedCatalog(slug, options = {}) {
+  const query = options.force ? "?refresh=true" : "";
+  const payload = await fetchJson(`${BASE_URL}/public/catalog/${slug}${query}`, {
+    cache: options.force ? "reload" : "default",
+  });
   return normalizeCatalogPayload(payload, slug);
 }
 
 async function fetchFallbackCatalog(slug) {
   const [categories, products] = await Promise.all([
-    fetchJson(`${BASE_URL}/public/catalog/${slug}/categories`),
-    fetchJson(`${BASE_URL}/public/catalog/${slug}/products?limit=100&offset=0`),
+    fetchJson(`${BASE_URL}/public/catalog/${slug}/categories`, { cache: "default" }),
+    fetchJson(`${BASE_URL}/public/catalog/${slug}/products?limit=100&offset=0`, { cache: "default" }),
   ]);
 
   return {
@@ -321,9 +324,9 @@ async function fetchFallbackCatalog(slug) {
   };
 }
 
-export async function getPublicCatalog(slug) {
+export async function getPublicCatalog(slug, options = {}) {
   try {
-    return await fetchCombinedCatalog(slug);
+    return await fetchCombinedCatalog(slug, options);
   } catch (error) {
     if (String(error.message || "").includes("404")) {
       return fetchFallbackCatalog(slug);

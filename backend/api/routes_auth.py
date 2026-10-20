@@ -58,15 +58,15 @@ def _register_auth_audit(
     )
 
 
-def _build_login_token(*, email: str, password: str, db: Session, request: Request) -> TokenOut:
+def _build_login_token(*, identifier: str, password: str, db: Session, request: Request) -> TokenOut:
     endpoint = request.url.path
-    user = authenticate_user(db, email=email, password=password)
+    user = authenticate_user(db, identifier=identifier, password=password)
     if not user:
         _register_auth_audit(
             db=db,
             request=request,
             endpoint=endpoint,
-            email_intentado=email,
+            email_intentado=identifier,
             exito=False,
             evento="login",
             detalle="invalid credentials",
@@ -77,7 +77,7 @@ def _build_login_token(*, email: str, password: str, db: Session, request: Reque
         db=db,
         request=request,
         endpoint=endpoint,
-        email_intentado=email,
+        email_intentado=identifier,
         exito=True,
         evento="login",
         id_usuario=user.id_usuario,
@@ -100,7 +100,7 @@ def login(
     db: Session = Depends(get_db),
 ):
     return _build_login_token(
-        email=form_data.username,
+        identifier=form_data.username,
         password=form_data.password,
         db=db,
         request=request,
@@ -114,7 +114,7 @@ def login_json(
     db: Session = Depends(get_db),
 ):
     return _build_login_token(
-        email=payload.email,
+        identifier=payload.identifier,
         password=payload.password,
         db=db,
         request=request,

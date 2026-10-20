@@ -5,9 +5,12 @@
 # Secrets / env files
 .env
 .env.*
+*.env
 **/.env
 **/.env.*
+**/*.env
 !**/.env.example
+deploy/*.env
 
 # Python
 **/__pycache__/
@@ -25,6 +28,9 @@ env/
 # Uploads / generated media
 backend/uploads/
 uploads/
+frontend/public/uploads/
+frontend/public/theme/
+imagenes catalogo/
 
 # Node
 **/node_modules/
@@ -77,3 +83,11 @@ mobile/android/.gradle/
 mobile/android/local.properties
 mobile/build/
 mobile/.dart_tool/
+
+# Media, video recordings & exports
+video/
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.webm

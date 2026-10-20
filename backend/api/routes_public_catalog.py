@@ -146,8 +146,11 @@ def _get_cached_public_catalog(db: Session, slug: str):
 def get_public_catalog(
     slug: str,
     request: Request,
+    refresh: bool = Query(False, description="Forzar refresco del catálogo sin usar caché en memoria"),
     db: Session = Depends(get_db),
 ):
+    if refresh:
+        invalidate_public_catalog_cache(slug)
     catalog = _get_cached_public_catalog(db=db, slug=slug)
     if catalog is None:
         raise HTTPException(status_code=404, detail="Tienda no encontrada")
@@ -161,9 +164,9 @@ def get_public_catalog(
     etag = '"' + hashlib.sha256(serialized).hexdigest() + '"'
     headers = {
         "ETag": etag,
-        "Cache-Control": "no-cache, must-revalidate",
+        "Cache-Control": "public, max-age=15, s-maxage=60, stale-while-revalidate=120, must-revalidate",
     }
-    if request.headers.get("if-none-match") == etag:
+    if not refresh and request.headers.get("if-none-match") == etag:
         return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
     return JSONResponse(content=encoded_catalog, headers=headers)
 

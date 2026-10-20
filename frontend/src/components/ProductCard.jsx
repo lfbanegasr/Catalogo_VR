@@ -37,7 +37,10 @@ function ProductImage({ src, alt, adjustment }) {
       onError={(event) => {
         event.currentTarget.style.display = "none";
         const fallback = event.currentTarget.nextElementSibling;
-        if (fallback) fallback.style.display = "grid";
+        if (fallback) {
+          fallback.classList.remove("hidden");
+          fallback.style.display = "grid";
+        }
       }}
     />
   );

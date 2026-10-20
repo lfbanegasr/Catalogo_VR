@@ -50,6 +50,7 @@ class Usuario(Base):
     )
 
     email = Column(String(150), unique=True, nullable=False)
+    username = Column(String(60), unique=True, index=True, nullable=True)
     password_hash = Column(String(255), nullable=False)
     rol = Column(String(50), default="admin")
     activo = Column(Boolean, default=True, nullable=False)

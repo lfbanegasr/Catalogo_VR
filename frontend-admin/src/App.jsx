@@ -187,8 +187,8 @@ function App() {
     }
   }, [token, user, path]);
 
-  const login = async (email, password) => {
-    const data = await api.login(email, password);
+  const login = async (identifier, password) => {
+    const data = await api.login(identifier, password);
     setToken(data.access_token);
     setTokenState(data.access_token);
     setUser(data.user || null);

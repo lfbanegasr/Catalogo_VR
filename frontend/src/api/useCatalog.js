@@ -10,12 +10,14 @@ export function useCatalog(slug) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchCatalog = useCallback(async () => {
+  const fetchCatalog = useCallback(async (isRefetch = false) => {
     if (!slug) return;
     setLoading(true);
     setError(null);
     try {
-      const response = await axiosInstance.get(`/public/catalog/${slug}`);
+      const response = await axiosInstance.get(`/public/catalog/${slug}`, {
+        params: isRefetch ? { refresh: true } : undefined,
+      });
       setCatalog(response.data);
     } catch (err) {
       console.error("Error al obtener el catálogo público:", err);
@@ -27,14 +29,14 @@ export function useCatalog(slug) {
 
   // Cargar el catálogo al montar o cuando cambie el slug
   useEffect(() => {
-    fetchCatalog();
+    fetchCatalog(false);
   }, [fetchCatalog]);
 
   return {
     catalog,
     loading,
     error,
-    refetch: fetchCatalog,
+    refetch: () => fetchCatalog(true),
   };
 }
 

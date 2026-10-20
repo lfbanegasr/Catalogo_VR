@@ -5,7 +5,7 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from core.config import settings
@@ -15,12 +15,38 @@ from models.tenant import Usuario
 
 
 def get_user_by_email(db: Session, email: str) -> Optional[Usuario]:
-    stmt = select(Usuario).where(Usuario.email == email)
+    if not email:
+        return None
+    stmt = select(Usuario).where(func.lower(Usuario.email) == email.strip().lower())
     return db.execute(stmt).scalar_one_or_none()
 
 
-def authenticate_user(db: Session, email: str, password: str) -> Optional[Usuario]:
-    user = get_user_by_email(db, email)
+def get_user_by_identifier(db: Session, identifier: str) -> Optional[Usuario]:
+    """
+    Busca un usuario de forma híbrida:
+    1. Por correo electrónico exacto (case-insensitive).
+    2. Por nombre de usuario exacto (case-insensitive).
+    3. Por prefijo del correo antes del '@' (ej: 'luisfernando' para 'luisfernando.banegasro22@gmail.com').
+    """
+    if not identifier:
+        return None
+    val = identifier.strip().lower()
+
+    if "@" in val:
+        return get_user_by_email(db, val)
+
+    stmt = select(Usuario).where(
+        or_(
+            func.lower(Usuario.username) == val,
+            func.lower(Usuario.email) == val,
+            func.lower(func.split_part(Usuario.email, "@", 1)) == val,
+        )
+    )
+    return db.execute(stmt).scalar_one_or_none()
+
+
+def authenticate_user(db: Session, identifier: str, password: str) -> Optional[Usuario]:
+    user = get_user_by_identifier(db, identifier)
     if not user:
         return None
     if not user.activo:

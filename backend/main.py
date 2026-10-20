@@ -1,5 +1,12 @@
+import mimetypes
 import os
 from pathlib import Path
+
+mimetypes.add_type("image/webp", ".webp")
+mimetypes.add_type("image/jpeg", ".jpg")
+mimetypes.add_type("image/jpeg", ".jpeg")
+mimetypes.add_type("image/png", ".png")
+mimetypes.add_type("image/svg+xml", ".svg")
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware

@@ -33,6 +33,7 @@ class TiendaOut(BaseModel):
 class UsuarioCreate(BaseModel):
     id_tienda: UUID
     email: EmailStr
+    username: Optional[str] = Field(default=None, max_length=60)
     password: str = Field(..., min_length=6)
     rol: Literal["superadmin", "admin", "empleado", "cliente"] = "admin"
     activo: bool = True
@@ -62,6 +63,7 @@ class TiendaThemeUpdate(BaseModel):
 class UsuarioUpdate(BaseModel):
     id_tienda: Optional[UUID] = None
     email: Optional[EmailStr] = None
+    username: Optional[str] = Field(default=None, max_length=60)
     rol: Optional[Literal["superadmin", "admin", "empleado", "cliente"]] = None
     activo: Optional[bool] = None
 
@@ -74,6 +76,7 @@ class UsuarioOut(BaseModel):
     id_usuario: UUID
     id_tienda: Optional[UUID] = None
     email: EmailStr
+    username: Optional[str] = None
     rol: str
     activo: bool
     fecha_registro: datetime

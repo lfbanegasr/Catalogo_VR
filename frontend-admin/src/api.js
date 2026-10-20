@@ -100,10 +100,10 @@ export function buildAssetUrl(path) {
 }
 
 export const api = {
-  login: (email, password) =>
+  login: (identifier, password) =>
     request("/auth/login-json", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ login: identifier, email: identifier, password }),
     }),
   forgotPassword: (email) =>
     request("/auth/forgot-password", {

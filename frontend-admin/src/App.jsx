@@ -13,6 +13,9 @@ import ClientesScreen from "./components/clientes/ClientesScreen";
 import OffersScreen from "./components/catalogo/OffersScreen";
 import AuditoriaScreen from "./components/auditoria/AuditoriaScreen";
 import DashboardScreen from "./components/dashboard/DashboardScreen";
+import AdminSidebar from "./components/layout/AdminSidebar";
+import AdminNavbar from "./components/layout/AdminNavbar";
+import { ThemeProvider } from "./components/layout/ThemeContext";
 
 const canUseCatalog = (rol) => ["superadmin", "admin", "empleado"].includes(rol);
 
@@ -67,11 +70,22 @@ function usePath() {
 
 function Layout({ user, section, onSection, onLogout, children }) {
   const [navOpen, setNavOpen] = useState(false);
+  const [store, setStore] = useState(null);
   const menu = useMemo(() => menuByRole(user.rol), [user.rol]);
-  const labelForSection = useMemo(() => {
-    const item = menu.find(([key]) => key === section);
-    return item ? item[1] : section;
-  }, [menu, section]);
+
+  useEffect(() => {
+    let active = true;
+    if (user?.id_tienda) {
+      api.adminGetMyStore()
+        .then((s) => {
+          if (active) setStore(s);
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [user?.id_tienda]);
 
   useEffect(() => {
     setNavOpen(false);
@@ -83,76 +97,31 @@ function Layout({ user, section, onSection, onLogout, children }) {
   };
 
   return (
-    <div className="admin-shell">
-      <header className="mobile-admin-bar">
-        <button
-          type="button"
-          className="admin-icon-button"
-          aria-label="Abrir menú"
-          aria-expanded={navOpen}
-          onClick={() => setNavOpen(true)}
-        >
-          <span /><span /><span />
-        </button>
-        <div className="mobile-admin-title">
-          <small>Administración</small>
-          <strong>{labelForSection}</strong>
-        </div>
-        <button type="button" className="mobile-logout" onClick={onLogout}>Salir</button>
-      </header>
+    <div className="admin-shell-v2">
+      <AdminSidebar
+        user={user}
+        menu={menu}
+        section={section}
+        navOpen={navOpen}
+        onCloseNav={() => setNavOpen(false)}
+        onNavigate={navigateTo}
+        onLogout={onLogout}
+      />
 
-      {navOpen ? <button type="button" className="sidebar-backdrop" aria-label="Cerrar menú" onClick={() => setNavOpen(false)} /> : null}
-
-      <aside className={`sidebar ${navOpen ? "is-open" : ""}`}>
-        <div className="brand">
-          <div className="brand-heading">
-            <span className="brand-mark" aria-hidden="true">TS</span>
-            <div>
-              <p className="eyebrow">Tienda SaaS</p>
-              <h2>Administración</h2>
-            </div>
-          </div>
-          <button type="button" className="sidebar-close" aria-label="Cerrar menú" onClick={() => setNavOpen(false)}>×</button>
-        </div>
-
-        <div className="sidebar-profile">
-          <span className="profile-avatar" aria-hidden="true">{String(user.email || "A").charAt(0).toUpperCase()}</span>
-          <div className="profile-copy">
-            <strong>{user.email}</strong>
-            <span className={`role-chip role-${user.rol}`}>{user.rol}</span>
-          </div>
-        </div>
-
-        <p className="menu-label">Menú principal</p>
-        <nav className="menu" aria-label="Secciones del administrador">
-          {menu.map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              className={`menu-item ${key === section ? "active" : ""}`}
-              aria-current={key === section ? "page" : undefined}
-              onClick={() => navigateTo(key)}
-            >
-              <span className="menu-item-icon" aria-hidden="true">{label.charAt(0)}</span>
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="sidebar-footer">
-          <button type="button" className="sidebar-logout" onClick={onLogout}>
-            <span aria-hidden="true">↪</span>
-            Cerrar sesión
-          </button>
-        </div>
-      </aside>
-
-      <main className="content">{children}</main>
+      <div className="admin-main-wrapper">
+        <AdminNavbar
+          user={user}
+          store={store}
+          onOpenNav={() => setNavOpen(true)}
+          onLogout={onLogout}
+        />
+        <main style={{ flex: 1, minWidth: 0, width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>{children}</main>
+      </div>
     </div>
   );
 }
 
-function App() {
+function AppInner() {
   const { path, go } = usePath();
   const [token, setTokenState] = useState(getToken());
   const [user, setUser] = useState(null);
@@ -195,7 +164,16 @@ function App() {
   };
 
   if (booting) {
-    return <main className="auth-shell"><div className="auth-card">Cargando...</div></main>;
+    return (
+      <main className="auth-shell">
+        <div className="auth-card" style={{ alignItems: "center", justifyContent: "center", minHeight: "220px", textAlign: "center" }}>
+          <span className="auth-spinner" style={{ width: "32px", height: "32px", borderWidth: "3px", borderColor: "var(--border-subtle)", borderTopColor: "var(--brand-primary)" }} />
+          <p style={{ margin: "16px 0 0", fontSize: "0.88rem", fontWeight: 600, color: "var(--text-secondary)" }}>
+            Iniciando panel administrativo...
+          </p>
+        </div>
+      </main>
+    );
   }
 
   if (!token || !user) {
@@ -226,15 +204,12 @@ function App() {
   }
   if (section === "tema" && ["superadmin", "admin"].includes(user.rol)) {
     content = (
-      <div className="stack">
-        <ThemeAppearanceScreen
-          isSuperadmin={user.rol === "superadmin"}
-          Card={Card}
-          HelperText={HelperText}
-          StoreRefPicker={StoreRefPicker}
-        />
-        {user.rol === "admin" && <StoreWhatsappCard />}
-      </div>
+      <ThemeAppearanceScreen
+        isSuperadmin={user.rol === "superadmin"}
+        Card={Card}
+        HelperText={HelperText}
+        StoreRefPicker={StoreRefPicker}
+      />
     );
   }
   if (section === "ofertas" && canUseCatalog(user.rol)) {
@@ -261,4 +236,10 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppInner />
+    </ThemeProvider>
+  );
+}

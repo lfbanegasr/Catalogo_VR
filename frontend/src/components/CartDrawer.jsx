@@ -57,15 +57,23 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
     setIsSubmitting(true);
     let ticketNum = "";
     try {
-      // Formatear detalles de venta para el endpoint del backend
-      const detalles = cartItems.map((item) => ({
-        id_producto: item.id,
-        id_variante: item.id_variante || null,
-        cantidad: item.cantidad,
-        precio_unitario: item.precio,
-      }));
+      const isUuid = (val) =>
+        typeof val === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
-      // Registrar venta silenciosa en base de datos
+      // Formatear detalles de venta para el endpoint del backend con UUIDs garantizados
+      const detalles = cartItems.map((item) => {
+        const rawId = String(item.id_producto || item.id || "").split(":")[0].trim();
+        const rawVariant = item.id_variante ? String(item.id_variante).trim() : null;
+        return {
+          id_producto: rawId,
+          id_variante: isUuid(rawVariant) ? rawVariant : null,
+          cantidad: Math.max(1, Number(item.cantidad) || 1),
+          precio_unitario: Number(item.precio) || 0,
+        };
+      });
+
+      // Registrar venta en base de datos
       const res = await axiosInstance.post(`/public/catalog/${slug}/checkout`, {
         id_cliente: customer?.id_cliente || null,
         cliente_nuevo: customer ? null : {
@@ -88,10 +96,11 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
         notas_cliente: checkout.notas_cliente.trim() || null,
         detalles: detalles,
       }, token ? { headers: { Authorization: "Bearer " + token } } : undefined);
+
       if (res && res.data && res.data.id_venta) {
         ticketNum = String(res.data.id_venta).split("-")[0] || String(res.data.id_venta).substring(0, 8);
         
-        // Redireccionar al WhatsApp de la tienda con el ticket y el slug
+        // Redireccionar al WhatsApp de la tienda con el ticket, seguimiento y datos completos
         const trackingCode = res.data.codigo_seguimiento || ticketNum;
         redirectToWhatsappOrder(
           whatsappNumber || "59170000000",
@@ -99,6 +108,7 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
           ticketNum,
           slug,
           trackingCode,
+          checkout
         );
         clearCart();
         setOrderSuccess({ ticketNum, trackingCode });
@@ -107,7 +117,16 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
       }
     } catch (err) {
       console.error("Error al registrar la venta en la base de datos:", err);
-      const errMsg = err.response?.data?.detail || err.message || "No se pudo registrar la venta. Inténtalo de nuevo.";
+      let errMsg = "No se pudo registrar la venta. Inténtalo de nuevo.";
+      if (err.response?.data?.detail) {
+        if (typeof err.response.data.detail === "string") {
+          errMsg = err.response.data.detail;
+        } else if (Array.isArray(err.response.data.detail)) {
+          errMsg = err.response.data.detail.map((d) => d.msg || JSON.stringify(d)).join(", ");
+        }
+      } else if (err.message) {
+        errMsg = err.message;
+      }
       setError(errMsg);
     } finally {
       setIsSubmitting(false);
@@ -159,7 +178,7 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          background: #ffffff;
+          background: var(--color-surface, #ffffff);
         }
         .cart-header-title {
           display: flex;
@@ -326,7 +345,7 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
           padding: 9px 10px;
           border: 1px solid var(--border-soft, #e5e7eb);
           border-radius: 10px;
-          background: #fff;
+          background: var(--color-surface, #ffffff);
           color: var(--color-text, #1f2937);
           font: inherit;
         }
@@ -375,7 +394,7 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
         }
         .cart-clear-btn {
           padding: 12px 18px;
-          background: #ffffff;
+          background: var(--color-surface, #ffffff);
           border: 1px solid var(--border-soft, rgba(0,0,0,0.08));
           color: var(--color-muted, #6b7280);
           border-radius: var(--radius-base, 16px);
@@ -619,8 +638,24 @@ export function CartDrawer({ isOpen, onClose, whatsappNumber, slug }) {
             </div>
 
             {error && (
-              <div className="cart-checkout-error" style={{ color: '#dc2626', background: '#fee2e2', border: '1px solid #fca5a5', padding: '10px', borderRadius: '12px', fontSize: '11px', margin: '0 20px 10px 20px', fontWeight: '500', textAlign: 'center' }}>
-                ⚠️ {error}
+              <div className="cart-checkout-error" style={{ color: '#dc2626', background: '#fee2e2', border: '1px solid #fca5a5', padding: '12px', borderRadius: '14px', fontSize: '11px', margin: '0 0 10px 0', fontWeight: '500', textAlign: 'center' }}>
+                <p style={{ margin: '0 0 8px 0', fontWeight: '700' }}>⚠️ {error}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    redirectToWhatsappOrder(
+                      whatsappNumber || "59170000000",
+                      cartItems,
+                      "",
+                      slug,
+                      "",
+                      checkout
+                    );
+                  }}
+                  style={{ background: '#25D366', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '10px', fontSize: '11px', fontWeight: '800', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  Continuar por WhatsApp directamente →
+                </button>
               </div>
             )}
 

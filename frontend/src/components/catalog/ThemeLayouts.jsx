@@ -409,14 +409,44 @@ export function ModernBannerTheme(props) {
   return (
     <main className="catalog-shell modern-banner">
       <div className="catalog-container">
-        <ThemeHeader
-          storeName={storeName}
-          slug={slug}
-          title={storeName}
-          subtitle="Coleccion destacada, categorias visuales y ofertas activas."
-          heroImageUrl={themeConfig.hero_image_url}
-          config={themeConfig}
-        />
+        {themeConfig.hero_image_url ? (
+          <section className="catalog-banner modern-banner-cover" aria-label={"Banner de " + (storeName || "la tienda")}>
+            <img
+              src={buildAssetUrl(themeConfig.hero_image_url)}
+              alt=""
+              aria-hidden="true"
+              className={"fit-" + (themeConfig.hero_image_fit || "cover")}
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
+            />
+            {(themeConfig.hero_title || themeConfig.hero_subtitle) && (
+              <div className="modern-banner-overlay">
+                {themeConfig.hero_kicker ? <span className="modern-banner-kicker">{themeConfig.hero_kicker}</span> : null}
+                <h1 className="modern-banner-title">{themeConfig.hero_title || storeName}</h1>
+                {themeConfig.hero_subtitle ? <p className="modern-banner-sub">{themeConfig.hero_subtitle}</p> : null}
+              </div>
+            )}
+          </section>
+        ) : (
+          <header className="modern-banner-hero">
+            <div className="modern-banner-hero-content">
+              <span className="modern-banner-kicker">{themeConfig.hero_kicker || "COLECCIÓN DESTACADA"}</span>
+              <h1 className="modern-banner-title">{themeConfig.hero_title || storeName || "Catálogo Oficial"}</h1>
+              <p className="modern-banner-sub">
+                {themeConfig.hero_subtitle || "Explora las últimas novedades, disponibilidad inmediata y ofertas especiales."}
+              </p>
+            </div>
+          </header>
+        )}
+
+        {themeConfig.hero_offer_text && (
+          <div className="modern-banner-promo-strip">
+            <span className="promo-fire">🔥</span>
+            <strong>{themeConfig.hero_offer_text}</strong>
+          </div>
+        )}
+
         <section className="catalog-section toolbar">
           <SearchBar value={searchQuery} onChange={onSearchQueryChange} />
           <CategoryNav
@@ -434,13 +464,15 @@ export function ModernBannerTheme(props) {
             totalResults={filteredProducts?.length}
           />
         </section>
+
         <CatalogState loading={loading} error={error} onRetry={onRetry} />
+
         {!loading && !error ? (
           <>
-            {themeConfig.show_featured ? (
+            {themeConfig.show_featured && featuredProducts?.length > 0 ? (
               <FeaturedSection products={featuredProducts} onViewDetail={onViewDetail} />
             ) : null}
-            {themeConfig.show_offers ? (
+            {themeConfig.show_offers && (offers.length > 0 || offerProducts.length > 0) ? (
               <OfferCarousel offers={offers} products={offerProducts} onViewDetail={onViewDetail} />
             ) : null}
             <ProductGridSection
@@ -470,6 +502,7 @@ export function SoftBeigeTheme(props) {
     onAttributeFilterChange,
     onClearAttributeFilters,
     filteredProducts,
+    featuredProducts,
     offerProducts,
     offers,
     loading,
@@ -481,15 +514,35 @@ export function SoftBeigeTheme(props) {
   return (
     <main className="catalog-shell soft-beige">
       <div className="catalog-container">
-        <ThemeHeader
-          storeName={storeName}
-          slug={slug}
-          title={storeName}
-          subtitle="Catalogo simple con foco en busqueda, categorias y ofertas."
-          heroImageUrl={themeConfig.hero_image_url}
-          config={themeConfig}
-          compact
-        />
+        {themeConfig.hero_image_url ? (
+          <section className="catalog-banner soft-beige-cover" aria-label={"Banner de " + (storeName || "la tienda")}>
+            <img
+              src={buildAssetUrl(themeConfig.hero_image_url)}
+              alt=""
+              aria-hidden="true"
+              className={"fit-" + (themeConfig.hero_image_fit || "cover")}
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
+            />
+          </section>
+        ) : (
+          <header className="soft-beige-hero">
+            <span className="soft-beige-kicker">{themeConfig.hero_kicker || "SELECCIÓN EXCLUSIVA"}</span>
+            <h1 className="soft-beige-title">{themeConfig.hero_title || storeName || "Boutique & Bienestar"}</h1>
+            <p className="soft-beige-subtitle">
+              {themeConfig.hero_subtitle || "Piezas seleccionadas con dedicación, texturas naturales y diseño armónico."}
+            </p>
+          </header>
+        )}
+
+        {themeConfig.hero_offer_text && (
+          <div className="soft-beige-promo-chip">
+            <span className="soft-beige-promo-dot">✨</span>
+            <span>{themeConfig.hero_offer_text}</span>
+          </div>
+        )}
+
         <section className="catalog-section toolbar">
           <SearchBar value={searchQuery} onChange={onSearchQueryChange} />
           <CategoryNav
@@ -507,12 +560,19 @@ export function SoftBeigeTheme(props) {
             totalResults={filteredProducts?.length}
           />
         </section>
+
         <CatalogState loading={loading} error={error} onRetry={onRetry} />
+
         {!loading && !error ? (
           <>
-            <OfferCarousel offers={offers} products={offerProducts} onViewDetail={onViewDetail} />
+            {themeConfig.show_offers && (offers.length > 0 || offerProducts.length > 0) ? (
+              <OfferCarousel offers={offers} products={offerProducts} onViewDetail={onViewDetail} />
+            ) : null}
+            {themeConfig.show_featured && featuredProducts?.length > 0 ? (
+              <FeaturedSection products={featuredProducts} onViewDetail={onViewDetail} />
+            ) : null}
             <ProductGridSection
-              title="Productos"
+              title="Colección"
               products={filteredProducts}
               onViewDetail={onViewDetail}
             />
@@ -538,6 +598,7 @@ export function MinimalCleanTheme(props) {
     onAttributeFilterChange,
     onClearAttributeFilters,
     filteredProducts,
+    featuredProducts,
     offerProducts,
     offers,
     loading,
@@ -550,45 +611,66 @@ export function MinimalCleanTheme(props) {
     <main className="catalog-shell minimal-clean">
       <div className="catalog-container">
         {themeConfig.hero_image_url ? (
-          <ThemeHeader
-            storeName={storeName}
-            slug={slug}
-            title={storeName}
-            subtitle=""
-            heroImageUrl={themeConfig.hero_image_url}
-            config={{ ...themeConfig, hero_layout: "image_only" }}
-            compact
-          />
+          <section className="catalog-banner minimal-clean-cover" aria-label={"Banner de " + (storeName || "la tienda")}>
+            <img
+              src={buildAssetUrl(themeConfig.hero_image_url)}
+              alt=""
+              aria-hidden="true"
+              className={"fit-" + (themeConfig.hero_image_fit || "cover")}
+              loading="eager"
+              decoding="async"
+              fetchPriority="high"
+            />
+          </section>
         ) : null}
-        <section className="catalog-section minimal-head">
-          <div>
-            <span className="catalog-kicker">{slug}</span>
-            <h1>{storeName || "Catalogo"}</h1>
+
+        <section className="minimal-clean-hero">
+          <div className="minimal-clean-head-left">
+            <span className="minimal-clean-kicker">{themeConfig.hero_kicker || (slug ? `@${slug}` : "CATÁLOGO OFICIAL")}</span>
+            <h1 className="minimal-clean-title">{themeConfig.hero_title || storeName || "Catálogo Digital"}</h1>
+            <p className="minimal-clean-subtitle">
+              {themeConfig.hero_subtitle || "Explora todo nuestro inventario con entrega rápida y disponibilidad en tiempo real."}
+            </p>
           </div>
-          <SearchBar value={searchQuery} onChange={onSearchQueryChange} />
         </section>
-        <CategoryNav
-          categories={categories}
-          selectedCategoryId={selectedCategoryId}
-          onSelectCategoryId={onSelectCategoryId}
-          style={themeConfig.category_style}
-          categoryImages={themeConfig.category_images}
-        />
-        <AttributeFilters
-          filters={availableAttributeFilters}
-          values={attributeFilters}
-          onChange={onAttributeFilterChange}
-          onClear={onClearAttributeFilters}
-          totalResults={filteredProducts?.length}
-        />
+
+        {themeConfig.hero_offer_text && (
+          <div className="minimal-clean-promo-bar">
+            <span className="minimal-clean-promo-badge">PROMO</span>
+            <span className="minimal-clean-promo-text">{themeConfig.hero_offer_text}</span>
+          </div>
+        )}
+
+        <section className="catalog-section toolbar minimal-toolbar">
+          <SearchBar value={searchQuery} onChange={onSearchQueryChange} />
+          <CategoryNav
+            categories={categories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategoryId={onSelectCategoryId}
+            style={themeConfig.category_style}
+            categoryImages={themeConfig.category_images}
+          />
+          <AttributeFilters
+            filters={availableAttributeFilters}
+            values={attributeFilters}
+            onChange={onAttributeFilterChange}
+            onClear={onClearAttributeFilters}
+            totalResults={filteredProducts?.length}
+          />
+        </section>
+
         <CatalogState loading={loading} error={error} onRetry={onRetry} />
+
         {!loading && !error ? (
           <>
-            {offers.length > 0 || offerProducts.length > 0 ? (
+            {themeConfig.show_offers && (offers.length > 0 || offerProducts.length > 0) ? (
               <OfferCarousel offers={offers} products={offerProducts} onViewDetail={onViewDetail} />
             ) : null}
+            {themeConfig.show_featured && featuredProducts?.length > 0 ? (
+              <FeaturedSection products={featuredProducts} onViewDetail={onViewDetail} />
+            ) : null}
             <ProductGridSection
-              title="Catalogo completo"
+              title="Catálogo Completo"
               products={filteredProducts}
               onViewDetail={onViewDetail}
             />
@@ -598,3 +680,450 @@ export function MinimalCleanTheme(props) {
     </main>
   );
 }
+
+export function LuxeMinimalTheme(props) {
+  const {
+    slug,
+    storeName,
+    themeConfig,
+    categories,
+    selectedCategoryId,
+    onSelectCategoryId,
+    searchQuery,
+    onSearchQueryChange,
+    availableAttributeFilters,
+    attributeFilters,
+    onAttributeFilterChange,
+    onClearAttributeFilters,
+    filteredProducts,
+    featuredProducts,
+    offerProducts,
+    offers,
+    loading,
+    error,
+    onRetry,
+    onViewDetail,
+  } = props;
+
+  return (
+    <main className="catalog-shell luxe-minimal">
+      <div className="catalog-container">
+        {themeConfig.hero_image_url ? (
+          <ThemeHeader
+            storeName={storeName}
+            slug={slug}
+            heroImageUrl={themeConfig.hero_image_url}
+            config={themeConfig}
+          />
+        ) : (
+          <header className="luxe-editorial-hero">
+            <span className="luxe-kicker">{themeConfig.hero_kicker || "NUEVA COLECCIÓN"}</span>
+            <h1 className="luxe-title">{storeName || "Boutique"}</h1>
+            <p className="luxe-subtitle">
+              {themeConfig.hero_subtitle || "Prendas y piezas seleccionadas con estética impecable y diseño contemporáneo."}
+            </p>
+          </header>
+        )}
+
+        <section className="catalog-section toolbar luxe-toolbar">
+          <SearchBar value={searchQuery} onChange={onSearchQueryChange} />
+          <CategoryNav
+            categories={categories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategoryId={onSelectCategoryId}
+            style={themeConfig.category_style || "chips"}
+            categoryImages={themeConfig.category_images}
+          />
+          <AttributeFilters
+            filters={availableAttributeFilters}
+            values={attributeFilters}
+            onChange={onAttributeFilterChange}
+            onClear={onClearAttributeFilters}
+            totalResults={filteredProducts?.length}
+          />
+        </section>
+
+        <CatalogState loading={loading} error={error} onRetry={onRetry} />
+
+        {!loading && !error ? (
+          <>
+            {themeConfig.show_offers && (offers.length > 0 || offerProducts.length > 0) ? (
+              <OfferCarousel offers={offers} products={offerProducts} onViewDetail={onViewDetail} />
+            ) : null}
+
+            {themeConfig.show_featured && featuredProducts?.length > 0 ? (
+              <FeaturedSection products={featuredProducts} onViewDetail={onViewDetail} />
+            ) : null}
+
+            <ProductGridSection
+              title="Colección Completa"
+              products={filteredProducts}
+              onViewDetail={onViewDetail}
+            />
+          </>
+        ) : null}
+      </div>
+    </main>
+  );
+}
+
+export function UrbanStreetTheme(props) {
+  const {
+    slug,
+    storeName,
+    themeConfig,
+    categories,
+    selectedCategoryId,
+    onSelectCategoryId,
+    searchQuery,
+    onSearchQueryChange,
+    availableAttributeFilters,
+    attributeFilters,
+    onAttributeFilterChange,
+    onClearAttributeFilters,
+    filteredProducts,
+    featuredProducts,
+    offerProducts,
+    offers,
+    loading,
+    error,
+    onRetry,
+    onViewDetail,
+  } = props;
+
+  const tickerText = themeConfig.hero_offer_text || "• NUEVOS DROPS • STOCK LIMITADO • ENVÍO RÁPIDO • EXCLUSIVO EN LÍNEA •";
+
+  return (
+    <main className="catalog-shell urban-street">
+      {/* Ticker continuo superior */}
+      <div className="urban-ticker-bar" aria-hidden="true">
+        <div className="urban-ticker-track">
+          <span>{tickerText}</span>
+          <span>{tickerText}</span>
+          <span>{tickerText}</span>
+        </div>
+      </div>
+
+      <div className="catalog-container">
+        {themeConfig.hero_image_url ? (
+          <ThemeHeader
+            storeName={storeName}
+            slug={slug}
+            heroImageUrl={themeConfig.hero_image_url}
+            config={themeConfig}
+          />
+        ) : (
+          <header className="urban-header-hero">
+            <div className="urban-badge-row">
+              <span className="urban-tag">{themeConfig.hero_kicker || "DROP 2026"}</span>
+              <span className="urban-pulse-dot">● EN VIVO</span>
+            </div>
+            <h1 className="urban-main-title">{themeConfig.hero_title || storeName || "STREETWEAR STUDIO"}</h1>
+            <p className="urban-sub">
+              {themeConfig.hero_subtitle || "Prendas urbanas, calzado y accesorios seleccionados con actitud y tendencia."}
+            </p>
+          </header>
+        )}
+
+        <section className="catalog-section toolbar urban-toolbar">
+          <SearchBar value={searchQuery} onChange={onSearchQueryChange} />
+          <CategoryNav
+            categories={categories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategoryId={onSelectCategoryId}
+            style={themeConfig.category_style || "chips"}
+            categoryImages={themeConfig.category_images}
+          />
+          <AttributeFilters
+            filters={availableAttributeFilters}
+            values={attributeFilters}
+            onChange={onAttributeFilterChange}
+            onClear={onClearAttributeFilters}
+            totalResults={filteredProducts?.length}
+          />
+        </section>
+
+        <CatalogState loading={loading} error={error} onRetry={onRetry} />
+
+        {!loading && !error ? (
+          <>
+            {themeConfig.show_offers && (offers.length > 0 || offerProducts.length > 0) ? (
+              <OfferCarousel offers={offers} products={offerProducts} onViewDetail={onViewDetail} />
+            ) : null}
+
+            {themeConfig.show_featured && featuredProducts?.length > 0 ? (
+              <FeaturedSection products={featuredProducts} onViewDetail={onViewDetail} />
+            ) : null}
+
+            <ProductGridSection
+              title="Catálogo & Drops"
+              products={filteredProducts}
+              onViewDetail={onViewDetail}
+            />
+          </>
+        ) : null}
+      </div>
+    </main>
+  );
+}
+
+export function TechModernTheme(props) {
+  const {
+    slug,
+    storeName,
+    themeConfig,
+    categories,
+    selectedCategoryId,
+    onSelectCategoryId,
+    searchQuery,
+    onSearchQueryChange,
+    availableAttributeFilters,
+    attributeFilters,
+    onAttributeFilterChange,
+    onClearAttributeFilters,
+    filteredProducts,
+    featuredProducts,
+    offerProducts,
+    offers,
+    loading,
+    error,
+    onRetry,
+    onViewDetail,
+  } = props;
+
+  return (
+    <main className="catalog-shell tech-modern">
+      <div className="catalog-container">
+        {themeConfig.hero_image_url ? (
+          <ThemeHeader
+            storeName={storeName}
+            slug={slug}
+            heroImageUrl={themeConfig.hero_image_url}
+            config={themeConfig}
+          />
+        ) : (
+          <header className="tech-hero-card">
+            <div className="tech-hero-content">
+              <span className="tech-chip">{themeConfig.hero_kicker || "TECH & INNOVACIÓN"}</span>
+              <h1 className="tech-title">{themeConfig.hero_title || storeName || "Tech Store"}</h1>
+              <p className="tech-desc">
+                {themeConfig.hero_subtitle || "Gadgets de última generación, accesorios inteligentes y catálogo especializado."}
+              </p>
+            </div>
+          </header>
+        )}
+
+        <section className="catalog-section toolbar tech-toolbar">
+          <SearchBar value={searchQuery} onChange={onSearchQueryChange} />
+          <CategoryNav
+            categories={categories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategoryId={onSelectCategoryId}
+            style={themeConfig.category_style || "chips"}
+            categoryImages={themeConfig.category_images}
+          />
+          <AttributeFilters
+            filters={availableAttributeFilters}
+            values={attributeFilters}
+            onChange={onAttributeFilterChange}
+            onClear={onClearAttributeFilters}
+            totalResults={filteredProducts?.length}
+          />
+        </section>
+
+        <CatalogState loading={loading} error={error} onRetry={onRetry} />
+
+        {!loading && !error ? (
+          <>
+            {themeConfig.show_offers && (offers.length > 0 || offerProducts.length > 0) ? (
+              <OfferCarousel offers={offers} products={offerProducts} onViewDetail={onViewDetail} />
+            ) : null}
+
+            {themeConfig.show_featured && featuredProducts?.length > 0 ? (
+              <FeaturedSection products={featuredProducts} onViewDetail={onViewDetail} />
+            ) : null}
+
+            <ProductGridSection
+              title="Dispositivos & Catálogo"
+              products={filteredProducts}
+              onViewDetail={onViewDetail}
+            />
+          </>
+        ) : null}
+      </div>
+    </main>
+  );
+}
+
+export function HomeDecoTheme(props) {
+  const {
+    slug,
+    storeName,
+    themeConfig,
+    categories,
+    selectedCategoryId,
+    onSelectCategoryId,
+    searchQuery,
+    onSearchQueryChange,
+    availableAttributeFilters,
+    attributeFilters,
+    onAttributeFilterChange,
+    onClearAttributeFilters,
+    filteredProducts,
+    featuredProducts,
+    offerProducts,
+    offers,
+    loading,
+    error,
+    onRetry,
+    onViewDetail,
+  } = props;
+
+  return (
+    <main className="catalog-shell home-deco">
+      <div className="catalog-container">
+        {themeConfig.hero_image_url ? (
+          <ThemeHeader
+            storeName={storeName}
+            slug={slug}
+            heroImageUrl={themeConfig.hero_image_url}
+            config={themeConfig}
+          />
+        ) : (
+          <header className="deco-hero">
+            <span className="deco-kicker">{themeConfig.hero_kicker || "ESPACIOS CON ALMA"}</span>
+            <h1 className="deco-title">{themeConfig.hero_title || storeName || "Casa & Diseño"}</h1>
+            <p className="deco-subtitle">
+              {themeConfig.hero_subtitle || "Muebles, iluminación y detalles cálidos que transforman cada rincón de tu hogar."}
+            </p>
+          </header>
+        )}
+
+        <section className="catalog-section toolbar deco-toolbar">
+          <SearchBar value={searchQuery} onChange={onSearchQueryChange} />
+          <CategoryNav
+            categories={categories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategoryId={onSelectCategoryId}
+            style={themeConfig.category_style || "chips"}
+            categoryImages={themeConfig.category_images}
+          />
+          <AttributeFilters
+            filters={availableAttributeFilters}
+            values={attributeFilters}
+            onChange={onAttributeFilterChange}
+            onClear={onClearAttributeFilters}
+            totalResults={filteredProducts?.length}
+          />
+        </section>
+
+        <CatalogState loading={loading} error={error} onRetry={onRetry} />
+
+        {!loading && !error ? (
+          <>
+            {themeConfig.show_offers && (offers.length > 0 || offerProducts.length > 0) ? (
+              <OfferCarousel offers={offers} products={offerProducts} onViewDetail={onViewDetail} />
+            ) : null}
+
+            {themeConfig.show_featured && featuredProducts?.length > 0 ? (
+              <FeaturedSection products={featuredProducts} onViewDetail={onViewDetail} />
+            ) : null}
+
+            <ProductGridSection
+              title="Colección Destacada"
+              products={filteredProducts}
+              onViewDetail={onViewDetail}
+            />
+          </>
+        ) : null}
+      </div>
+    </main>
+  );
+}
+
+export function GourmetFoodTheme(props) {
+  const {
+    slug,
+    storeName,
+    themeConfig,
+    categories,
+    selectedCategoryId,
+    onSelectCategoryId,
+    searchQuery,
+    onSearchQueryChange,
+    availableAttributeFilters,
+    attributeFilters,
+    onAttributeFilterChange,
+    onClearAttributeFilters,
+    filteredProducts,
+    featuredProducts,
+    offerProducts,
+    offers,
+    loading,
+    error,
+    onRetry,
+    onViewDetail,
+  } = props;
+
+  return (
+    <main className="catalog-shell gourmet-food">
+      <div className="catalog-container">
+        {themeConfig.hero_image_url ? (
+          <ThemeHeader
+            storeName={storeName}
+            slug={slug}
+            heroImageUrl={themeConfig.hero_image_url}
+            config={themeConfig}
+          />
+        ) : (
+          <header className="gourmet-hero">
+            <span className="gourmet-tag">{themeConfig.hero_kicker || "SABOR ARTESANAL"}</span>
+            <h1 className="gourmet-title">{storeName || "Cafetería & Gourmet"}</h1>
+            <p className="gourmet-subtitle">
+              {themeConfig.hero_subtitle || "Preparaciones hechas con dedicación, ingredientes seleccionados y frescura inigualable."}
+            </p>
+          </header>
+        )}
+
+        <section className="catalog-section toolbar gourmet-toolbar">
+          <SearchBar value={searchQuery} onChange={onSearchQueryChange} />
+          <CategoryNav
+            categories={categories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategoryId={onSelectCategoryId}
+            style={themeConfig.category_style || "round_icons"}
+            categoryImages={themeConfig.category_images}
+          />
+          <AttributeFilters
+            filters={availableAttributeFilters}
+            values={attributeFilters}
+            onChange={onAttributeFilterChange}
+            onClear={onClearAttributeFilters}
+            totalResults={filteredProducts?.length}
+          />
+        </section>
+
+        <CatalogState loading={loading} error={error} onRetry={onRetry} />
+
+        {!loading && !error ? (
+          <>
+            {themeConfig.show_offers && (offers.length > 0 || offerProducts.length > 0) ? (
+              <OfferCarousel offers={offers} products={offerProducts} onViewDetail={onViewDetail} />
+            ) : null}
+
+            {themeConfig.show_featured && featuredProducts?.length > 0 ? (
+              <FeaturedSection products={featuredProducts} onViewDetail={onViewDetail} />
+            ) : null}
+
+            <ProductGridSection
+              title="Nuestra Carta"
+              products={filteredProducts}
+              onViewDetail={onViewDetail}
+            />
+          </>
+        ) : null}
+      </div>
+    </main>
+  );
+}
+

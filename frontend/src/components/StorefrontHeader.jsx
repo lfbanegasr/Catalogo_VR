@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildAssetUrl } from "../api/api";
 import { useCustomerAccount } from "../context/CustomerAccountContext";
+import { useCart } from "../context/CartContext";
 
 const ICONS = {
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
   user: <><path d="M20 21a8 8 0 00-16 0" /><circle cx="12" cy="7" r="4" /></>,
+  cart: <><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 0 1-8 0" /></>,
   phone: <path d="M6.6 10.8a15.4 15.4 0 006.6 6.6l2.2-2.2a1 1 0 011-.24 11.5 11.5 0 003.6.57 1 1 0 011 1V20a1 1 0 01-1 1C10.6 21 3 13.4 3 4a1 1 0 011-1h3.5a1 1 0 011 1 11.5 11.5 0 00.57 3.6 1 1 0 01-.25 1z" />,
   mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></>,
   orders: <><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" /><path d="M9 8h6M9 12h6" /></>,
@@ -159,8 +161,9 @@ function AccountPanel({ open, initialView, onClose }) {
   );
 }
 
-export default function StorefrontHeader({ storeName, themeConfig = {}, whatsappNumber }) {
+export default function StorefrontHeader({ storeName, themeConfig = {}, whatsappNumber, onOpenCart }) {
   const { customer } = useCustomerAccount();
+  const { cartCount } = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [accountView, setAccountView] = useState("login");
@@ -190,6 +193,18 @@ export default function StorefrontHeader({ storeName, themeConfig = {}, whatsapp
             <strong>{storeName || "Tienda"}</strong>
           </div>
           <div className="topbar-actions">
+            {onOpenCart && (
+              <button
+                type="button"
+                className="topbar-cart-btn"
+                onClick={onOpenCart}
+                aria-label={`Ver carrito (${cartCount} productos)`}
+                title="Ver carrito"
+              >
+                <Icon name="cart" size={20} />
+                {cartCount > 0 && <span className="topbar-cart-badge">{cartCount}</span>}
+              </button>
+            )}
             <button type="button" className="topbar-account-btn" onClick={() => openAccount(customer ? "account" : "login")}>
               <span>{customer ? "Mi cuenta" : "Entrar"}</span><Icon name="user" size={20} />
             </button>

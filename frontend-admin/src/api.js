@@ -23,11 +23,50 @@ export function setToken(token) {
   localStorage.setItem(TOKEN_KEY, token);
 }
 
+const apiCache = new Map();
+const inFlightRequests = new Map();
+
+export function clearApiCache(prefix = "") {
+  if (!prefix) {
+    apiCache.clear();
+  } else {
+    for (const key of apiCache.keys()) {
+      if (key.includes(prefix)) {
+        apiCache.delete(key);
+      }
+    }
+  }
+}
+
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
+  clearApiCache();
 }
 
 export async function request(path, options = {}) {
+  const method = (options.method || "GET").toUpperCase();
+  const isGet = method === "GET";
+  const skipCache = options.skipCache || false;
+
+  // Invalidate cache on mutations (POST, PUT, PATCH, DELETE)
+  if (!isGet) {
+    clearApiCache();
+  }
+
+  const cacheKey = `${path}`;
+
+  // Return cached result if fresh (< 20s) and skipCache is false
+  if (isGet && !skipCache) {
+    const cached = apiCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 20000) {
+      return cached.data;
+    }
+    // Return existing in-flight promise to prevent duplicate concurrent network calls
+    if (inFlightRequests.has(cacheKey)) {
+      return inFlightRequests.get(cacheKey);
+    }
+  }
+
   const headers = new Headers(options.headers || {});
   if (!headers.has("Content-Type") && options.body && !(options.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
@@ -38,19 +77,37 @@ export async function request(path, options = {}) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: "no-store" });
-  if (!res.ok) {
-    let message = `Error ${res.status}`;
+  const fetchPromise = (async () => {
     try {
+      const res = await fetch(`${API_BASE}${path}`, { ...options, headers, cache: "no-store" });
+      if (!res.ok) {
+        let message = `Error ${res.status}`;
+        try {
+          const data = await res.json();
+          message = data?.detail || message;
+        } catch {
+          // noop
+        }
+        throw new Error(message);
+      }
+      if (res.status === 204) return null;
       const data = await res.json();
-      message = data?.detail || message;
-    } catch {
-      // noop
+      if (isGet) {
+        apiCache.set(cacheKey, { data, timestamp: Date.now() });
+      }
+      return data;
+    } finally {
+      if (isGet) {
+        inFlightRequests.delete(cacheKey);
+      }
     }
-    throw new Error(message);
+  })();
+
+  if (isGet && !skipCache) {
+    inFlightRequests.set(cacheKey, fetchPromise);
   }
-  if (res.status === 204) return null;
-  return res.json();
+
+  return fetchPromise;
 }
 
 export async function requestBlob(path, options = {}) {
@@ -147,9 +204,11 @@ export const api = {
     request("/admin/my-store", { method: "PATCH", body: JSON.stringify(payload) }),
   meUpdateTheme: (payload) =>
     request("/me/theme", { method: "PATCH", body: JSON.stringify(payload) }),
-  auditLogs: ({ rol, startDate, endDate } = {}) => {
-    const params = new URLSearchParams({ limit: 50 });
+  auditLogs: ({ rol, startDate, endDate, limit = 100, offset = 0, evento, exito } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
     if (rol) params.set("rol", rol);
+    if (evento) params.set("evento", evento);
+    if (typeof exito === "boolean") params.set("exito", String(exito));
     if (startDate) params.set("fecha_inicio", new Date(startDate).toISOString());
     if (endDate) {
       const end = new Date(endDate);
@@ -308,4 +367,5 @@ export const api = {
     }),
   getMetrics: (idTienda) =>
     request(withQuery("/sales/metrics", { id_tienda: idTienda })),
+  clearCache: clearApiCache,
 };

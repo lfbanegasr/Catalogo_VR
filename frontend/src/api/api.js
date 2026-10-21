@@ -47,6 +47,18 @@ const DEFAULT_THEME_CONFIG = {
   background_gradient_start: "",
   background_gradient_end: "",
   background_gradient_angle: 135,
+  card_style: "minimal_luxury",
+  card_aspect_ratio: "3:4",
+  card_image_fit: "cover",
+  card_action_type: "floating_plus",
+  card_show_stock: true,
+  card_show_specs: true,
+  card_show_discount_badge: true,
+  card_hover_secondary_img: true,
+  card_hover_zoom: true,
+  card_shadow: "soft",
+  card_border: "subtle",
+  card_radius: 12,
 };
 
 function prettifySlug(slug = "") {

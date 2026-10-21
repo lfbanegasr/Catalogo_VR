@@ -846,6 +846,7 @@ def get_dashboard_metrics(db: Session, id_tienda: UUID):
         .first()
     )
 
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     active_sales_today = (
         db.query(
             func.coalesce(func.sum(Venta.total_venta), 0).label("total_facturado"),
@@ -853,7 +854,7 @@ def get_dashboard_metrics(db: Session, id_tienda: UUID):
         )
         .filter(Venta.id_tienda == id_tienda)
         .filter(Venta.estado != EstadoVenta.cancelada)
-        .filter(func.date(Venta.fecha_venta) == func.current_date())
+        .filter(Venta.fecha_venta >= today_start)
         .first()
     )
 
@@ -955,6 +956,7 @@ def get_dashboard_metrics(db: Session, id_tienda: UUID):
     ]
 
     # 6. Historial de ventas diario (últimos 30 días)
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
     daily_sales_rows = (
         db.query(
             func.date(Venta.fecha_venta).label("fecha"),
@@ -963,6 +965,7 @@ def get_dashboard_metrics(db: Session, id_tienda: UUID):
         )
         .filter(Venta.id_tienda == id_tienda)
         .filter(Venta.estado != EstadoVenta.cancelada)
+        .filter(Venta.fecha_venta >= thirty_days_ago)
         .group_by(func.date(Venta.fecha_venta))
         .order_by("fecha")
         .limit(30)

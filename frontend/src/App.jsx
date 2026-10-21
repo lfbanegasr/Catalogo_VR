@@ -9,6 +9,7 @@ import { ThemeProvider } from "./theme/theme";
 import { useCart } from "./context/CartContext";
 import { CurrencyProvider } from "./context/CurrencyContext";
 import CartDrawer from "./components/CartDrawer";
+import StorefrontBottomBar from "./components/StorefrontBottomBar";
 const REFRESH_INTERVAL_MS = 30000;
 
 function getStoreSlug() {
@@ -355,6 +356,7 @@ function App() {
             productUrl={buildProductLink(selectedProductFull?.id)}
             onWhatsappClick={async (idProducto) => registerPublicWhatsappClick(storeSlug, idProducto)}
             onBack={closeProduct}
+            onOpenCart={() => setIsCartOpen(true)}
             previousProduct={previousProduct}
             nextProduct={nextProduct}
             onPreviousProduct={() => navigateProduct(previousProduct)}
@@ -387,6 +389,7 @@ function App() {
             onSelectCategoryId={setSelectedCategoryId}
             onViewDetail={openProduct}
             onRetry={loadCatalog}
+            onOpenCart={() => setIsCartOpen(true)}
           />
         )}
 
@@ -404,6 +407,17 @@ function App() {
               {cartCount}
             </span>
           </button>
+        )}
+
+        {/* Barra de navegación flotante inferior para móvil */}
+        {!isCartOpen && !trackingCode && !legalPage && (
+          <StorefrontBottomBar
+            onOpenCart={() => setIsCartOpen(true)}
+            onGoHome={() => {
+              setSelectedCategoryId("all");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
         )}
 
         {/* Drawer del carrito */}

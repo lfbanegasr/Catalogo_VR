@@ -196,8 +196,11 @@ class HistorialEstadoPedido(Base):
 
 
 Index("ix_detalle_ventas_id_variante", DetalleVenta.id_variante)
+Index("ix_detalle_ventas_id_venta", DetalleVenta.id_venta)
+Index("ix_detalle_ventas_id_producto", DetalleVenta.id_producto)
 Index("ix_clientes_tienda_telefono", Cliente.id_tienda, Cliente.telefono)
 Index("ix_clientes_tienda_email", Cliente.id_tienda, Cliente.email)
+Index("ix_clientes_tienda_fecha", Cliente.id_tienda, Cliente.fecha_registro.desc())
 Index(
     "ix_direcciones_cliente_activas",
     DireccionCliente.id_cliente,
@@ -220,3 +223,6 @@ Index(
     Venta.origen,
     Venta.fecha_venta,
 )
+Index("ix_ventas_id_cliente", Venta.id_cliente)
+Index("ix_ventas_tienda_estado_fecha", Venta.id_tienda, Venta.estado, Venta.fecha_venta)
+

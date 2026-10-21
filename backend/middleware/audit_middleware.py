@@ -16,7 +16,7 @@ from models.tenant import Usuario
 
 
 class AuditMiddleware(BaseHTTPMiddleware):
-    TRACKED_METHODS = {"POST", "PUT", "DELETE"}
+    TRACKED_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
     INCLUDED_PREFIXES = ("/api/catalog", "/api/admin", "/api/sales", "/api/tenant")
     EXCLUDED_PATHS = {"/openapi.json"}
     EXCLUDED_PREFIXES = ("/docs", "/redoc", "/api/auth/login")
@@ -52,6 +52,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             try:
                 payload = decode_token(token)
                 email_usuario = payload.get("sub")
+                rol_usuario = payload.get("rol")
                 raw_id_tienda = payload.get("id_tienda")
                 if raw_id_tienda:
                     try:
@@ -70,9 +71,13 @@ class AuditMiddleware(BaseHTTPMiddleware):
                             id_usuario = user.id_usuario
                             id_tienda = user.id_tienda or id_tienda
                             email_usuario = user.email
-                            rol_usuario = user.rol
+                            rol_usuario = user.rol or rol_usuario
                     finally:
                         db_lookup.close()
+        elif request.url.path.startswith("/api/sales/ventas"):
+            # Operaciones de compra pública en tienda web sin login administrativo
+            rol_usuario = "cliente"
+            email_usuario = "cliente@tienda"
 
         # Helper to map method+path to descriptive action
         def get_descriptive_action(method: str, path: str) -> str:
@@ -85,9 +90,11 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 if "tenant/users" in path_lower or "admin/users" in path_lower: return "Creación de Usuario"
                 if "tenant/tiendas" in path_lower or "admin/tiendas" in path_lower: return "Creación de Tienda"
                 return "Creación de Registro"
-            if method == "PUT" or method == "PATCH":
-                if "sales" in path_lower or "ventas" in path_lower: return "Actualización de Venta (o Estado)"
-                if "catalog/productos" in path_lower: return "Actualización de Producto (o Stock)"
+            if method in ("PUT", "PATCH"):
+                if "sales/ventas" in path_lower and "estado" in path_lower: return "Cambio Estado de Venta"
+                if "sales/clientes" in path_lower: return "Actualización de Ficha de Cliente"
+                if "sales" in path_lower or "ventas" in path_lower: return "Actualización de Venta"
+                if "catalog/productos" in path_lower: return "Actualización de Producto"
                 if "catalog/categorias" in path_lower: return "Actualización de Categoría"
                 if "catalog/ofertas" in path_lower: return "Actualización de Oferta"
                 if "tenant/users" in path_lower or "admin/users" in path_lower: return "Actualización de Usuario"

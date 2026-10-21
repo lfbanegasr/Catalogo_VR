@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '../../api';
 import { offersApi } from '../../api/offers';
-import { Card } from '../Card';
 import StoreRefPicker from '../StoreRefPicker';
 import ImageDropZone from '../ImageDropZone';
 import { ToastStack } from '../Toast';
+import {
+  OfertasIcon,
+  RefreshIcon,
+  EditIcon,
+  CheckIcon,
+  ImageIcon,
+  TagIcon,
+  BoxIcon
+} from '../common/Icons';
 import {
   getImageSrc,
   formatDateTime,
@@ -47,7 +55,7 @@ function SearchableTargetInput({
 
   return (
     <label style={{ display: 'block', width: '100%' }}>
-      {label}
+      <span style={{ display: 'block', marginBottom: '6px', fontSize: '0.84rem', fontWeight: 600 }}>{label}</span>
       <input
         list={listId}
         value={text}
@@ -64,7 +72,7 @@ function SearchableTargetInput({
           <option key={option.value} value={option.label} />
         ))}
       </datalist>
-      <span className="helper-text">{helpText}</span>
+      {helpText && <span style={{ display: 'block', marginTop: '4px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{helpText}</span>}
     </label>
   );
 }
@@ -84,6 +92,7 @@ export default function OffersScreen({ isSuperadmin }) {
   const [bannerUploading, setBannerUploading] = useState("");
   const [error, setError] = useState("");
   const [editingOfferId, setEditingOfferId] = useState("");
+  const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
   const [offerForm, setOfferForm] = useState(createOfferFormState());
   const [createTargetType, setCreateTargetType] = useState("none");
   const [createTargetId, setCreateTargetId] = useState("");
@@ -96,6 +105,12 @@ export default function OffersScreen({ isSuperadmin }) {
   const [overrideByProduct, setOverrideByProduct] = useState({});
   const [toasts, setToasts] = useState([]);
   const [pendingActionKey, setPendingActionKey] = useState("");
+
+  // Filters for the offers table
+  const [tableSearch, setTableSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [showGuide, setShowGuide] = useState(true);
 
   const selectedStore = useMemo(
     () => stores.find((store) => store.id_tienda === tenantId) || null,
@@ -156,6 +171,34 @@ export default function OffersScreen({ isSuperadmin }) {
     return [];
   }, [createTargetType, products, categories]);
 
+  // Offers table filter
+  const displayedOffers = useMemo(() => {
+    return offers.filter((o) => {
+      // Text filter
+      if (tableSearch.trim()) {
+        const q = tableSearch.toLowerCase();
+        const matchesName = (o.nombre || "").toLowerCase().includes(q);
+        const matchesBadge = (o.badge_text || "").toLowerCase().includes(q);
+        if (!matchesName && !matchesBadge) return false;
+      }
+      // Status filter
+      if (statusFilter === "active" && !o.activa) return false;
+      if (statusFilter === "inactive" && o.activa) return false;
+      // Type filter
+      if (typeFilter !== "all" && o.tipo !== typeFilter) return false;
+      return true;
+    });
+  }, [offers, tableSearch, statusFilter, typeFilter]);
+
+  // Metrics
+  const metrics = useMemo(() => {
+    const total = offers.length;
+    const active = offers.filter((o) => o.activa).length;
+    const percentCount = offers.filter((o) => o.tipo === "PERCENT").length;
+    const overrideCount = offers.filter((o) => o.tipo === "PRICE_OVERRIDE").length;
+    return { total, active, percentCount, overrideCount };
+  }, [offers]);
+
   const pushToast = (message, type = "success") => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     setToasts((current) => [...current, { id, message, type }]);
@@ -199,7 +242,7 @@ export default function OffersScreen({ isSuperadmin }) {
     setLoading(true);
     try {
       const data = await offersApi.list(offerTenantOptions);
-      setOffers(data);
+      setOffers(data || []);
       setManageOffer((current) => {
         if (!current) return null;
         return data.find((item) => item.id_oferta === current.id_oferta) || null;
@@ -286,6 +329,32 @@ export default function OffersScreen({ isSuperadmin }) {
     setError("");
   };
 
+  const handleOpenCreateModal = () => {
+    setEditingOfferId("");
+    setOfferForm(createOfferFormState());
+    setCreateTargetType("none");
+    setCreateTargetId("");
+    setCreateTargetOverride("");
+    setError("");
+    setIsOfferModalOpen(true);
+  };
+
+  const handleOpenEditModal = (offer) => {
+    setEditingOfferId(offer.id_oferta);
+    setOfferForm(createOfferFormState(offer));
+    setCreateTargetType("none");
+    setCreateTargetId("");
+    setCreateTargetOverride("");
+    setError("");
+    setIsOfferModalOpen(true);
+  };
+
+  const handleCloseOfferModal = () => {
+    setIsOfferModalOpen(false);
+    setEditingOfferId("");
+    setOfferForm(createOfferFormState());
+  };
+
   const handleOfferSubmit = async (event) => {
     event.preventDefault();
     setSaving(true);
@@ -297,21 +366,22 @@ export default function OffersScreen({ isSuperadmin }) {
       const pendingTargetId = createTargetId;
       const pendingTargetOverride = createTargetOverride;
       if (payload.tipo === "PERCENT" && !(payload.porcentaje > 0)) {
-        throw new Error("Ingresa un porcentaje valido mayor a 0");
+        throw new Error("Ingresa un porcentaje válido mayor a 0");
       }
       let savedOffer = null;
       if (editingOfferId) {
         savedOffer = await offersApi.update(editingOfferId, payload, offerTenantOptions);
-        pushToast("Oferta actualizada");
+        pushToast("Oferta actualizada exitosamente");
       } else {
         savedOffer = await offersApi.create(payload, offerTenantOptions);
-        pushToast("Oferta creada");
+        pushToast("Oferta creada exitosamente");
       }
       setEditingOfferId("");
       setOfferForm(createOfferFormState());
       setCreateTargetType("none");
       setCreateTargetId("");
       setCreateTargetOverride("");
+      setIsOfferModalOpen(false);
       await loadOffers();
       if (savedOffer) {
         if (pendingTargetType === "product" && pendingTargetId) {
@@ -322,16 +392,16 @@ export default function OffersScreen({ isSuperadmin }) {
               activo: true,
             }],
           }, offerTenantOptions);
-          pushToast("Oferta creada y asignada al producto");
+          pushToast("Oferta asignada al producto");
           await openProductsManager(savedOffer);
         } else if (pendingTargetType === "category" && pendingTargetId) {
           if (savedOffer.tipo !== "PERCENT") {
-            throw new Error("Solo las ofertas PERCENT pueden asignarse a categorias");
+            throw new Error("Solo las ofertas PERCENT pueden asignarse a categorías");
           }
           await offersApi.attachCategories(savedOffer.id_oferta, {
             categorias: [{ id_categoria: pendingTargetId, activo: true }],
           }, offerTenantOptions);
-          pushToast("Oferta creada y asignada a la categoria");
+          pushToast("Oferta asignada a la categoría");
           setManageOffer(savedOffer);
           setTargetTab("categorias");
         } else {
@@ -371,7 +441,7 @@ export default function OffersScreen({ isSuperadmin }) {
       try {
         const overrideValue = overrideByProduct[product.id_producto];
         if (manageOffer.tipo === "PRICE_OVERRIDE" && !(Number(overrideValue) >= 0)) {
-          throw new Error("Ingresa un precio override valido para este producto");
+          throw new Error("Ingresa un precio override válido para este producto");
         }
         await offersApi.attachProducts(manageOffer.id_oferta, {
           productos: [{
@@ -428,7 +498,7 @@ export default function OffersScreen({ isSuperadmin }) {
   const handleAttachCategory = async (category) => {
     if (!manageOffer) return;
     if (manageOffer.tipo !== "PERCENT") {
-      const message = "Solo % por categoria";
+      const message = "Solo % por categoría";
       setError(message);
       pushToast(message, "error");
       return;
@@ -444,9 +514,9 @@ export default function OffersScreen({ isSuperadmin }) {
           }],
         }, offerTenantOptions);
         await loadManageCategories(manageOffer);
-        pushToast("Categoria asociada a la oferta");
+        pushToast("Categoría asociada a la oferta");
       } catch (err) {
-        const message = err.message || "No se pudo asociar la categoria";
+        const message = err.message || "No se pudo asociar la categoría";
         setError(message);
         pushToast(message, "error");
       } finally {
@@ -464,9 +534,9 @@ export default function OffersScreen({ isSuperadmin }) {
         await offersApi.detachCategory(manageOffer.id_oferta, idCategoria, offerTenantOptions);
         setLinkedCategories((current) => current.filter((item) => item.id_categoria !== idCategoria));
         await loadManageCategories(manageOffer);
-        pushToast("Categoria removida de la oferta");
+        pushToast("Categoría removida de la oferta");
       } catch (err) {
-        const message = err.message || "No se pudo quitar la categoria";
+        const message = err.message || "No se pudo quitar la categoría";
         setError(message);
         pushToast(message, "error");
       } finally {
@@ -482,7 +552,7 @@ export default function OffersScreen({ isSuperadmin }) {
     try {
       const payload = await offersApi.uploadBanner(bannerOffer.id_oferta, file, offerTenantOptions);
       setBannerOffer((current) => current ? { ...current, banner_url: payload.banner_url } : current);
-      pushToast("Banner actualizado");
+      pushToast("Banner de oferta actualizado");
       await loadOffers();
     } catch (err) {
       const message = err.message || "No se pudo subir el banner";
@@ -513,8 +583,8 @@ export default function OffersScreen({ isSuperadmin }) {
       setProductsLoading(true);
       loadManageCategories(manageOffer)
         .catch((err) => {
-          setError(err.message || "No se pudieron cargar las categorias");
-          pushToast(err.message || "No se pudieron cargar las categorias", "error");
+          setError(err.message || "No se pudieron cargar las categorías");
+          pushToast(err.message || "No se pudieron cargar las categorías", "error");
         })
         .finally(() => setProductsLoading(false));
       return;
@@ -540,8 +610,8 @@ export default function OffersScreen({ isSuperadmin }) {
     }
     if (createTargetType === "category") {
       ensureCategoriesLoaded().catch((err) => {
-        setError(err.message || "No se pudieron cargar las categorias");
-        pushToast(err.message || "No se pudieron cargar las categorias", "error");
+        setError(err.message || "No se pudieron cargar las categorías");
+        pushToast(err.message || "No se pudieron cargar las categorías", "error");
       });
     }
   }, [createTargetType, selectedStoreRef]);
@@ -555,291 +625,493 @@ export default function OffersScreen({ isSuperadmin }) {
   }, [offerForm.tipo, createTargetType]);
 
   return (
-    <>
+    <div className="offers-container">
       <ToastStack items={toasts} onDismiss={dismissToast} />
-      
-      {/* Guía informativa de uso */}
-      <div style={{
-        background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-        border: '1px solid #bfdbfe',
-        borderRadius: '16px',
-        padding: '16px',
-        marginBottom: '20px',
-        display: 'flex',
-        gap: '12px',
-        alignItems: 'flex-start'
-      }}>
-        <span style={{ fontSize: '20px' }}>📢</span>
-        <div>
-          <h4 style={{ margin: '0 0 4px 0', fontSize: '13px', fontWeight: 'bold', color: '#1e40af' }}>¿Cómo funcionan las ofertas?</h4>
-          <p style={{ margin: 0, fontSize: '11px', color: '#1e3a8a', lineHeight: '1.5' }}>
-            Las ofertas te permiten incentivar compras aplicando descuentos. Puedes crear dos tipos:
-            <br />
-            • <strong>Porcentaje (PERCENT):</strong> Descuenta una fracción del precio (ej. 10%) a productos o categorías enteras.
-            <br />
-            • <strong>Precio Fijo (PRICE_OVERRIDE):</strong> Establece un precio único final (ej. de 100 Bs a 79 Bs) directo a productos específicos.
-          </p>
+
+      {/* Top Header */}
+      <div className="offers-header">
+        <div className="offers-header-info">
+          <h1>Gestión de Ofertas y Promociones</h1>
+          <p>Crea descuentos por porcentaje o precios fijos especiales para activar en tu tienda online.</p>
+        </div>
+
+        <div className="offers-header-actions">
+          {isSuperadmin && (
+            <div style={{ minWidth: "220px" }}>
+              <StoreRefPicker
+                stores={stores}
+                value={tenantId}
+                onChange={setTenantId}
+                required
+                label=""
+                placeholder="Filtrar por tienda..."
+                helpText=""
+              />
+            </div>
+          )}
+
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            onClick={() => loadOffers().catch((err) => {
+              setError(err.message);
+              pushToast(err.message, "error");
+            })}
+          >
+            <RefreshIcon size={16} className={loading ? "spin-anim" : ""} />
+            <span>{loading ? "Cargando..." : "Actualizar"}</span>
+          </button>
         </div>
       </div>
 
-      <div style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '20px',
-        alignItems: 'start'
-      }} className="offers-split-layout">
-        
-        {/* LADO IZQUIERDO: LISTADO DE OFERTAS */}
-        <div style={{ flex: '1 1 55%', minWidth: '250px', maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <Card title="Ofertas Registradas">
-            <div className="catalog-toolbar" style={{ marginBottom: '12px' }}>
-              <div className="catalog-controls" style={{ width: '100%', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: '10px' }}>
-                {isSuperadmin && (
-                  <div style={{ flex: '1 1 200px' }}>
-                    <StoreRefPicker
-                      stores={stores}
-                      value={tenantId}
-                      onChange={setTenantId}
-                      required
-                      label="Tienda destino"
-                      placeholder="Busca por nombre o slug..."
-                      helpText="Filtra las ofertas de la tienda."
-                    />
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ height: '38px', fontWeight: 'bold' }}
-                  onClick={() => loadOffers().catch((err) => {
-                    setError(err.message);
-                    pushToast(err.message, "error");
-                  })}
-                >
-                  {loading ? "Cargando..." : "🔄 Recargar"}
-                </button>
-              </div>
-            </div>
-            
-            {error ? <p className="error-text">{error}</p> : null}
+      {/* Error alert */}
+      {error ? (
+        <div className="alert alert-danger" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>{error}</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setError("")}>✕</button>
+        </div>
+      ) : null}
 
-            <div className="table-wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
-              <table style={{ width: '100%', minWidth: '850px', borderCollapse: 'collapse', fontSize: '11px' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left', color: '#6b7280' }}>
-                    <th style={{ padding: '12px 8px' }}>Nombre</th>
-                    <th style={{ padding: '12px 8px' }}>Tipo</th>
-                    <th style={{ padding: '12px 8px' }}>Valor</th>
-                    <th style={{ padding: '12px 8px' }}>Estado</th>
-                    <th style={{ padding: '12px 8px' }}>Vigencia</th>
-                    <th style={{ padding: '12px 8px', textAlign: 'center' }}>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {offers.map((offer) => (
-                    <tr key={offer.id_oferta} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '12px 8px' }}>
-                        <div style={{ fontWeight: 'bold', color: '#1f2937' }}>{offer.nombre}</div>
-                        {offer.badge_text && (
-                          <span style={{ fontSize: '9px', background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: '4px', display: 'inline-block', marginTop: '2px' }}>
-                            🏷️ {offer.badge_text}
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px 8px' }}>
-                        <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '9px', fontWeight: 'bold', background: offer.tipo === 'PERCENT' ? '#e0e7ff' : '#fce7f3', color: offer.tipo === 'PERCENT' ? '#4f46e5' : '#db2777' }}>
-                          {offer.tipo === 'PERCENT' ? 'Porcentaje' : 'Precio Fijo'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 8px', fontWeight: 'bold', color: '#059669' }}>{formatOfferValue(offer)}</td>
-                      <td style={{ padding: '12px 8px' }}>
-                        <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '9px', fontWeight: 'bold', background: offer.activa ? '#d1fae5' : '#fee2e2', color: offer.activa ? '#059669' : '#dc2626' }}>
-                          {offer.activa ? "Activa" : "Inactiva"}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 8px', color: '#6b7280', fontSize: '10px' }}>
-                        <div><strong>Inicio:</strong> {formatDateTime(offer.fecha_inicio)}</div>
-                        <div><strong>Fin:</strong> {formatDateTime(offer.fecha_fin)}</div>
-                      </td>
-                      <td style={{ padding: '12px 8px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            style={{ padding: '4px 8px', fontSize: '9px', fontWeight: 'bold' }}
-                            onClick={() => {
-                              setEditingOfferId(offer.id_oferta);
-                              setOfferForm(createOfferFormState(offer));
-                            }}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            className={`btn ${offer.activa ? "btn-secondary" : "btn-primary"}`}
-                            style={{
-                              padding: '4px 8px',
-                              fontSize: '9px',
-                              fontWeight: 'bold',
-                              background: offer.activa ? '#fef2f2' : '#ecfdf5',
-                              color: offer.activa ? '#dc2626' : '#059669',
-                              borderColor: offer.activa ? '#fecaca' : '#a7f3d0'
-                            }}
-                            onClick={() => handleToggleOffer(offer)}
-                          >
-                            {offer.activa ? "Desactivar" : "Activar"}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            style={{ padding: '4px 8px', fontSize: '9px', fontWeight: 'bold', color: '#2563eb' }}
-                            onClick={() => openProductsManager(offer)}
-                          >
-                            🎯 Asignar
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            style={{ padding: '4px 8px', fontSize: '9px', fontWeight: 'bold', color: '#7c3aed' }}
-                            onClick={() => openBannerManager(offer)}
-                          >
-                            🖼️ Banner
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {!loading && offers.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} style={{ padding: '30px', textAlign: 'center', color: '#6b7280', fontSize: '12px' }}>
-                        No hay ofertas registradas. ¡Crea una nueva en el formulario de la derecha!
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+      {/* Guide Banner */}
+      {showGuide && (
+        <div className="offers-guide-banner">
+          <span style={{ fontSize: '22px' }}>📢</span>
+          <div style={{ flex: 1 }}>
+            <h4 style={{ margin: '0 0 4px', fontSize: '0.92rem', fontWeight: 700 }}>
+              ¿Cómo funcionan las ofertas y promociones?
+            </h4>
+            <p style={{ margin: 0, fontSize: '0.82rem', lineHeight: '1.5', color: 'var(--text-secondary)' }}>
+              • <strong>Porcentaje (%):</strong> Descuenta una fracción automática (ej. 15% OFF) a productos específicos o categorías enteras.<br />
+              • <strong>Precio Fijo (Override):</strong> Asigna un precio promocional final (ej. de 100 Bs a 79 Bs) directo a productos seleccionados.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setShowGuide(false)}
+            title="Ocultar guía"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* KPI Bento Grid */}
+      <div className="offers-kpi-grid">
+        <div className="offers-kpi-card accent-indigo">
+          <div className="offers-kpi-icon">
+            <OfertasIcon size={24} />
+          </div>
+          <div className="offers-kpi-details">
+            <span className="offers-kpi-label">Total Ofertas</span>
+            <span className="offers-kpi-val">{metrics.total}</span>
+          </div>
         </div>
 
-        {/* LADO DERECHO: FORMULARIO CREAR/EDITAR */}
-        <div style={{ flex: '1 1 350px', minWidth: '250px', maxWidth: '100%', position: 'sticky', top: '20px', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', borderRadius: '12px' }}>
-          <Card title={editingOfferId ? "✍️ Editar Oferta" : "🎁 Nueva Oferta"}>
-            <div style={{
-              background: offerForm.tipo === "PERCENT" ? "#f5f3ff" : "#fff1f2",
-              border: offerForm.tipo === "PERCENT" ? "1px solid #ddd6fe" : "1px solid #fecdd3",
-              borderRadius: '12px',
-              padding: '12px',
-              marginBottom: '16px',
-              fontSize: '11px',
-              color: offerForm.tipo === "PERCENT" ? "#5b21b6" : "#9f1239"
-            }}>
-              {offerForm.tipo === "PERCENT" ? (
-                <span>💡 <strong>Oferta de Porcentaje:</strong> Aplica un descuento general (ej. 15%) sobre el precio normal. Se puede asociar a múltiples productos o a categorías completas.</span>
-              ) : (
-                <span>💡 <strong>Anulación de Precio (Override):</strong> Define un precio único final (ej. 20 Bs). Solo se asigna a nivel de productos individuales.</span>
-              )}
+        <div className="offers-kpi-card accent-emerald">
+          <div className="offers-kpi-icon">
+            <CheckIcon size={24} />
+          </div>
+          <div className="offers-kpi-details">
+            <span className="offers-kpi-label">Ofertas Activas</span>
+            <span className="offers-kpi-val">{metrics.active}</span>
+          </div>
+        </div>
+
+        <div className="offers-kpi-card accent-purple">
+          <div className="offers-kpi-icon">
+            <TagIcon size={24} />
+          </div>
+          <div className="offers-kpi-details">
+            <span className="offers-kpi-label">Porcentuales (%)</span>
+            <span className="offers-kpi-val">{metrics.percentCount}</span>
+          </div>
+        </div>
+
+        <div className="offers-kpi-card accent-rose">
+          <div className="offers-kpi-icon">
+            <BoxIcon size={24} />
+          </div>
+          <div className="offers-kpi-details">
+            <span className="offers-kpi-label">Precios Fijos</span>
+            <span className="offers-kpi-val">{metrics.overrideCount}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Full-Width Table View */}
+      <div className="offers-table-pane full-width">
+        <div className="offers-card">
+          {/* Filter Toolbar */}
+          <div className="offers-toolbar">
+            <div className="offers-search-box">
+              <span className="offers-search-icon">🔍</span>
+              <input
+                type="text"
+                placeholder="Buscar oferta por nombre o badge..."
+                value={tableSearch}
+                onChange={(e) => setTableSearch(e.target.value)}
+              />
             </div>
 
-            <form className="grid-form" onSubmit={handleOfferSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <label>
-                Nombre de la Oferta
-                <input
-                  value={offerForm.nombre}
-                  onChange={(event) => setOfferForm((current) => ({ ...current, nombre: event.target.value }))}
-                  placeholder="Ej. Descuento de Temporada, Liquidación..."
-                  required
-                />
-              </label>
+            <select
+              className="offers-filter-select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">Todos los estados</option>
+              <option value="active">Solo Activas</option>
+              <option value="inactive">Solo Inactivas</option>
+            </select>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                <label style={{ flex: '1 1 140px' }}>
-                  Tipo de Oferta
-                  <select
-                    value={offerForm.tipo}
-                    onChange={(event) => setOfferForm((current) => ({
-                      ...current,
-                      tipo: event.target.value,
-                      porcentaje: event.target.value === "PERCENT" ? current.porcentaje : "",
-                    }))}
-                  >
-                    <option value="PERCENT">Porcentaje (%)</option>
-                    <option value="PRICE_OVERRIDE">Precio Fijo (Override)</option>
-                  </select>
-                </label>
+            <select
+              className="offers-filter-select"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option value="all">Todos los tipos</option>
+              <option value="PERCENT">Porcentaje (%)</option>
+              <option value="PRICE_OVERRIDE">Precio Fijo</option>
+            </select>
 
-                {offerForm.tipo === "PERCENT" ? (
-                  <label style={{ flex: '1 1 140px' }}>
-                    Porcentaje (%)
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={offerForm.porcentaje}
-                      onChange={(event) => setOfferForm((current) => ({ ...current, porcentaje: event.target.value }))}
-                      placeholder="Ej. 15"
-                      required
-                    />
-                  </label>
-                ) : (
-                  <label style={{ flex: '1 1 140px' }}>
-                    Valor
-                    <input value="Se define por producto" disabled style={{ background: '#f3f4f6', cursor: 'not-allowed' }} />
-                  </label>
+            <button
+              type="button"
+              className="btn btn-primary offers-create-btn"
+              onClick={handleOpenCreateModal}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 700 }}
+            >
+              <OfertasIcon size={16} />
+              <span>+ Nueva Oferta</span>
+            </button>
+          </div>
+
+          {/* Table */}
+          <div className="table-wrap" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table className="offers-table">
+              <thead>
+                <tr>
+                  <th>Nombre / Badge</th>
+                  <th>Tipo</th>
+                  <th>Valor</th>
+                  <th>Estado</th>
+                  <th>Vigencia</th>
+                  <th style={{ textAlign: 'right' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayedOffers.map((offer) => (
+                  <tr key={offer.id_oferta}>
+                    <td>
+                      <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.92rem' }}>{offer.nombre}</div>
+                      {offer.badge_text && (
+                        <span className="offer-badge-tag">
+                          🏷️ {offer.badge_text}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`offer-type-pill ${offer.tipo === 'PERCENT' ? 'percent' : 'price_override'}`}>
+                        {offer.tipo === 'PERCENT' ? 'Porcentaje' : 'Precio Fijo'}
+                      </span>
+                    </td>
+                    <td>
+                      <strong style={{ color: '#10b981', fontSize: '0.96rem' }}>
+                        {formatOfferValue(offer)}
+                      </strong>
+                    </td>
+                    <td>
+                      <span className={`status-pill ${offer.activa ? 'active' : 'inactive'}`}>
+                        <span className="status-pill-dot" />
+                        {offer.activa ? "Activa" : "Inactiva"}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                        <div><strong>Inicio:</strong> {formatDateTime(offer.fecha_inicio)}</div>
+                        <div><strong>Fin:</strong> {formatDateTime(offer.fecha_fin)}</div>
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          title="Editar oferta"
+                          onClick={() => handleOpenEditModal(offer)}
+                        >
+                          <EditIcon size={14} />
+                          <span>Editar</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${offer.activa ? "btn-danger-ghost" : "btn-success-ghost"}`}
+                          disabled={isPendingAction(`toggle:${offer.id_oferta}`)}
+                          onClick={() => handleToggleOffer(offer)}
+                        >
+                          {offer.activa ? "Desactivar" : "Activar"}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ color: 'var(--brand-primary)' }}
+                          onClick={() => openProductsManager(offer)}
+                          title="Asignar productos o categorías"
+                        >
+                          🎯 Asignar
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ color: '#8b5cf6' }}
+                          onClick={() => openBannerManager(offer)}
+                          title="Cargar banner promocional"
+                        >
+                          🖼️ Banner
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {!loading && displayedOffers.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🏷️</div>
+                      <p style={{ margin: 0, fontWeight: 600 }}>No se encontraron ofertas con los filtros seleccionados.</p>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        style={{ marginTop: '14px' }}
+                        onClick={handleOpenCreateModal}
+                      >
+                        + Crear Primera Oferta
+                      </button>
+                    </td>
+                  </tr>
                 )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* MODAL: CREAR / EDITAR OFERTA (DISEÑO AMPLIO, MODERNO Y RESPONSIVO) */}
+      {isOfferModalOpen && (
+        <div className="offers-modal-overlay" onClick={handleCloseOfferModal}>
+          <div
+            className="offers-modal-window offers-form-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '780px' }}
+          >
+            {/* Modal Header */}
+            <div className="offers-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div className="offers-modal-icon-badge">
+                  {editingOfferId ? "✍️" : "🎁"}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    {editingOfferId ? "Editar Oferta Promocional" : "Crear Nueva Oferta Comercial"}
+                  </h3>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                    {editingOfferId
+                      ? "Modifica los parámetros de descuento, vigencia y etiqueta en catálogo."
+                      : "Define el tipo de descuento, duración y apariencia visual de tu promoción."}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={handleCloseOfferModal}
+                title="Cerrar ventana"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Selector Visual de Tipo de Oferta (Interactive Cards) */}
+            <div className="offers-type-grid">
+              <div
+                className={`offers-type-card ${offerForm.tipo === "PERCENT" ? "active" : ""}`}
+                onClick={() => {
+                  setOfferForm((current) => ({
+                    ...current,
+                    tipo: "PERCENT",
+                    porcentaje: current.porcentaje || 15,
+                  }));
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '1.3rem' }}>🏷️</span>
+                    <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>Porcentaje (%)</strong>
+                  </div>
+                  {offerForm.tipo === "PERCENT" && <span className="offers-type-tag active">Activo</span>}
+                </div>
+                <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  Descuenta un % sobre el precio regular. Aplica a productos individuales o a categorías enteras.
+                </p>
               </div>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                <label style={{ flex: '2 1 160px' }}>
-                  Badge Text (Texto en Etiqueta)
+              <div
+                className={`offers-type-card ${offerForm.tipo === "PRICE_OVERRIDE" ? "active" : ""}`}
+                onClick={() => {
+                  setOfferForm((current) => ({
+                    ...current,
+                    tipo: "PRICE_OVERRIDE",
+                    porcentaje: "",
+                  }));
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '1.3rem' }}>💎</span>
+                    <strong style={{ fontSize: '0.95rem', color: 'var(--text-primary)' }}>Precio Fijo Especial</strong>
+                  </div>
+                  {offerForm.tipo === "PRICE_OVERRIDE" && <span className="offers-type-tag active">Activo</span>}
+                </div>
+                <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  Fija un precio promocional único directo por producto (ej. de 100 Bs a 69.90 Bs).
+                </p>
+              </div>
+            </div>
+
+            {/* Formulario Principal */}
+            <form onSubmit={handleOfferSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px' }}>
+                <label>
+                  <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '6px' }}>
+                    Nombre de la Promoción *
+                  </span>
                   <input
-                    value={offerForm.badge_text}
-                    maxLength={80}
-                    placeholder="Ej. -10% HOY, REGALO..."
-                    onChange={(event) => setOfferForm((current) => ({ ...current, badge_text: event.target.value }))}
+                    value={offerForm.nombre}
+                    onChange={(event) => setOfferForm((current) => ({ ...current, nombre: event.target.value }))}
+                    placeholder="Ej. Liquidación de Invierno, Black Friday, Hot Sale..."
+                    required
                   />
                 </label>
 
-                <label style={{ flex: '1 1 80px' }}>
-                  Prioridad
+                <div>
+                  <label>
+                    <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '6px' }}>
+                      Texto de Etiqueta (Badge para el catálogo)
+                    </span>
+                    <input
+                      value={offerForm.badge_text}
+                      placeholder="Ej. 20% OFF, LIQUIDACIÓN, 2x1"
+                      onChange={(event) => setOfferForm((current) => ({ ...current, badge_text: event.target.value }))}
+                    />
+                  </label>
+                  <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    <span>Vista previa en tarjeta:</span>
+                    <span className="offer-badge-preview">
+                      🏷️ {offerForm.badge_text || "OFERTA"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fila de Valor / Prioridad */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '16px', alignItems: 'start' }}>
+                {offerForm.tipo === "PERCENT" ? (
+                  <label>
+                    <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '6px' }}>
+                      Porcentaje de Descuento (%) *
+                    </span>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={offerForm.porcentaje}
+                        onChange={(event) => setOfferForm((current) => ({ ...current, porcentaje: event.target.value }))}
+                        placeholder="15"
+                        required
+                        style={{ paddingRight: '40px' }}
+                      />
+                      <span style={{ position: 'absolute', right: '14px', fontWeight: 800, color: 'var(--brand-primary)', pointerEvents: 'none' }}>
+                        %
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
+                      Se restará automáticamente del precio regular en catálogo.
+                    </span>
+                  </label>
+                ) : (
+                  <div className="offers-note-box">
+                    <strong style={{ display: 'block', marginBottom: '4px', color: 'var(--text-primary)' }}>💎 Precio Fijo Promocional:</strong>
+                    <span>El precio de liquidación se define de forma personalizada al asociar cada producto.</span>
+                  </div>
+                )}
+
+                <label>
+                  <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '6px' }}>
+                    Prioridad Visual en Catálogo
+                  </span>
                   <input
                     type="number"
                     value={offerForm.prioridad}
                     onChange={(event) => setOfferForm((current) => ({ ...current, prioridad: event.target.value }))}
+                    placeholder="0"
                   />
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
+                    Si un producto tiene múltiples promociones, se aplicará la de mayor prioridad.
+                  </span>
                 </label>
               </div>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                <label style={{ flex: '1 1 140px' }}>
-                  Fecha Inicio
-                  <input
-                    type="datetime-local"
-                    value={offerForm.fecha_inicio}
-                    onChange={(event) => setOfferForm((current) => ({ ...current, fecha_inicio: event.target.value }))}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#f9fafb', fontFamily: 'inherit', fontSize: '13px' }}
-                  />
-                </label>
+              {/* Fechas de Vigencia */}
+              <div className="offers-dates-card">
+                <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  🗓️ Periodo de Vigencia de la Promoción
+                </span>
 
-                <label style={{ flex: '1 1 140px' }}>
-                  Fecha Fin
-                  <input
-                    type="datetime-local"
-                    value={offerForm.fecha_fin}
-                    onChange={(event) => setOfferForm((current) => ({ ...current, fecha_fin: event.target.value }))}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#f9fafb', fontFamily: 'inherit', fontSize: '13px' }}
-                  />
-                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
+                  <label>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      Fecha y Hora de Inicio
+                    </span>
+                    <input
+                      type="datetime-local"
+                      value={offerForm.fecha_inicio}
+                      onChange={(event) => setOfferForm((current) => ({ ...current, fecha_inicio: event.target.value }))}
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                      Fecha y Hora de Fin
+                    </span>
+                    <input
+                      type="datetime-local"
+                      value={offerForm.fecha_fin}
+                      onChange={(event) => setOfferForm((current) => ({ ...current, fecha_fin: event.target.value }))}
+                      required
+                    />
+                  </label>
+                </div>
               </div>
 
+              {/* Asignación Rápida Inicial (solo al crear) */}
               {!editingOfferId && (
-                <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: '12px', marginTop: '4px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '8px' }}>Asignación Rápida Inicial (Opcional)</div>
-                  
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'end' }}>
-                    <label style={{ flex: '1 1 140px' }}>
-                      Aplicar a
+                <div className="offers-target-card">
+                  <span style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    🎯 Asignación Inicial Rápida (Opcional)
+                  </span>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'block', marginBottom: '10px' }}>
+                    Puedes asociar un producto o categoría ahora o gestionarlo más adelante desde la tabla.
+                  </span>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+                    <label>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                        Asignar a
+                      </span>
                       <select
                         value={createTargetType}
                         onChange={(event) => {
@@ -850,32 +1122,34 @@ export default function OffersScreen({ isSuperadmin }) {
                         }}
                       >
                         <option value="none">Sin asignar por ahora</option>
-                        <option value="product">Un Producto</option>
-                        <option value="category" disabled={offerForm.tipo !== "PERCENT"}>Una Categoría</option>
+                        <option value="product">Un Producto Específico</option>
+                        <option value="category" disabled={offerForm.tipo !== "PERCENT"}>
+                          Una Categoría Completa
+                        </option>
                       </select>
                     </label>
 
                     {createTargetType !== "none" && (
-                      <div style={{ flex: '2 1 200px' }}>
-                        <SearchableTargetInput
-                          items={createTargetItems}
-                          value={createTargetId}
-                          onChange={setCreateTargetId}
-                          getKey={(item) => createTargetType === "product" ? item.id_producto : item.id_categoria}
-                          getLabel={(item) => createTargetType === "product"
-                            ? `${item.nombre} (${item.precio_venta} Bs)`
-                            : item.nombre}
-                          label={createTargetType === "product" ? "Producto Objetivo" : "Categoría Objetivo"}
-                          placeholder="Escribe para buscar..."
-                          required
-                        />
-                      </div>
+                      <SearchableTargetInput
+                        items={createTargetItems}
+                        value={createTargetId}
+                        onChange={setCreateTargetId}
+                        getKey={(item) => createTargetType === "product" ? item.id_producto : item.id_categoria}
+                        getLabel={(item) => createTargetType === "product"
+                          ? `${item.nombre} (${item.precio_venta} Bs)`
+                          : item.nombre}
+                        label={createTargetType === "product" ? "Seleccionar Producto" : "Seleccionar Categoría"}
+                        placeholder="Buscar..."
+                        required
+                      />
                     )}
                   </div>
 
                   {createTargetType === "product" && offerForm.tipo === "PRICE_OVERRIDE" && (
-                    <label style={{ marginTop: '12px' }}>
-                      Precio Especial (Bs)
+                    <label style={{ marginTop: '10px' }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
+                        Precio Promocional Fijo para este Producto (Bs) *
+                      </span>
                       <input
                         type="number"
                         min="0"
@@ -890,120 +1164,121 @@ export default function OffersScreen({ isSuperadmin }) {
                 </div>
               )}
 
-              <label className="check-row" style={{ marginTop: '8px' }}>
-                <input
-                  type="checkbox"
-                  checked={offerForm.activa}
-                  onChange={(event) => setOfferForm((current) => ({ ...current, activa: event.target.checked }))}
-                />
-                Oferta Activa (Habilitada en la tienda)
-              </label>
+              {/* Toggle Oferta Activa */}
+              <div className="offers-active-toggle-row">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={offerForm.activa}
+                    onChange={(event) => setOfferForm((current) => ({ ...current, activa: event.target.checked }))}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--brand-primary)', cursor: 'pointer' }}
+                  />
+                  <div>
+                    <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)', display: 'block' }}>
+                      Oferta Activa (Publicada en catálogo)
+                    </strong>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      Si está activa y dentro de las fechas de vigencia, los clientes verán los descuentos de inmediato.
+                    </span>
+                  </div>
+                </label>
+              </div>
 
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={saving}>
-                  {saving ? "Guardando..." : editingOfferId ? "Guardar Cambios" : "Crear Oferta"}
+              {/* Botones de acción del Modal */}
+              <div className="offers-modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={handleCloseOfferModal}
+                  disabled={saving}
+                >
+                  Cancelar
                 </button>
-                {editingOfferId && (
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => {
-                      setEditingOfferId("");
-                      setOfferForm(createOfferFormState());
-                    }}
-                  >
-                    Cancelar
-                  </button>
-                )}
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={saving}
+                  style={{ minWidth: '160px', padding: '10px 20px' }}
+                >
+                  {saving
+                    ? "Guardando..."
+                    : editingOfferId
+                    ? "Guardar Cambios"
+                    : "Crear Oferta"}
+                </button>
               </div>
             </form>
-          </Card>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* MODAL: ASIGNADOR DE PRODUCTOS / CATEGORIAS */}
+      {/* MODAL: ASIGNADOR DE PRODUCTOS Y CATEGORÍAS */}
       {manageOffer && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          background: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000,
-          padding: '20px'
-        }} onClick={closeProductsManager}>
-          <div style={{
-            background: '#ffffff',
-            borderRadius: '16px',
-            padding: '24px',
-            width: '100%',
-            maxWidth: '850px',
-            maxHeight: '90vh',
-            overflowY: 'auto',
-            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
-            position: 'relative',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px'
-          }} onClick={(e) => e.stopPropagation()}>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f3f4f6', paddingBottom: '12px' }}>
+        <div className="offers-modal-overlay" onClick={closeProductsManager}>
+          <div className="offers-modal-window" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '14px' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#111827' }}>🎯 Asignar Objetivos: {manageOffer.nombre}</h3>
-                <p style={{ margin: '2px 0 0 0', fontSize: '10px', color: '#6b7280' }}>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                  🎯 Asignar Objetivos: {manageOffer.nombre}
+                </h3>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                   Tipo: <strong>{manageOffer.tipo === 'PERCENT' ? 'Porcentaje' : 'Precio Fijo'}</strong> ({formatOfferValue(manageOffer)})
-                </p>
+                </span>
               </div>
-              <button onClick={closeProductsManager} style={{ border: 'none', background: '#f3f4f6', cursor: 'pointer', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#6b7280' }}>✕</button>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={closeProductsManager}
+              >
+                ✕
+              </button>
             </div>
 
-            <div className="target-tabs" style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #f3f4f6', paddingBottom: '12px' }}>
+            {/* Target Tabs */}
+            <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 type="button"
-                className={`btn ${targetTab === "productos" ? "btn-primary" : "btn-ghost"}`}
-                style={{ padding: '6px 16px', fontSize: '11px' }}
+                className={`theme-tab-pill ${targetTab === "productos" ? "active" : ""}`}
                 onClick={() => setTargetTab("productos")}
               >
-                📦 Productos
+                <BoxIcon size={16} />
+                <span>Productos ({linkedProducts.length})</span>
               </button>
+
               <button
                 type="button"
-                className={`btn ${targetTab === "categorias" ? "btn-primary" : "btn-ghost"}`}
-                style={{ padding: '6px 16px', fontSize: '11px' }}
+                className={`theme-tab-pill ${targetTab === "categorias" ? "active" : ""}`}
                 onClick={() => {
                   if (manageOffer.tipo !== "PERCENT") return;
                   setTargetTab("categorias");
                 }}
                 disabled={manageOffer.tipo !== "PERCENT"}
-                title={manageOffer.tipo !== "PERCENT" ? "Solo las ofertas de Porcentaje (%) se pueden asignar a categorías enteras" : ""}
+                title={manageOffer.tipo !== "PERCENT" ? "Solo las ofertas de porcentaje pueden asignarse a categorías completas" : ""}
               >
-                📁 Categorías
+                <TagIcon size={16} />
+                <span>Categorías ({linkedCategories.length})</span>
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '20px' }}>
-              
-              {/* COLUMNA IZQUIERDA DEL MODAL: ELEMENTOS ASOCIADOS */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <h4 style={{ margin: 0, fontSize: '12px', fontWeight: 'bold', color: '#374151' }}>
-                  🔗 Elementos Asociados ({targetTab === "productos" ? linkedProducts.length : linkedCategories.length})
-                </h4>
-                
-                <div style={{ overflowY: 'auto', maxHeight: '350px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {/* Modal Content Columns */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+              {/* Linked Items Column */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                  🔗 Elementos Actualmente Asociados
+                </strong>
+
+                <div style={{ overflowY: 'auto', maxHeight: '340px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {targetTab === "productos" ? (
                     linkedProducts.map((item) => {
                       const product = products.find((entry) => entry.id_producto === item.id_producto);
                       return (
-                        <div key={item.id_producto} style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
+                        <div key={item.id_producto} className="offers-modal-item">
                           <div>
-                            <strong>{product?.nombre || "Producto"}</strong>
-                            <div style={{ fontSize: '9px', color: '#9ca3af' }}>Original: {product?.precio_venta} Bs</div>
+                            <strong style={{ fontSize: '0.84rem' }}>{product?.nombre || "Producto"}</strong>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Original: {product?.precio_venta} Bs</div>
                           </div>
+
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {manageOffer.tipo === "PRICE_OVERRIDE" ? (
                               <input
@@ -1016,30 +1291,31 @@ export default function OffersScreen({ isSuperadmin }) {
                                   ...current,
                                   [item.id_producto]: event.target.value,
                                 }))}
-                                style={{ width: '70px', padding: '4px', fontSize: '11px', textAlign: 'center', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                                style={{ width: '80px', padding: '6px', fontSize: '0.82rem', textAlign: 'center' }}
                               />
                             ) : (
-                              <span style={{ fontWeight: 'bold', color: '#059669' }}>-{manageOffer.porcentaje}%</span>
+                              <span style={{ fontWeight: 800, color: '#10b981', fontSize: '0.88rem' }}>
+                                -{manageOffer.porcentaje}%
+                              </span>
                             )}
-                            <div style={{ display: 'flex', gap: '2px' }}>
-                              {manageOffer.tipo === "PRICE_OVERRIDE" && (
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary"
-                                  style={{ padding: '2px 6px', fontSize: '9px' }}
-                                  onClick={() => handleSaveProductOverride(item)}
-                                >
-                                  OK
-                                </button>
-                              )}
+
+                            {manageOffer.tipo === "PRICE_OVERRIDE" && (
                               <button
                                 type="button"
-                                style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px' }}
-                                onClick={() => handleDetachProduct(item.id_producto)}
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => handleSaveProductOverride(item)}
                               >
-                                Quitar
+                                OK
                               </button>
-                            </div>
+                            )}
+
+                            <button
+                              type="button"
+                              className="btn btn-danger-ghost btn-sm"
+                              onClick={() => handleDetachProduct(item.id_producto)}
+                            >
+                              Quitar
+                            </button>
                           </div>
                         </div>
                       );
@@ -1048,11 +1324,11 @@ export default function OffersScreen({ isSuperadmin }) {
                     linkedCategories.map((item) => {
                       const category = categories.find((entry) => entry.id_categoria === item.id_categoria);
                       return (
-                        <div key={item.id_categoria} style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
-                          <strong>{category?.nombre || "Categoría"}</strong>
+                        <div key={item.id_categoria} className="offers-modal-item">
+                          <strong style={{ fontSize: '0.86rem' }}>{category?.nombre || "Categoría"}</strong>
                           <button
                             type="button"
-                            style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px' }}
+                            className="btn btn-danger-ghost btn-sm"
                             onClick={() => handleDetachCategory(item.id_categoria)}
                           >
                             Quitar
@@ -1061,40 +1337,44 @@ export default function OffersScreen({ isSuperadmin }) {
                       );
                     })
                   )}
+
                   {targetTab === "productos" && linkedProducts.length === 0 && (
-                    <p style={{ margin: 0, padding: '20px 0', textAlign: 'center', color: '#9ca3af', fontSize: '11px' }}>No hay productos asociados a esta oferta.</p>
+                    <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                      No hay productos asociados a esta oferta aún.
+                    </div>
                   )}
+
                   {targetTab === "categorias" && linkedCategories.length === 0 && (
-                    <p style={{ margin: 0, padding: '20px 0', textAlign: 'center', color: '#9ca3af', fontSize: '11px' }}>No hay categorías asociadas a esta oferta.</p>
+                    <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                      No hay categorías asociadas a esta oferta aún.
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* COLUMNA DERECHA DEL MODAL: BUSCADOR Y NUEVOS ELEMENTOS */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <h4 style={{ margin: 0, fontSize: '12px', fontWeight: 'bold', color: '#374151' }}>
-                  ➕ Buscar y Asociar
-                </h4>
-                
+              {/* Available Items & Search Column */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                  ➕ Buscar y Asociar Nuevos
+                </strong>
+
                 <input
-                  placeholder={targetTab === "productos" ? "🔍 Buscar producto por nombre..." : "🔍 Buscar categoría por nombre..."}
+                  placeholder={targetTab === "productos" ? "🔍 Buscar producto por nombre..." : "🔍 Buscar categoría..."}
                   value={targetTab === "productos" ? productQuery : categoryQuery}
                   onChange={(event) => targetTab === "productos" ? setProductQuery(event.target.value) : setCategoryQuery(event.target.value)}
-                  style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '11px', outline: 'none' }}
                 />
 
-                <div style={{ overflowY: 'auto', maxHeight: '290px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div style={{ overflowY: 'auto', maxHeight: '280px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {targetTab === "productos" ? (
                     availableProducts.map((product) => (
-                      <div key={product.id_producto} style={{ background: '#ffffff', border: '1px solid #f3f4f6', borderRadius: '8px', padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
+                      <div key={product.id_producto} className="offers-modal-item">
                         <div>
-                          <strong>{product.nombre}</strong>
-                          <div style={{ fontSize: '9px', color: '#6b7280' }}>{product.precio_venta} Bs</div>
+                          <strong style={{ fontSize: '0.84rem' }}>{product.nombre}</strong>
+                          <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{product.precio_venta} Bs</div>
                         </div>
                         <button
                           type="button"
-                          className="btn btn-primary"
-                          style={{ padding: '4px 10px', fontSize: '10px' }}
+                          className="btn btn-primary btn-sm"
                           onClick={() => handleAttachProduct(product)}
                         >
                           Asociar
@@ -1103,12 +1383,11 @@ export default function OffersScreen({ isSuperadmin }) {
                     ))
                   ) : (
                     availableCategories.map((category) => (
-                      <div key={category.id_categoria} style={{ background: '#ffffff', border: '1px solid #f3f4f6', borderRadius: '8px', padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px' }}>
-                        <strong>{category.nombre}</strong>
+                      <div key={category.id_categoria} className="offers-modal-item">
+                        <strong style={{ fontSize: '0.84rem' }}>{category.nombre}</strong>
                         <button
                           type="button"
-                          className="btn btn-primary"
-                          style={{ padding: '4px 10px', fontSize: '10px' }}
+                          className="btn btn-primary btn-sm"
                           onClick={() => handleAttachCategory(category)}
                         >
                           Asociar
@@ -1116,15 +1395,20 @@ export default function OffersScreen({ isSuperadmin }) {
                       </div>
                     ))
                   )}
+
                   {targetTab === "productos" && availableProducts.length === 0 && (
-                    <p style={{ margin: 0, padding: '20px 0', textAlign: 'center', color: '#9ca3af', fontSize: '11px' }}>No hay más productos disponibles.</p>
+                    <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                      No hay más productos disponibles para asociar.
+                    </div>
                   )}
+
                   {targetTab === "categorias" && availableCategories.length === 0 && (
-                    <p style={{ margin: 0, padding: '20px 0', textAlign: 'center', color: '#9ca3af', fontSize: '11px' }}>No hay más categorías disponibles.</p>
+                    <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                      No hay más categorías disponibles para asociar.
+                    </div>
                   )}
                 </div>
               </div>
-
             </div>
           </div>
         </div>
@@ -1132,64 +1416,47 @@ export default function OffersScreen({ isSuperadmin }) {
 
       {/* MODAL: CARGADOR DE BANNER */}
       {bannerOffer && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          background: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000,
-          padding: '20px'
-        }} onClick={() => setBannerOffer(null)}>
-          <div style={{
-            background: '#ffffff',
-            borderRadius: '16px',
-            padding: '24px',
-            width: '100%',
-            maxWidth: '550px',
-            maxHeight: '90vh',
-            overflowY: 'auto',
-            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
-            position: 'relative',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px'
-          }} onClick={(e) => e.stopPropagation()}>
-            
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f3f4f6', paddingBottom: '12px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#111827' }}>🖼️ Banner Promocional: {bannerOffer.nombre}</h3>
-              <button onClick={() => setBannerOffer(null)} style={{ border: 'none', background: '#f3f4f6', cursor: 'pointer', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#6b7280' }}>✕</button>
+        <div className="offers-modal-overlay" onClick={() => setBannerOffer(null)}>
+          <div className="offers-modal-window" style={{ maxWidth: '580px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '14px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                🖼️ Banner Promocional: {bannerOffer.nombre}
+              </h3>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setBannerOffer(null)}
+              >
+                ✕
+              </button>
             </div>
 
             {bannerOffer.banner_url ? (
-              <div className="banner-preview" style={{ textAlign: 'center' }}>
-                <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#6b7280', margin: '0 0 6px 0', textAlign: 'left' }}>Vista previa actual:</p>
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '8px', textAlign: 'left' }}>
+                  Vista previa del banner actual:
+                </span>
                 <img
                   src={getImageSrc(bannerOffer.banner_url)}
                   alt="Banner"
-                  style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '10px', border: '1px solid #e5e7eb' }}
+                  style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '14px', border: '1px solid var(--border-subtle)' }}
                 />
               </div>
             ) : (
-              <div style={{ background: '#f9fafb', border: '1px dashed #d1d5db', borderRadius: '10px', padding: '30px 10px', textAlign: 'center', color: '#9ca3af', fontSize: '11px' }}>
+              <div style={{ background: 'var(--bg-surface-elevated)', border: '1px dashed var(--border-strong)', borderRadius: '14px', padding: '30px 14px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                 Esta oferta aún no tiene un banner asignado para el carrusel de la tienda virtual.
               </div>
             )}
 
             <ImageDropZone
               title="Cargar imagen de banner"
-              subtitle="Formatos recomendados: JPG, PNG o WEBP (diseño horizontal)"
+              subtitle="Formatos recomendados: JPG, PNG o WebP (diseño horizontal)"
               statusText={bannerUploading === bannerOffer.id_oferta ? "Subiendo archivo..." : ""}
               disabled={bannerUploading === bannerOffer.id_oferta}
               onFileSelected={handleBannerUpload}
             />
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #f3f4f6', paddingTop: '12px', marginTop: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', paddingTop: '14px' }}>
               <button
                 type="button"
                 className="btn btn-ghost"
@@ -1201,6 +1468,6 @@ export default function OffersScreen({ isSuperadmin }) {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

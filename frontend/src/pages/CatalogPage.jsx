@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { registerPublicEvent } from "../api/api";
 import {
+  GourmetFoodTheme,
+  HomeDecoTheme,
+  LuxeMinimalTheme,
   MinimalCleanTheme,
   ModernBannerTheme,
   SoftBeigeTheme,
+  TechModernTheme,
+  UrbanStreetTheme,
 } from "../components/catalog/ThemeLayouts";
 import { resolveTheme } from "../theme/theme";
 import StorefrontHeader from "../components/StorefrontHeader";
@@ -12,6 +17,11 @@ const THEME_COMPONENTS = {
   modern_banner: ModernBannerTheme,
   soft_beige: SoftBeigeTheme,
   minimal_clean: MinimalCleanTheme,
+  luxe_minimal: LuxeMinimalTheme,
+  urban_street: UrbanStreetTheme,
+  tech_modern: TechModernTheme,
+  home_deco: HomeDecoTheme,
+  gourmet_food: GourmetFoodTheme,
 };
 
 function normalizeSearchText(value) {
@@ -55,7 +65,9 @@ function expandVariantCards(products) {
         precio_original: variant.precio_original ?? product.precio_original,
         precio_final: variant.precio_final ?? product.precio_final,
         descuento_pct: variant.descuento_pct ?? product.descuento_pct,
-        stock: Number(variant.stock ?? 0),
+        id_variante: variant.id_variante,
+        nombre_variante: variant.nombre || variant.sku || "",
+        stock: variant.stock !== null && variant.stock !== undefined ? Number(variant.stock) : null,
         imagen_url: variant.imagen_url || product.imagen_url,
         imagen_fit: variant.imagen_fit || product.imagen_fit,
         imagen_posicion_x: variant.imagen_posicion_x ?? product.imagen_posicion_x,
@@ -87,6 +99,7 @@ function CatalogPage({
   onSelectCategoryId,
   onViewDetail,
   onRetry,
+  onOpenCart,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [attributeFilters, setAttributeFilters] = useState({});
@@ -221,7 +234,7 @@ function CatalogPage({
 
   return (
     <>
-      <StorefrontHeader storeName={storeName} themeConfig={resolvedTheme.config} whatsappNumber={whatsappNumber} />
+      <StorefrontHeader storeName={storeName} themeConfig={resolvedTheme.config} whatsappNumber={whatsappNumber} onOpenCart={onOpenCart} />
       <ThemeComponent
       slug={slug}
       storeName={storeName}

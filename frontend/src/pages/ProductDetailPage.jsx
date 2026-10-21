@@ -16,13 +16,14 @@ function ProductDetailPage({
   productUrl,
   onWhatsappClick,
   onBack,
+  onOpenCart,
   previousProduct,
   nextProduct,
   onPreviousProduct,
   onNextProduct,
 }) {
   const currencySymbol = useCurrency();
-  const { addToCart } = useCart();
+  const { addToCart, cartCount } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [failedImageSrc, setFailedImageSrc] = useState("");
@@ -35,20 +36,28 @@ function ProductDetailPage({
       setVariantError("Selecciona una variante antes de agregar el producto.");
       return;
     }
-    const availableStock = Number(selectedVariant?.stock ?? product.stock ?? 0);
-    if (availableStock <= 0) {
-      setVariantError("Esta opcion no tiene stock disponible.");
+    const hasLimit = selectedStock !== null && selectedStock !== undefined;
+    const numStock = hasLimit ? Number(selectedStock) : null;
+    const available = !hasLimit || (numStock !== null && numStock > 0);
+    if (!available) {
+      setVariantError("Esta opción no tiene stock disponible.");
       return;
     }
+    const safeQty = hasLimit ? Math.min(quantity, Math.max(1, numStock)) : quantity;
     addToCart({
       ...product,
+      id: product.id || product.id_producto,
+      id_producto: product.id || product.id_producto,
       id_variante: selectedVariant?.id_variante || null,
       nombre_variante: selectedVariant?.nombre || "",
       precio_final: selectedVariant?.precio_final ?? product.precio_final,
       precio: selectedVariant?.precio ?? product.precio,
       imagen_url: selectedVariant?.imagen_url || product.imagen_url,
-      stock: availableStock,
-    }, Math.min(quantity, availableStock));
+      stock: selectedStock,
+    }, safeQty);
+    if (onOpenCart) {
+      onOpenCart();
+    }
     onBack();
   };
 
@@ -98,7 +107,7 @@ function ProductDetailPage({
   const displayDiscount = selectedVariant?.descuento_pct ?? descuentoPct;
   const selectedStock = selectedVariant?.stock ?? product.stock;
   const stockText = selectedStock == null
-    ? "Stock no disponible"
+    ? "En stock"
     : (product.es_set ? "Sets disponibles: " : "Stock: ") + selectedStock;
 
   useEffect(() => {
@@ -130,18 +139,37 @@ function ProductDetailPage({
   return (
     <main className="page-shell">
       <div className="container">
-        <button
-          className="btn btn-ghost back-btn-round"
-          type="button"
-          onClick={onBack}
-          aria-label="Volver al catálogo"
-          title="Volver al catálogo"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12"></line>
-            <polyline points="12 19 5 12 12 5"></polyline>
-          </svg>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <button
+            className="btn btn-ghost back-btn-round"
+            type="button"
+            onClick={onBack}
+            aria-label="Volver al catálogo"
+            title="Volver al catálogo"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+          </button>
+          {onOpenCart && (
+            <button
+              type="button"
+              className="topbar-cart-btn"
+              onClick={onOpenCart}
+              aria-label={`Ver carrito (${cartCount} productos)`}
+              title="Ver carrito"
+              style={{ position: "relative" }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <path d="M16 10a4 4 0 0 1-8 0" />
+              </svg>
+              {cartCount > 0 && <span className="topbar-cart-badge">{cartCount}</span>}
+            </button>
+          )}
+        </div>
 
         <section className="panel detail-layout">
           <div className="detail-image-wrap">
@@ -313,15 +341,19 @@ function ProductDetailPage({
                     value={quantity}
                     onChange={(event) => {
                       const next = Number(event.target.value);
-                      const max = Number(selectedStock || 1);
+                      const hasLimit = selectedStock !== null && selectedStock !== undefined;
+                      const max = hasLimit ? Math.max(1, Number(selectedStock)) : 999;
                       setQuantity(Number.isFinite(next) && next > 0 ? Math.min(next, max) : 1);
                     }}
                   />
                   <button
                     type="button"
                     className="qty-btn qty-btn-plus"
-                    onClick={() => setQuantity((prev) => Math.min(prev + 1, Number(selectedStock || 1)))}
-                    disabled={Number(selectedStock || 0) <= quantity}
+                    onClick={() => setQuantity((prev) => {
+                      const hasLimit = selectedStock !== null && selectedStock !== undefined;
+                      return hasLimit ? Math.min(prev + 1, Number(selectedStock)) : prev + 1;
+                    })}
+                    disabled={selectedStock !== null && selectedStock !== undefined && Number(selectedStock) <= quantity}
                   >
                     +
                   </button>
@@ -332,7 +364,7 @@ function ProductDetailPage({
                 className="btn btn-primary add-btn"
                 type="button"
                 onClick={handleAddToCart}
-                disabled={Number(selectedStock || 0) <= 0}
+                disabled={selectedStock !== null && selectedStock !== undefined && Number(selectedStock) <= 0}
                 style={{ backgroundColor: "var(--color-primary)", borderColor: "var(--color-primary)", color: "#ffffff" }}
               >
                 Agregar al Pedido

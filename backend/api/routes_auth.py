@@ -40,6 +40,7 @@ def _register_auth_audit(
     email_usuario: str | None = None,
     id_tienda=None,
     detalle: str | None = None,
+    rol_usuario: str | None = None,
 ) -> None:
     create_audit_log(
         db=db,
@@ -55,6 +56,7 @@ def _register_auth_audit(
         metodo_http=request.method,
         ip=get_client_ip(request),
         user_agent=request.headers.get("user-agent"),
+        rol_usuario=rol_usuario,
     )
 
 
@@ -83,6 +85,7 @@ def _build_login_token(*, identifier: str, password: str, db: Session, request: 
         id_usuario=user.id_usuario,
         email_usuario=user.email,
         id_tienda=user.id_tienda,
+        rol_usuario=user.rol,
     )
 
     token = create_access_token(
@@ -182,6 +185,7 @@ def forgot_password(
         id_usuario=user.id_usuario,
         email_usuario=user.email,
         id_tienda=user.id_tienda,
+        rol_usuario=user.rol,
     )
 
     return ForgotPasswordOut(
@@ -225,5 +229,6 @@ def reset_password(
         id_usuario=user.id_usuario,
         email_usuario=user.email,
         id_tienda=user.id_tienda,
+        rol_usuario=user.rol,
     )
     return MessageOut(message="Contrasena actualizada correctamente")

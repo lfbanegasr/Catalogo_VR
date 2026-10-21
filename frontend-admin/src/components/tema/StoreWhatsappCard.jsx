@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api';
-import { Card, HelperText } from '../Card';
 
 export default function StoreWhatsappCard() {
   const [loading, setLoading] = useState(true);
@@ -31,43 +30,59 @@ export default function StoreWhatsappCard() {
   }, []);
 
   return (
-    <Card title="Configuración General de la Tienda">
-      {loading ? <p className="muted">Cargando...</p> : null}
-      {error ? <p className="error-text">{error}</p> : null}
-      {store ? <p className="muted small">{store.nombre_tienda} ({store.slug})</p> : null}
-      <form className="grid-form" onSubmit={async (event) => {
-        event.preventDefault();
-        setSaving(true);
-        setError("");
-        setOk("");
-        try {
-          const updated = await api.adminUpdateMyStore({
-            whatsapp_number: whatsapp || null,
-            currency_symbol: currencySymbol || "S/"
-          });
-          setStore(updated);
-          setWhatsapp(updated.whatsapp_number || "");
-          setCurrencySymbol(updated.currency_symbol || "S/");
-          setOk("Configuración general actualizada con éxito");
-        } catch (err) {
-          setError(err.message || "No se pudo guardar");
-        } finally {
-          setSaving(false);
-        }
-      }}>
+    <div className="theme-panel-card">
+      <div className="theme-card-header">
+        <h3>Configuración General y Moneda</h3>
+        <p>Número de WhatsApp para pedidos y símbolo de moneda mostrado al cliente.</p>
+        {store ? <span style={{ fontSize: "0.82rem", color: "var(--brand-primary)", fontWeight: 600 }}>{store.nombre_tienda} ({store.slug})</span> : null}
+      </div>
+
+      {loading ? <p style={{ color: "var(--text-muted)" }}>Cargando datos...</p> : null}
+      {error ? <div className="alert alert-danger">{error}</div> : null}
+      {ok ? <div className="alert alert-success">{ok}</div> : null}
+
+      <form 
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setSaving(true);
+          setError("");
+          setOk("");
+          try {
+            const updated = await api.adminUpdateMyStore({
+              whatsapp_number: whatsapp || null,
+              currency_symbol: currencySymbol || "S/"
+            });
+            setStore(updated);
+            setWhatsapp(updated.whatsapp_number || "");
+            setCurrencySymbol(updated.currency_symbol || "S/");
+            setOk("Configuración general actualizada con éxito");
+          } catch (err) {
+            setError(err.message || "No se pudo guardar");
+          } finally {
+            setSaving(false);
+          }
+        }}
+        style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+      >
         <label>
-          Número de WhatsApp
+          <span style={{ display: "block", marginBottom: "6px", fontSize: "0.86rem", fontWeight: 600 }}>
+            Número de WhatsApp Comercial
+          </span>
           <input
             value={whatsapp}
             autoComplete="off"
-            placeholder="+51999999999"
+            placeholder="+591 70000000 o +51 999999999"
             onChange={(event) => setWhatsapp(event.target.value)}
           />
+          <small style={{ color: "var(--text-muted)", fontSize: "0.78rem", marginTop: "4px", display: "block" }}>
+            Usa formato internacional con código de país (ej. +591 o +51).
+          </small>
         </label>
-        <HelperText text="Usa formato internacional con código de país." />
 
-        <label style={{ marginTop: '14px' }}>
-          Símbolo de Moneda (ej. Bs, S/, $, USD)
+        <label>
+          <span style={{ display: "block", marginBottom: "6px", fontSize: "0.86rem", fontWeight: 600 }}>
+            Símbolo de Moneda (ej. Bs, S/, $, USD)
+          </span>
           <input
             value={currencySymbol}
             autoComplete="off"
@@ -76,14 +91,19 @@ export default function StoreWhatsappCard() {
             onChange={(event) => setCurrencySymbol(event.target.value)}
             required
           />
+          <small style={{ color: "var(--text-muted)", fontSize: "0.78rem", marginTop: "4px", display: "block" }}>
+            Símbolo que se mostrará en los precios de los productos y pedidos.
+          </small>
         </label>
-        <HelperText text="Símbolo que se mostrará en los precios de los productos y pedidos." />
 
-        {ok ? <p className="ok-text" style={{ marginTop: '10px' }}>{ok}</p> : null}
-        <button className="btn btn-primary" style={{ marginTop: '14px' }} disabled={saving}>
-          {saving ? "Guardando..." : "Guardar Configuración"}
+        <button 
+          className="btn btn-primary" 
+          style={{ alignSelf: "flex-start", marginTop: "8px" }} 
+          disabled={saving}
+        >
+          {saving ? "Guardando..." : "Guardar Configuración General"}
         </button>
       </form>
-    </Card>
+    </div>
   );
 }

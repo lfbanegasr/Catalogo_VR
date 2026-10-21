@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from '../../api';
-import { Card } from '../Card';
 import StoreRefPicker from '../StoreRefPicker';
 import ImageDropZone from '../ImageDropZone';
 import { getImageSrc } from '../../utils';
@@ -8,6 +7,25 @@ import { ToastStack } from '../Toast';
 import ProductCoverEditor, { categoryCoverDefaults } from './ProductCoverEditor';
 import ProductPicker from './ProductPicker';
 import CatalogPdfDownload from './CatalogPdfDownload';
+import {
+  BoxIcon,
+  TagIcon,
+  SlidersIcon,
+  SearchIcon,
+  GridIcon,
+  ListIcon,
+  PlusIcon,
+  EditIcon,
+  ImageIcon,
+  EyeIcon,
+  EyeOffIcon,
+  CopyIcon,
+  CheckIcon,
+  ExternalLinkIcon,
+  CloseIcon,
+  TrashIcon,
+  RefreshIcon,
+} from '../common/Icons';
 
 const CATEGORY_FORM_DEFAULTS = {
   nombre: "",
@@ -41,20 +59,36 @@ function CategoryCoverDefaultsFields({ value, onChange }) {
   const update = (key, next) => onChange({ ...value, [key]: next });
   return (
     <section className="category-cover-defaults">
-      <header><strong>Portadas de esta categoría</strong><span>Los productos heredarán este ajuste mientras no tengan uno individual.</span></header>
-      <label>Modo predeterminado
-        <select value={value.imagen_fit_default || "cover"} onChange={(event) => update("imagen_fit_default", event.target.value)}>
-          <option value="cover">Rellenar el cuadro</option>
-          <option value="contain">Mostrar imagen completa</option>
-          <option value="auto">Automático según proporción</option>
-        </select>
-      </label>
-      <label className="category-cover-color">Color de fondo
-        <input type="color" value={value.imagen_fondo_default || "#F8F5F2"} onChange={(event) => update("imagen_fondo_default", event.target.value.toUpperCase())} />
-      </label>
-      <label className="cover-range-control"><span><strong>Posición horizontal</strong><output>{value.imagen_posicion_x_default ?? 50}%</output></span><input type="range" min="0" max="100" value={value.imagen_posicion_x_default ?? 50} onChange={(event) => update("imagen_posicion_x_default", Number(event.target.value))} /></label>
-      <label className="cover-range-control"><span><strong>Posición vertical</strong><output>{value.imagen_posicion_y_default ?? 30}%</output></span><input type="range" min="0" max="100" value={value.imagen_posicion_y_default ?? 30} onChange={(event) => update("imagen_posicion_y_default", Number(event.target.value))} /></label>
-      <label className="cover-range-control"><span><strong>Zoom</strong><output>{value.imagen_zoom_default ?? 100}%</output></span><input type="range" min="80" max="200" value={value.imagen_zoom_default ?? 100} onChange={(event) => update("imagen_zoom_default", Number(event.target.value))} /></label>
+      <header>
+        <strong>Portadas de esta categoría</strong>
+        <span>Los productos heredarán este ajuste mientras no tengan uno individual.</span>
+      </header>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginTop: '12px' }}>
+        <label>Modo predeterminado
+          <select value={value.imagen_fit_default || "cover"} onChange={(event) => update("imagen_fit_default", event.target.value)}>
+            <option value="cover">Rellenar el cuadro</option>
+            <option value="contain">Mostrar imagen completa</option>
+            <option value="auto">Automático según proporción</option>
+          </select>
+        </label>
+        <label className="category-cover-color">Color de fondo
+          <input type="color" value={value.imagen_fondo_default || "#F8F5F2"} onChange={(event) => update("imagen_fondo_default", event.target.value.toUpperCase())} />
+        </label>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginTop: '12px' }}>
+        <label className="cover-range-control">
+          <span><strong>Posición horizontal</strong> <output>{value.imagen_posicion_x_default ?? 50}%</output></span>
+          <input type="range" min="0" max="100" value={value.imagen_posicion_x_default ?? 50} onChange={(event) => update("imagen_posicion_x_default", Number(event.target.value))} />
+        </label>
+        <label className="cover-range-control">
+          <span><strong>Posición vertical</strong> <output>{value.imagen_posicion_y_default ?? 30}%</output></span>
+          <input type="range" min="0" max="100" value={value.imagen_posicion_y_default ?? 30} onChange={(event) => update("imagen_posicion_y_default", Number(event.target.value))} />
+        </label>
+        <label className="cover-range-control">
+          <span><strong>Zoom</strong> <output>{value.imagen_zoom_default ?? 100}%</output></span>
+          <input type="range" min="80" max="200" value={value.imagen_zoom_default ?? 100} onChange={(event) => update("imagen_zoom_default", Number(event.target.value))} />
+        </label>
+      </div>
     </section>
   );
 }
@@ -148,6 +182,7 @@ function SetComponentsEditor({
     const quantity = Math.max(1, Number(componentItem.cantidad || 1));
     return { product, variants, variant, requiresVariant, ready, availableStock, quantity };
   });
+
   const estimatedStock = availability.length > 0
     ? Math.min(...availability.map((item) => Math.floor(item.availableStock / item.quantity)))
     : 0;
@@ -259,7 +294,7 @@ function SetComponentsEditor({
       })}
       {value.length === 0 ? (
         <div className="set-components-empty">
-          <strong>Aun no agregaste productos</strong>
+          <strong>Aún no agregaste productos</strong>
           <span>Elige al menos dos unidades para formar el set.</span>
         </div>
       ) : null}
@@ -298,21 +333,13 @@ function SetComponentsEditor({
 export default function CatalogoScreen({ isSuperadmin }) {
   const editorRef = useRef(null);
 
-  const handleOpenCreateForm = () => {
-    setEditing(null);
-    resetFormForTab(tab);
-    setPendingImageFile(null);
-    setError("");
-    setEditorOpen(true);
-  };
+  // Tabs de pantalla: "productos" | "categorias" | "atributos" | "descargar"
+  const [tab, setTab] = useState("productos");
+  // Modo de visualización: "grid" | "table"
+  const [viewMode, setViewMode] = useState("grid");
+  // Pestaña activa dentro del modal de edición
+  const [modalTab, setModalTab] = useState("general");
 
-  const closeEntityEditor = () => {
-    if (isSaving) return;
-    setEditorOpen(false);
-    setEditing(null);
-    setPendingImageFile(null);
-  };
-  const [tab, setTab] = useState("categorias");
   const [stores, setStores] = useState([]);
   const [ownStore, setOwnStore] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -331,6 +358,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   const [productSearchOpen, setProductSearchOpen] = useState(false);
   const [categoriaFiltro, setCategoriaFiltro] = useState("");
   const [showRemoved, setShowRemoved] = useState(false);
+
   const [attributeForm, setAttributeForm] = useState({
     nombre: "",
     tipo_dato: "OPTION",
@@ -355,12 +383,15 @@ export default function CatalogoScreen({ isSuperadmin }) {
     es_predeterminada: false,
     atributos: {},
   });
+
   const [form, setForm] = useState(tab === "categorias" ? { ...CATEGORY_FORM_DEFAULTS } : { ...PRODUCT_FORM_DEFAULTS });
   const [toasts, setToasts] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [coverEditor, setCoverEditor] = useState(null);
   const [coverEditorBusy, setCoverEditorBusy] = useState(false);
   const [pendingImagePreviewUrl, setPendingImagePreviewUrl] = useState("");
+  const [isReloading, setIsReloading] = useState(false);
+
   const editorType = editing?.mode || (tab === "categorias" ? "categoria" : "producto");
 
   const pushToast = (message, type = "success") => {
@@ -382,6 +413,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
     setPendingImagePreviewUrl(objectUrl);
     return () => URL.revokeObjectURL(objectUrl);
   }, [pendingImageFile]);
+
   const categoryOptions = useMemo(() => {
     const byId = new Map(categoriasDisponibles.map((category) => [category.id_categoria, category]));
     const labelFor = (category) => {
@@ -401,19 +433,24 @@ export default function CatalogoScreen({ isSuperadmin }) {
       label: labelFor(category),
     }));
   }, [categoriasDisponibles]);
+
   const categoriaMap = useMemo(
     () => new Map(categoryOptions.map((c) => [c.id_categoria, c.label])),
     [categoryOptions],
   );
+
   const selectedStore = useMemo(
     () => stores.find((store) => store.id_tienda === tenantId) || null,
     [stores, tenantId],
   );
+
   const selectedStoreRef = isSuperadmin
     ? selectedStore?.slug || selectedStore?.nombre_tienda || ""
     : undefined;
+
   const catalogStore = isSuperadmin ? selectedStore : ownStore;
   const catalogSlug = catalogStore?.slug || "";
+
   const publicCatalogUrl = useMemo(() => {
     if (!catalogSlug) return "";
     const configuredBase = String(import.meta.env.VITE_PUBLIC_CATALOG_URL || "").trim();
@@ -424,6 +461,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
     url.searchParams.set("slug", catalogSlug);
     return url.toString();
   }, [catalogSlug]);
+
   const filteredProductRows = useMemo(() => {
     const query = productQuery.trim().toLowerCase();
     return rows.filter((product) => {
@@ -444,10 +482,27 @@ export default function CatalogoScreen({ isSuperadmin }) {
       return haystack.includes(query);
     });
   }, [rows, productQuery, categoriaFiltro, showRemoved]);
+
   const visibleCategoryRows = useMemo(
     () => rows.filter((category) => showRemoved || category.activa),
     [rows, showRemoved],
   );
+
+  // Métricas rápidas del catálogo (KPIs)
+  const stats = useMemo(() => {
+    if (tab === "categorias") {
+      const total = rows.length;
+      const activas = rows.filter((c) => c.activa).length;
+      return { total, activas, inactivas: total - activas };
+    }
+    const allProd = tab === "productos" ? rows : [];
+    const total = allProd.length;
+    const inStock = allProd.filter((p) => Number(p.stock_actual || 0) > 5).length;
+    const lowStock = allProd.filter((p) => Number(p.stock_actual || 0) > 0 && Number(p.stock_actual || 0) <= 5).length;
+    const outStock = allProd.filter((p) => Number(p.stock_actual || 0) <= 0).length;
+    return { total, inStock, lowStock, outStock };
+  }, [tab, rows]);
+
   const productSuggestions = useMemo(() => {
     const query = productQuery.trim().toLowerCase();
     if (!query) return [];
@@ -464,6 +519,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
     }
     return matches;
   }, [rows, productQuery, showRemoved]);
+
   const variantAttributeConfig = useMemo(
     () => editingProductAttributeConfig.filter(
       (config) =>
@@ -473,6 +529,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
     ),
     [editingProductAttributeConfig],
   );
+
   const missingVariantCombinations = useMemo(() => {
     const optionGroups = variantAttributeConfig.map((config) => ({
       id_atributo: config.id_atributo,
@@ -503,6 +560,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
       throw new Error("Selecciona una tienda");
     }
   };
+
   const validateSetComposition = (components = []) => {
     const totalUnits = components.reduce(
       (total, item) => total + Number(item.cantidad || 0),
@@ -516,13 +574,14 @@ export default function CatalogoScreen({ isSuperadmin }) {
         (item) => item.id_producto === component.id_producto_componente,
       );
       if (!product || !product.activo) {
-        throw new Error("Uno de los productos del set ya no esta disponible.");
+        throw new Error("Uno de los productos del set ya no está disponible.");
       }
       if (product.tiene_variantes && !component.id_variante_componente) {
         throw new Error("Selecciona la variante exacta de " + product.nombre + ".");
       }
     }
   };
+
   const copyCatalogUrl = async () => {
     if (!publicCatalogUrl) return;
     try {
@@ -533,38 +592,6 @@ export default function CatalogoScreen({ isSuperadmin }) {
       setError("No se pudo copiar el enlace. Selecciónalo y cópialo manualmente.");
     }
   };
-
-  const catalogSharePanel = (
-    <div className="catalog-share">
-      <div className="catalog-share-summary">
-        <span className="catalog-share-icon" aria-hidden="true">↗</span>
-        <div>
-          <strong>Compartir catálogo</strong>
-          <small>{catalogSlug ? `Enlace público de ${catalogStore?.nombre_tienda || catalogSlug}` : "Selecciona una tienda para generar el enlace"}</small>
-        </div>
-      </div>
-      <button
-        type="button"
-        className="btn btn-ghost catalog-share-toggle"
-        disabled={!catalogSlug}
-        onClick={() => setShareOpen((current) => !current)}
-      >
-        {shareOpen ? "Ocultar enlace" : "Obtener enlace"}
-      </button>
-      {shareOpen && publicCatalogUrl ? (
-        <div className="catalog-share-panel">
-          <label>
-            Enlace de la tienda
-            <input value={publicCatalogUrl} readOnly onFocus={(event) => event.target.select()} />
-          </label>
-          <div className="catalog-share-actions">
-            <button type="button" className="btn btn-primary" onClick={copyCatalogUrl}>{shareCopied ? "¡Copiado!" : "Copiar enlace"}</button>
-            <button type="button" className="btn btn-ghost" onClick={() => window.open(publicCatalogUrl, "_blank", "noopener,noreferrer")}>Ver catálogo</button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
 
   const findProductCategory = (product) => {
     const categoryId = product?.id_categoria_principal || product?.id_categoria || "";
@@ -604,7 +631,6 @@ export default function CatalogoScreen({ isSuperadmin }) {
       imagen_posicion_x_default: parentProduct.imagen_posicion_x ?? categoryDefaults.positionX,
       imagen_posicion_y_default: parentProduct.imagen_posicion_y ?? categoryDefaults.positionY,
       imagen_zoom_default: parentProduct.imagen_zoom ?? categoryDefaults.zoom,
-
       imagen_fondo_default: parentProduct.imagen_fondo || categoryDefaults.background,
     };
     const variantName = (variant.atributos || []).map((item) => item.valor).join(" / ")
@@ -621,7 +647,6 @@ export default function CatalogoScreen({ isSuperadmin }) {
       replaceUrl: "",
     });
   };
-
 
   const applyProductCover = async ({ file, payload }) => {
     if (!coverEditor) return;
@@ -696,9 +721,9 @@ export default function CatalogoScreen({ isSuperadmin }) {
     const isCategory = mode === "categoria";
     const isActive = isCategory ? row.activa : row.activo;
     if (isActive) {
-      const label = isCategory ? "categoria" : "producto";
+      const label = isCategory ? "categoría" : "producto";
       const confirmed = window.confirm(
-        `¿Ocultar esta ${label} del catálogo público? No se eliminarán sus datos y podrás volver a mostrarla cuando quieras.`,
+        `¿Ocultar este ${label} del catálogo público? No se eliminarán sus datos y podrás volver a mostrarlo cuando quieras.`,
       );
       if (!confirmed) return;
     }
@@ -718,6 +743,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
     }
     await load();
   };
+
   const openProductEditor = async (product) => {
     const categoryId = product.id_categoria_principal || product.id_categoria || "";
     setEditing({
@@ -741,6 +767,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
       es_predeterminada: false,
       atributos: {},
     });
+    setModalTab("general");
     if (product.tipo_producto === "SET") return;
 
     try {
@@ -765,6 +792,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
       setError(e.message);
     }
   };
+
   const buildProductAttributePayload = () =>
     editingProductAttributeConfig
       .filter((config) => {
@@ -796,7 +824,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
       id_opcion: variantForm.atributos[config.id_atributo],
     }));
     if (atributos.length === 0 || atributos.some((item) => !item.id_opcion)) {
-      throw new Error("Selecciona una opcion para cada atributo de la variante.");
+      throw new Error("Selecciona una opción para cada atributo de la variante.");
     }
     const optionalNumber = (value) => value === "" || value == null ? null : Number(value);
     setVariantBusy(true);
@@ -818,6 +846,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
         es_predeterminada: false,
         atributos: {},
       });
+      pushToast("Variante creada correctamente");
     } finally {
       setVariantBusy(false);
     }
@@ -832,7 +861,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
       throw new Error("Hay demasiadas combinaciones. Reduce las opciones antes de continuar.");
     }
     if (missingVariantCombinations.length > 12 && !window.confirm(
-      "Se crearan " + missingVariantCombinations.length + " variantes. Deseas continuar?",
+      "Se crearán " + missingVariantCombinations.length + " variantes. ¿Deseas continuar?",
     )) {
       return;
     }
@@ -875,22 +904,9 @@ export default function CatalogoScreen({ isSuperadmin }) {
         es_predeterminada: Boolean(variant.es_predeterminada),
       });
       setEditingVariants(await api.listVariantes(editing.row.id_producto));
+      pushToast("Variante actualizada");
     } finally {
       setVariantBusy(false);
-    }
-  };
-
-  const uploadVariantImage = async (variant, file) => {
-    if (!file || !variant?.id_variante) return;
-    setBusyVariantImageId(variant.id_variante);
-    try {
-      const updated = await api.uploadVarianteImage(variant.id_variante, file);
-      setEditingVariants((current) => current.map((item) => (
-        item.id_variante === variant.id_variante ? updated : item
-      )));
-      await load();
-    } finally {
-      setBusyVariantImageId("");
     }
   };
 
@@ -1024,6 +1040,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
         }));
       }
       await load();
+      pushToast("Imagen eliminada");
     } catch (err) {
       setError(err.message || "Error al eliminar la imagen");
     } finally {
@@ -1031,12 +1048,30 @@ export default function CatalogoScreen({ isSuperadmin }) {
     }
   };
 
+  const handleOpenCreateForm = () => {
+    setEditing(null);
+    resetFormForTab(tab);
+    setPendingImageFile(null);
+    setError("");
+    setModalTab("general");
+    setEditorOpen(true);
+  };
+
+  const closeEntityEditor = () => {
+    if (isSaving) return;
+    setEditorOpen(false);
+    setEditing(null);
+    setPendingImageFile(null);
+  };
+
   useEffect(() => {
     loadStores().catch((e) => setError(e.message));
   }, []);
+
   useEffect(() => {
     load().catch((e) => setError(e.message));
   }, [tab, selectedStoreRef]);
+
   useEffect(() => {
     resetFormForTab(tab);
     setEditing(null);
@@ -1049,6 +1084,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
       setProductSearchOpen(false);
     }
   }, [tab, selectedStoreRef]);
+
   useEffect(() => {
     if (tab !== "atributos" || !attributeCategoryId) {
       setSelectedCategoryAttributeIds([]);
@@ -1097,217 +1133,20 @@ export default function CatalogoScreen({ isSuperadmin }) {
     };
   }, [editorOpen, isSaving, coverEditor]);
 
-  if (tab === "atributos") {
-    return (
-      <Card title="Atributos del catálogo" className="catalog-compact">
-        {catalogSharePanel}
-        <div className="catalog-toolbar">
-          <div className="catalog-tabs">
-            <button className="tab-btn" onClick={() => setTab("categorias")}>Categorias</button>
-            <button className="tab-btn" onClick={() => setTab("productos")}>Productos</button>
-            <button className="tab-btn active" onClick={() => setTab("atributos")}>Atributos</button>
-            <button className="tab-btn" onClick={() => setTab("descargar")}>Descargar</button>
-          </div>
-          <div className="catalog-controls">
-            {isSuperadmin ? (
-              <StoreRefPicker stores={stores} value={tenantId} onChange={setTenantId} required />
-            ) : <div className="catalog-controls-spacer" />}
-            <button className="btn btn-ghost" onClick={() => handleReload().catch((e) => setError(e.message))}>Recargar</button>
-          </div>
-        </div>
-        {error ? <p className="error-text">{error}</p> : null}
-
-        <div className="inline-editor">
-          <h4>Crear atributo</h4>
-          <form className="grid-form" onSubmit={async (event) => {
-            event.preventDefault();
-            try {
-              assertStoreSelected();
-              await api.createAtributo({
-                ...attributeForm,
-                unidad: attributeForm.unidad || null,
-              }, selectedStoreRef);
-              setAttributeForm({
-                nombre: "",
-                tipo_dato: "OPTION",
-                unidad: "",
-                permite_multiples: false,
-                usable_en_variantes: false,
-                activo: true,
-              });
-              await load();
-            } catch (e) { setError(e.message); }
-          }}>
-            <label>Nombre<input required value={attributeForm.nombre} onChange={(e) => setAttributeForm((current) => ({ ...current, nombre: e.target.value }))} /></label>
-            <label>Tipo<select value={attributeForm.tipo_dato} onChange={(e) => setAttributeForm((current) => ({ ...current, tipo_dato: e.target.value }))}>
-              <option value="OPTION">Lista de opciones</option>
-              <option value="TEXT">Texto</option>
-              <option value="NUMBER">Numero</option>
-              <option value="BOOLEAN">Si / No</option>
-            </select></label>
-            <label>Unidad opcional<input value={attributeForm.unidad} placeholder="cm, GB, kt..." onChange={(e) => setAttributeForm((current) => ({ ...current, unidad: e.target.value }))} /></label>
-            <label className="check-row"><input type="checkbox" checked={attributeForm.permite_multiples} onChange={(e) => setAttributeForm((current) => ({ ...current, permite_multiples: e.target.checked }))} />Permitir varios valores</label>
-            <label className="check-row"><input type="checkbox" checked={attributeForm.usable_en_variantes} onChange={(e) => setAttributeForm((current) => ({ ...current, usable_en_variantes: e.target.checked }))} />Usable en variantes</label>
-            <button className="btn btn-primary">Crear atributo</button>
-          </form>
-        </div>
-
-        <div className="table-wrap desktop-only">
-          <table className="data-table">
-            <thead><tr><th>Nombre</th><th>Tipo</th><th>Opciones</th><th>Estado</th><th>Acciones</th></tr></thead>
-            <tbody>
-              {rows.map((attribute) => (
-                <tr key={attribute.id_atributo}>
-                  <td className="font-semibold">{attribute.nombre}</td>
-                  <td>{attribute.tipo_dato}</td>
-                  <td>{(attribute.opciones || []).map((option) => option.valor).join(", ") || "-"}</td>
-                  <td><span className={attribute.activo ? "status-badge active" : "status-badge inactive"}>{attribute.activo ? "Activo" : "Inactivo"}</span></td>
-                  <td className="actions-cell">
-                    {attribute.tipo_dato === "OPTION" ? (
-                      <button className="btn btn-ghost" onClick={async () => {
-                        const value = window.prompt("Nueva opcion");
-                        if (!value || !value.trim()) return;
-                        try {
-                          await api.createAtributoOpcion(attribute.id_atributo, { valor: value.trim() });
-                          await load();
-                        } catch (e) { setError(e.message); }
-                      }}>Agregar opcion</button>
-                    ) : null}
-                    <button className="btn btn-ghost" onClick={async () => {
-                      try {
-                        await api.updateAtributo(attribute.id_atributo, { activo: !attribute.activo });
-                        await load();
-                      } catch (e) { setError(e.message); }
-                    }}>{attribute.activo ? "Desactivar" : "Activar"}</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="inline-editor">
-          <h4>Configurar atributos por categoria</h4>
-          <label>Categoria<select value={attributeCategoryId} onChange={(e) => setAttributeCategoryId(e.target.value)}>
-            <option value="">Selecciona una categoria</option>
-            {categoryOptions.map((category) => <option key={category.id_categoria} value={category.id_categoria}>{category.label}</option>)}
-          </select></label>
-          {attributeCategoryId ? (
-            <div className="grid-form">
-              {rows.filter((attribute) => attribute.activo).map((attribute) => {
-                const selected = selectedCategoryAttributeIds.includes(attribute.id_atributo);
-                const canBeVariant = attribute.usable_en_variantes && attribute.tipo_dato === "OPTION";
-                return (
-                  <div key={attribute.id_atributo}>
-                    <label className="check-row">
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={(e) => {
-                          setSelectedCategoryAttributeIds((current) => e.target.checked
-                            ? [...current, attribute.id_atributo]
-                            : current.filter((id) => id !== attribute.id_atributo));
-                          if (!e.target.checked) {
-                            setVariantCategoryAttributeIds((current) =>
-                              current.filter((id) => id !== attribute.id_atributo));
-                          }
-                        }}
-                      />
-                      {attribute.nombre}
-                    </label>
-                    {selected && canBeVariant ? (
-                      <label className="check-row muted small">
-                        <input
-                          type="checkbox"
-                          checked={variantCategoryAttributeIds.includes(attribute.id_atributo)}
-                          onChange={(e) => setVariantCategoryAttributeIds((current) => e.target.checked
-                            ? [...current, attribute.id_atributo]
-                            : current.filter((id) => id !== attribute.id_atributo))}
-                        />
-                        Usar para crear variantes
-                      </label>
-                    ) : null}
-                  </div>
-                );
-              })}
-              <button className="btn btn-primary" type="button" onClick={async () => {
-                try {
-                  const selected = selectedCategoryAttributeIds.map((id, index) => ({
-                    id_atributo: id,
-                    requerido: false,
-                    filtrable: true,
-                    usado_en_variantes: variantCategoryAttributeIds.includes(id),
-                    orden: index,
-                  }));
-                  await api.replaceCategoriaAtributos(attributeCategoryId, selected);
-                } catch (e) { setError(e.message); }
-              }}>Guardar configuracion</button>
-            </div>
-          ) : <p className="muted">Selecciona una categoria para indicar sus caracteristicas.</p>}
-        </div>
-      </Card>
-    );
-  }
-
-  if (tab === "descargar") {
-    return (
-      <>
-        <Card title="Catálogo privado" className="catalog-compact">
-          {catalogSharePanel}
-          <div className="catalog-toolbar">
-            <div className="catalog-tabs">
-              <button className="tab-btn" onClick={() => setTab("categorias")}>Categorías</button>
-              <button className="tab-btn" onClick={() => setTab("productos")}>Productos</button>
-              <button className="tab-btn" onClick={() => setTab("atributos")}>Atributos</button>
-              <button className="tab-btn active" onClick={() => setTab("descargar")}>Descargar</button>
-            </div>
-            <div className="catalog-controls">
-              {isSuperadmin ? (
-                <StoreRefPicker
-                  stores={stores}
-                  value={tenantId}
-                  onChange={setTenantId}
-                  required
-                />
-              ) : <div className="catalog-controls-spacer" />}
-              <button className="btn btn-ghost catalog-refresh" onClick={() => handleReload().catch((e) => setError(e.message))}>Recargar</button>
-            </div>
-          </div>
-          {error ? <p className="error-text">{error}</p> : null}
-          <CatalogPdfDownload
-            categories={categoriasDisponibles}
-            products={rows}
-            store={catalogStore}
-            tiendaRef={selectedStoreRef}
-            disabled={isSuperadmin && !selectedStoreRef}
-          />
-        </Card>
-        <ToastStack items={toasts} onDismiss={dismissToast} />
-      </>
-    );
-  }
-
   return (
-    <>
-    <Card title="Catálogo privado" className="catalog-compact">
-      {catalogSharePanel}
-      <div className="catalog-toolbar">
-        <div className="catalog-tabs">
-          <button className={`tab-btn ${tab === "categorias" ? "active" : ""}`} onClick={() => setTab("categorias")}>Categorías</button>
-          <button className={`tab-btn ${tab === "productos" ? "active" : ""}`} onClick={() => setTab("productos")}>Productos</button>
-          <button className={`tab-btn ${tab === "atributos" ? "active" : ""}`} onClick={() => setTab("atributos")}>Atributos</button>
-          <button className={`tab-btn ${tab === "descargar" ? "active" : ""}`} onClick={() => setTab("descargar")}>Descargar</button>
+    <div className="catalog-main-container">
+      {/* HEADER DE LA PANTALLA */}
+      <div className="catalog-header-row">
+        <div>
+          <h1 style={{ fontSize: '1.65rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+            Catálogo de Productos
+          </h1>
+          <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+            Administra tus productos, variantes, categorías y catálogos interactivos para tus clientes.
+          </p>
         </div>
-        <div className="catalog-controls">
-          {tab !== "atributos" && (
-            <button
-              type="button"
-              className="btn btn-primary create-action-btn"
-              onClick={handleOpenCreateForm}
-            >
-              + {tab === "categorias" ? "Crear categoría" : "Crear producto"}
-            </button>
-          )}
+
+        <div className="catalog-header-actions">
           {isSuperadmin ? (
             <StoreRefPicker
               stores={stores}
@@ -1315,904 +1154,1885 @@ export default function CatalogoScreen({ isSuperadmin }) {
               onChange={setTenantId}
               required
             />
-          ) : <div className="catalog-controls-spacer" />}
-          <button className="btn btn-ghost catalog-refresh" onClick={() => handleReload().catch((e) => setError(e.message))}>Recargar</button>
-          <label className="check-row show-removed-toggle">
-            <input
-              type="checkbox"
-              checked={showRemoved}
-              onChange={(event) => setShowRemoved(event.target.checked)}
-            />
-            Mostrar ocultos
-          </label>
+          ) : null}
+
+          <button
+            type="button"
+            className="catalog-sync-btn"
+            disabled={isReloading}
+            onClick={async () => {
+              setIsReloading(true);
+              try {
+                await handleReload();
+                pushToast("Catálogo sincronizado correctamente");
+              } catch (e) {
+                setError(e.message);
+              } finally {
+                setTimeout(() => setIsReloading(false), 600);
+              }
+            }}
+            title="Sincronizar y actualizar datos"
+          >
+            <RefreshIcon size={16} className={`catalog-sync-icon ${isReloading ? "is-spinning" : ""}`} />
+            <span>{isReloading ? "Sincronizando..." : "Actualizar"}</span>
+          </button>
+
+          {catalogSlug && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setShareOpen((s) => !s)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            >
+              <ExternalLinkIcon size={16} />
+              <span>{shareOpen ? "Ocultar Enlace" : "Compartir Catálogo"}</span>
+            </button>
+          )}
         </div>
       </div>
-      {error ? <p className="error-text">{error}</p> : null}
-      {tab === "productos" ? (
-        <div className="product-filters">
-          <label>
-            Buscar producto
-            <div className="smart-search">
-              <input
-                value={productQuery}
-                autoComplete="off"
-                placeholder="Nombre, descripción o ID..."
-                onFocus={() => setProductSearchOpen(true)}
-                onBlur={() => window.setTimeout(() => setProductSearchOpen(false), 120)}
-                onChange={(event) => setProductQuery(event.target.value)}
-              />
-              {productSearchOpen && productSuggestions.length > 0 ? (
-                <div className="smart-search-list">
+
+      {/* BANNER DE COMPARTIR CATÁLOGO PÚBLICO */}
+      {shareOpen && publicCatalogUrl && (
+        <div className="catalog-share-banner">
+          <div className="catalog-share-info">
+            <div className="catalog-share-avatar">
+              <ExternalLinkIcon size={20} />
+            </div>
+            <div>
+              <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                Enlace Público de tu Catálogo
+              </strong>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                Tus clientes pueden explorar productos y hacer pedidos directamente desde este enlace.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="catalog-share-linkbox">
+              {publicCatalogUrl}
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={copyCatalogUrl}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              {shareCopied ? <CheckIcon size={16} /> : <CopyIcon size={16} />}
+              <span>{shareCopied ? "¡Copiado!" : "Copiar"}</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => window.open(publicCatalogUrl, "_blank", "noopener,noreferrer")}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <ExternalLinkIcon size={15} />
+              <span>Abrir Tienda</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* KPI BENTO STRIP DE INVENTARIO */}
+      <div className="catalog-kpi-bento">
+        {tab === "categorias" ? (
+          <>
+            <div className="catalog-kpi-card accent-cyan">
+              <div className="catalog-kpi-header">
+                <span className="catalog-kpi-label">Total Categorías</span>
+                <div className="catalog-kpi-icon-wrap cyan"><TagIcon size={18} /></div>
+              </div>
+              <div className="catalog-kpi-number">{stats.total}</div>
+              <div className="catalog-kpi-footnote">
+                <span className="catalog-kpi-dot cyan" />
+                <span>Estructuradas en el catálogo</span>
+              </div>
+            </div>
+            <div className="catalog-kpi-card accent-emerald">
+              <div className="catalog-kpi-header">
+                <span className="catalog-kpi-label">Categorías Activas</span>
+                <div className="catalog-kpi-icon-wrap emerald"><CheckIcon size={18} /></div>
+              </div>
+              <div className="catalog-kpi-number">{stats.activas}</div>
+              <div className="catalog-kpi-footnote">
+                <span className="catalog-kpi-dot emerald" />
+                <span>Visibles en tienda pública</span>
+              </div>
+            </div>
+            <div className="catalog-kpi-card accent-amber">
+              <div className="catalog-kpi-header">
+                <span className="catalog-kpi-label">Categorías Ocultas</span>
+                <div className="catalog-kpi-icon-wrap amber"><EyeOffIcon size={18} /></div>
+              </div>
+              <div className="catalog-kpi-number">{stats.inactivas}</div>
+              <div className="catalog-kpi-footnote">
+                <span className="catalog-kpi-dot amber" />
+                <span>Desactivadas temporalmente</span>
+              </div>
+            </div>
+            <div className="catalog-kpi-card accent-purple">
+              <div className="catalog-kpi-header">
+                <span className="catalog-kpi-label">Estructura</span>
+                <div className="catalog-kpi-icon-wrap purple"><SlidersIcon size={18} /></div>
+              </div>
+              <div className="catalog-kpi-number" style={{ fontSize: '1.45rem' }}>Jerárquica</div>
+              <div className="catalog-kpi-footnote">
+                <span className="catalog-kpi-dot purple" />
+                <span>Árbol Padre / Subcategorías</span>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="catalog-kpi-card accent-cyan">
+              <div className="catalog-kpi-header">
+                <span className="catalog-kpi-label">Total Productos</span>
+                <div className="catalog-kpi-icon-wrap cyan"><BoxIcon size={18} /></div>
+              </div>
+              <div className="catalog-kpi-number">{stats.total}</div>
+              <div className="catalog-kpi-footnote">
+                <span className="catalog-kpi-dot cyan" />
+                <span>En inventario general</span>
+              </div>
+            </div>
+            <div className="catalog-kpi-card accent-emerald">
+              <div className="catalog-kpi-header">
+                <span className="catalog-kpi-label">En Stock Normal</span>
+                <div className="catalog-kpi-icon-wrap emerald"><CheckIcon size={18} /></div>
+              </div>
+              <div className="catalog-kpi-number">{stats.inStock}</div>
+              <div className="catalog-kpi-footnote">
+                <span className="catalog-kpi-dot emerald" />
+                <span>&gt; 5 unidades disponibles</span>
+              </div>
+            </div>
+            <div className="catalog-kpi-card accent-amber">
+              <div className="catalog-kpi-header">
+                <span className="catalog-kpi-label">Alerta Bajo Stock</span>
+                <div className="catalog-kpi-icon-wrap amber"><SlidersIcon size={18} /></div>
+              </div>
+              <div className="catalog-kpi-number">{stats.lowStock}</div>
+              <div className="catalog-kpi-footnote">
+                <span className="catalog-kpi-dot amber" />
+                <span>1 a 5 unidades restantes</span>
+              </div>
+            </div>
+            <div className="catalog-kpi-card accent-rose">
+              <div className="catalog-kpi-header">
+                <span className="catalog-kpi-label">Sin Stock / Agotados</span>
+                <div className="catalog-kpi-icon-wrap rose"><CloseIcon size={18} /></div>
+              </div>
+              <div className="catalog-kpi-number">{stats.outStock}</div>
+              <div className="catalog-kpi-footnote">
+                <span className="catalog-kpi-dot rose" />
+                <span>Requieren reposición urgente</span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* SUB-NAVEGACIÓN POR PESTAÑAS (PILLS MODERNOS) */}
+      <div className="catalog-nav-pills-bar">
+        <div className="catalog-nav-pills">
+          <button
+            type="button"
+            className={`catalog-tab-pill ${tab === "productos" ? "active" : ""}`}
+            onClick={() => setTab("productos")}
+          >
+            <BoxIcon size={16} />
+            <span>Productos</span>
+            {tab === "productos" && <span className="catalog-pill-count">{filteredProductRows.length}</span>}
+          </button>
+
+          <button
+            type="button"
+            className={`catalog-tab-pill ${tab === "categorias" ? "active" : ""}`}
+            onClick={() => setTab("categorias")}
+          >
+            <TagIcon size={16} />
+            <span>Categorías</span>
+            {tab === "categorias" && <span className="catalog-pill-count">{visibleCategoryRows.length}</span>}
+          </button>
+
+          <button
+            type="button"
+            className={`catalog-tab-pill ${tab === "atributos" ? "active" : ""}`}
+            onClick={() => setTab("atributos")}
+          >
+            <SlidersIcon size={16} />
+            <span>Atributos & Variantes</span>
+          </button>
+
+          <button
+            type="button"
+            className={`catalog-tab-pill ${tab === "descargar" ? "active" : ""}`}
+            onClick={() => setTab("descargar")}
+          >
+            <ExternalLinkIcon size={16} />
+            <span>Catálogo PDF</span>
+          </button>
+        </div>
+
+        {tab !== "atributos" && tab !== "descargar" && (
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleOpenCreateForm}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          >
+            <PlusIcon size={16} />
+            <span>{tab === "categorias" ? "Nueva Categoría" : "Nuevo Producto"}</span>
+          </button>
+        )}
+      </div>
+
+      {error ? (
+        <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', padding: '12px 16px', color: '#ef4444', fontSize: '0.86rem' }}>
+          ⚠️ {error}
+        </div>
+      ) : null}
+
+      {/* CONTROLES Y FILTROS (TOOLBAR) */}
+      {tab === "productos" && (
+        <div className="catalog-toolbar-card">
+          <div className="catalog-toolbar-left">
+            {/* Buscador inteligente */}
+            <div className="catalog-search-wrapper">
+              <div className="catalog-search-box">
+                <SearchIcon size={18} style={{ color: 'var(--text-muted)' }} />
+                <input
+                  className="catalog-search-input"
+                  value={productQuery}
+                  autoComplete="off"
+                  placeholder="Buscar por nombre, descripción o ID..."
+                  onFocus={() => setProductSearchOpen(true)}
+                  onBlur={() => window.setTimeout(() => setProductSearchOpen(false), 150)}
+                  onChange={(event) => setProductQuery(event.target.value)}
+                />
+              </div>
+
+              {productSearchOpen && productSuggestions.length > 0 && (
+                <div className="catalog-search-dropdown">
                   {productSuggestions.map((suggestion) => (
                     <button
                       key={suggestion}
                       type="button"
-                      className="smart-search-item"
+                      className="catalog-search-dropdown-item"
                       onClick={() => {
                         setProductQuery(suggestion);
                         setProductSearchOpen(false);
                       }}
                     >
+                      <SearchIcon size={14} style={{ color: 'var(--text-muted)' }} />
                       <span>{suggestion}</span>
                     </button>
                   ))}
                 </div>
-              ) : null}
+              )}
             </div>
-          </label>
-          <label>
-            Categoría
+
+            {/* Filtro por Categoría */}
             <select
+              className="catalog-select-filter"
               value={categoriaFiltro}
-              onChange={(event) => setCategoriaFiltro(event.target.value)}
+              onChange={(e) => setCategoriaFiltro(e.target.value)}
             >
-              <option value="">Todas</option>
+              <option value="">Todas las categorías</option>
               {categoriasDisponibles.map((c) => (
-                <option key={c.id_categoria} value={c.id_categoria}>{c.nombre}</option>
+                <option key={c.id_categoria} value={c.id_categoria}>
+                  {c.nombre}
+                </option>
               ))}
             </select>
-          </label>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => {
-              setProductQuery("");
-              setCategoriaFiltro("");
-            }}
-          >
-            Limpiar filtros
-          </button>
+
+            {/* Limpiar filtros */}
+            {(productQuery || categoriaFiltro) && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setProductQuery("");
+                  setCategoriaFiltro("");
+                }}
+                style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+
+          <div className="catalog-toolbar-right">
+            {/* Mostrar Ocultos */}
+            <label className="catalog-toggle-label">
+              <input
+                type="checkbox"
+                checked={showRemoved}
+                onChange={(e) => setShowRemoved(e.target.checked)}
+              />
+              <span>Mostrar ocultos</span>
+            </label>
+
+            {/* Selector de vista Grid / Table */}
+            <div className="catalog-view-switch">
+              <button
+                type="button"
+                className={`catalog-view-btn ${viewMode === "grid" ? "active" : ""}`}
+                onClick={() => setViewMode("grid")}
+                title="Vista Cuadrícula"
+              >
+                <GridIcon size={18} />
+              </button>
+              <button
+                type="button"
+                className={`catalog-view-btn ${viewMode === "table" ? "active" : ""}`}
+                onClick={() => setViewMode("table")}
+                title="Vista Tabla de Inventario"
+              >
+                <ListIcon size={18} />
+              </button>
+            </div>
+          </div>
         </div>
-      ) : null}
+      )}
 
-      {/* --- VISTA DESKTOP: TABLA --- */}
-      <div className="table-wrap desktop-only">
-        <table>
-          <thead>
-            {tab === "categorias"
-              ? <tr><th>ID</th><th>Nombre</th><th>Activa</th><th>Acciones</th></tr>
-              : <tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Stock</th><th>Activo</th><th>Imagen</th><th>Acciones</th></tr>}
-          </thead>
-          <tbody>
-            {(tab === "productos" ? filteredProductRows : visibleCategoryRows).map((r) => {
-              if (tab === "categorias") {
-                if (!r.id_categoria) return null;
+      {/* CONTENIDO PRINCIPAL SEGÚN PESTAÑA */}
+
+      {/* PESTAÑA: PRODUCTOS */}
+      {tab === "productos" && (
+        <>
+          {filteredProductRows.length === 0 ? (
+            <div className="empty-state-modern" style={{ background: 'var(--bg-surface)', borderRadius: '20px', border: '1px solid var(--border-subtle)', padding: '48px 24px' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🛍️</div>
+              <h3 style={{ fontSize: '1.15rem', color: 'var(--text-primary)', margin: 0 }}>No se encontraron productos</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '4px 0 16px' }}>
+                {productQuery || categoriaFiltro
+                  ? "Prueba cambiando los términos de búsqueda o limpiando los filtros."
+                  : "Empieza creando tu primer producto para el catálogo."}
+              </p>
+              <button type="button" className="btn btn-primary" onClick={handleOpenCreateForm}>
+                + Crear Producto
+              </button>
+            </div>
+          ) : viewMode === "grid" ? (
+            /* VISTA GRID BENTO DE PRODUCTOS */
+            <div className="catalog-products-grid">
+              {filteredProductRows.map((product) => {
+                const stock = Number(product.stock_actual || 0);
+                const isOutOfStock = stock <= 0;
+                const isLowStock = stock > 0 && stock <= 5;
+                const coverStyle = getAdminCoverAdjustment(product);
+                const categoryName = categoriaMap.get(product.id_categoria_principal || product.id_categoria) || "Sin categoría";
+
                 return (
-                  <tr key={r.id_categoria}>
-                    <td className="small-id">{r.id_categoria.substring(0, 8)}...</td>
-                    <td className="font-semibold">{r.nombre}</td>
-                    <td>
-                      <span className={`status-badge ${r.activa ? "active" : "inactive"}`}>
-                        {r.activa ? "Activa" : "Inactiva"}
-                      </span>
-                    </td>
-                    <td className="actions-cell">
-                      <button className="btn btn-ghost" onClick={() => setEditing({ mode: "categoria", row: r })}>Editar</button>
-                      <button className={`btn ${r.activa ? "btn-danger-ghost" : "btn-success-ghost"}`} onClick={() => toggleRowVisibility(r, "categoria").catch((e) => setError(e.message))}>{r.activa ? "Ocultar" : "Mostrar"}</button>
-                    </td>
-                  </tr>
-                );
-              } else {
-                if (!r.id_producto) return null;
-                return (
-                  <tr key={r.id_producto}>
-                    <td className="small-id">{r.id_producto.substring(0, 8)}...</td>
-                    <td className="font-semibold">{r.nombre}{r.tipo_producto === "SET" ? " (Set)" : ""}</td>
-                    <td className="price-cell">{r.precio_venta} Bs.</td>
-                    <td>
-                      <span className={`stock-badge ${r.stock_actual <= 5 ? "low" : ""}`}>
-                        {r.stock_actual}{r.tiene_variantes ? " total" : ""}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`status-badge ${r.activo ? "active" : "inactive"}`}>
-                        {r.activo ? "Activo" : "Inactivo"}
-                      </span>
-                    </td>
-                    <td>
-                      {r.imagen_url ? (
-                        <div className="table-img-wrapper">
-                          <img src={getImageSrc(r.imagen_url)} alt="" className="table-thumb" style={getAdminCoverAdjustment(r).imageStyle} />
-                        </div>
+                  <div key={product.id_producto} className="catalog-product-card">
+                    {/* Caja de Imagen de Portada */}
+                    <div className="catalog-card-image-box" style={{ backgroundColor: coverStyle.backgroundColor }}>
+                      {product.imagen_url ? (
+                        <img
+                          src={getImageSrc(product.imagen_url)}
+                          alt={product.nombre}
+                          className="catalog-card-img"
+                          style={coverStyle.imageStyle}
+                        />
                       ) : (
-                        <span className="no-image-text">Sin imagen</span>
+                        <div style={{ display: 'grid', placeItems: 'center', color: 'var(--text-muted)', fontSize: '2rem' }}>
+                          🛍️
+                        </div>
                       )}
-                    </td>
-                    <td className="actions-cell">
-                      <button className="btn btn-ghost" onClick={() => openProductEditor(r)}>Editar</button>
-                      <button className={`btn ${r.activo ? "btn-danger-ghost" : "btn-success-ghost"}`} onClick={() => toggleRowVisibility(r, "producto").catch((e) => setError(e.message))}>{r.activo ? "Ocultar" : "Mostrar"}</button>
-                      <ImageDropZone
-                        compact
-                        title={busyImageProductId === r.id_producto ? "Subiendo..." : "Imagen"}
-                        subtitle="Arrastra o selecciona"
-                        selectedFileName={uploadMetaByProduct[r.id_producto]?.fileName || ""}
-                        statusText={uploadMetaByProduct[r.id_producto]?.status || ""}
-                        errorText={uploadMetaByProduct[r.id_producto]?.error || ""}
-                        disabled={busyImageProductId === r.id_producto}
-                        onFileSelected={(file) => openProductCoverEditor(r, {
-                          file,
-                          replaceUrl: r.imagenes?.[0] || r.imagen_url || "",
-                        })}
-                      />
-                    </td>
-                  </tr>
-                );
-              }
-            })}
-          </tbody>
-        </table>
-      </div>
 
-      {/* --- VISTA MOBILE: TARJETAS --- */}
-      <div className="mobile-only mobile-cards-grid">
-        {tab === "categorias" ? (
-          visibleCategoryRows.map((r) => {
-            if (!r.id_categoria) return null;
-            return (
-              <div key={r.id_categoria} className="admin-card category-card">
-                <div className="card-info">
-                  <span className="card-id">ID: {r.id_categoria.substring(0, 8)}...</span>
-                  <h4 className="card-name">{r.nombre}</h4>
-                  <span className={`status-badge ${r.activa ? "active" : "inactive"}`}>
-                    {r.activa ? "Activa" : "Inactiva"}
-                  </span>
-                </div>
-                <div className="card-actions">
-                  <button className="btn btn-ghost" onClick={() => setEditing({ mode: "categoria", row: r })}>Editar</button>
-                  <button 
-                    className={`btn ${r.activa ? "btn-danger-ghost" : "btn-success-ghost"}`} 
-                    onClick={() => toggleRowVisibility(r, "categoria").catch((e) => setError(e.message))}
-                  >
-                    {r.activa ? "Ocultar" : "Mostrar"}
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          filteredProductRows.map((r) => {
-            if (!r.id_producto) return null;
-            return (
-              <div key={r.id_producto} className="admin-card product-card">
-                <div className="product-card-header">
-                  <div className="product-card-img" style={{ backgroundColor: getAdminCoverAdjustment(r).backgroundColor }}>
-                    {r.imagen_url ? (
-                      <img src={getImageSrc(r.imagen_url)} alt={r.nombre} style={getAdminCoverAdjustment(r).imageStyle} />
-                    ) : (
-                      <div className="placeholder-img"><span className="icon">🛍️</span></div>
-                    )}
-                  </div>
-                  <div className="product-card-main">
-                    <span className="card-id">ID: {r.id_producto.substring(0, 8)}...</span>
-                    <h4 className="card-name">{r.nombre}{r.tipo_producto === "SET" ? " (Set)" : ""}</h4>
-                    <div className="product-card-metrics">
-                      <span className="price-tag">{r.precio_venta} Bs.</span>
-                      <span className={`stock-tag ${r.stock_actual <= 5 ? "low" : ""}`}>
-                        {r.stock_actual} {r.tipo_producto === "SET" ? "sets disponibles" : r.tiene_variantes ? "entre variantes" : "en stock"}
+                      {/* Badge flotante de Set */}
+                      {product.tipo_producto === "SET" && (
+                        <span className="catalog-badge-set">📦 Set / Combo</span>
+                      )}
+
+                      {/* Badge flotante de Stock */}
+                      <span className={`catalog-badge-stock ${isOutOfStock ? "is-out" : isLowStock ? "is-low" : "is-ok"}`}>
+                        {isOutOfStock ? "Agotado" : isLowStock ? `Bajo Stock (${stock})` : `En Stock (${stock})`}
                       </span>
                     </div>
-                  </div>
-                </div>
-                
-                <div className="product-card-footer">
-                  <span className={`status-badge ${r.activo ? "active" : "inactive"}`}>
-                    {r.activo ? "Activo" : "Inactivo"}
-                  </span>
-                  <div className="card-actions">
-                    <button className="btn btn-ghost" onClick={() => openProductEditor(r)}>
-                      Editar
-                    </button>
-                    <button 
-                      className={`btn ${r.activo ? "btn-danger-ghost" : "btn-success-ghost"}`} 
-                      onClick={() => toggleRowVisibility(r, "producto").catch((e) => setError(e.message))}
-                    >
-                      {r.activo ? "Ocultar" : "Mostrar"}
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="product-card-image-upload">
-                  <ImageDropZone
-                    compact
-                    title={busyImageProductId === r.id_producto ? "Subiendo..." : "Imagen"}
-                    subtitle="Arrastra o selecciona"
-                    selectedFileName={uploadMetaByProduct[r.id_producto]?.fileName || ""}
-                    statusText={uploadMetaByProduct[r.id_producto]?.status || ""}
-                    errorText={uploadMetaByProduct[r.id_producto]?.error || ""}
-                    disabled={busyImageProductId === r.id_producto}
-                    onFileSelected={(file) => openProductCoverEditor(r, {
-                      file,
-                      replaceUrl: r.imagenes?.[0] || r.imagen_url || "",
-                    })}
-                  />
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
 
-      {editorOpen ? (
+                    {/* Cuerpo de la tarjeta */}
+                    <div className="catalog-card-body">
+                      <span className="catalog-card-category">{categoryName}</span>
+                      <h4 className="catalog-card-title" title={product.nombre}>
+                        {product.nombre}
+                      </h4>
+
+                      <div className="catalog-card-price-row">
+                        <span className="catalog-card-price">
+                          {product.precio_venta} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Bs.</span>
+                        </span>
+
+                        <span className={`status-badge ${product.activo ? "active" : "inactive"}`}>
+                          {product.activo ? "Activo" : "Oculto"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Acciones de la tarjeta */}
+                    <div className="catalog-card-footer">
+                      <button
+                        type="button"
+                        className="catalog-card-action-btn"
+                        onClick={() => openProductEditor(product)}
+                      >
+                        <EditIcon size={14} />
+                        <span>Editar</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className="catalog-card-action-btn"
+                        onClick={() => openProductCoverEditor(product)}
+                        title="Ajustar portada visualmente"
+                      >
+                        <ImageIcon size={14} />
+                        <span>Portada</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`catalog-card-action-btn ${product.activo ? "is-danger" : "is-success"}`}
+                        onClick={() => toggleRowVisibility(product, "producto").catch((e) => setError(e.message))}
+                        title={product.activo ? "Ocultar del catálogo" : "Mostrar en catálogo"}
+                        style={{ padding: '7px 11px' }}
+                      >
+                        {product.activo ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* VISTA TABLA DETALLADA DE PRODUCTOS */
+            <div className="catalog-table-card">
+              <table className="sales-modern-table">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th>Estado</th>
+                    <th style={{ textAlign: 'right' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProductRows.map((product) => {
+                    const stock = Number(product.stock_actual || 0);
+                    const isOutOfStock = stock <= 0;
+                    const isLowStock = stock > 0 && stock <= 5;
+                    const coverStyle = getAdminCoverAdjustment(product);
+                    const categoryName = categoriaMap.get(product.id_categoria_principal || product.id_categoria) || "Sin categoría";
+
+                    return (
+                      <tr key={product.id_producto}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div className="catalog-row-thumb" style={{ backgroundColor: coverStyle.backgroundColor }}>
+                              {product.imagen_url ? (
+                                <img
+                                  src={getImageSrc(product.imagen_url)}
+                                  alt=""
+                                  style={{ width: '100%', height: '100%', ...coverStyle.imageStyle }}
+                                />
+                              ) : (
+                                <span>🛍️</span>
+                              )}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.88rem' }}>
+                                {product.nombre} {product.tipo_producto === "SET" && <span style={{ color: 'var(--brand-primary)', fontSize: '0.75rem' }}>(Set)</span>}
+                              </div>
+                              <small style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                                ID: {product.id_producto.slice(0, 8)}...
+                              </small>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{categoryName}</span>
+                        </td>
+                        <td>
+                          <strong style={{ color: 'var(--text-primary)', fontSize: '0.92rem' }}>
+                            {product.precio_venta} Bs.
+                          </strong>
+                        </td>
+                        <td>
+                          <span className={`catalog-badge-stock ${isOutOfStock ? "is-out" : isLowStock ? "is-low" : "is-ok"}`} style={{ position: 'static' }}>
+                            {stock} {product.tiene_variantes ? "total" : "en stock"}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`status-badge ${product.activo ? "active" : "inactive"}`}>
+                            {product.activo ? "Activo" : "Inactivo"}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => openProductEditor(product)}
+                              style={{ padding: '6px 10px', fontSize: '0.78rem' }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => openProductCoverEditor(product)}
+                              style={{ padding: '6px 10px', fontSize: '0.78rem' }}
+                            >
+                              Portada
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn ${product.activo ? "btn-danger-ghost" : "btn-success-ghost"}`}
+                              onClick={() => toggleRowVisibility(product, "producto").catch((e) => setError(e.message))}
+                              style={{ padding: '6px 10px' }}
+                            >
+                              {product.activo ? <EyeOffIcon size={14} /> : <EyeIcon size={14} />}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* PESTAÑA: CATEGORÍAS */}
+      {tab === "categorias" && (
+        <div className="catalog-table-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
+              Estructura de Categorías
+            </h3>
+            <label className="catalog-toggle-label">
+              <input
+                type="checkbox"
+                checked={showRemoved}
+                onChange={(e) => setShowRemoved(e.target.checked)}
+              />
+              <span>Mostrar categorías inactivas</span>
+            </label>
+          </div>
+
+          <table className="sales-modern-table">
+            <thead>
+              <tr>
+                <th>Categoría</th>
+                <th>Ruta Jerárquica</th>
+                <th>Orden</th>
+                <th>Estado</th>
+                <th style={{ textAlign: 'right' }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleCategoryRows.map((cat) => {
+                const parentCategory = categoryOptions.find((c) => c.id_categoria === cat.id_categoria_padre);
+                return (
+                  <tr key={cat.id_categoria}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--brand-glow)', color: 'var(--brand-primary)', display: 'grid', placeItems: 'center' }}>
+                          <TagIcon size={18} />
+                        </div>
+                        <div>
+                          <strong style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>{cat.nombre}</strong>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ID: {cat.id_categoria.slice(0, 8)}...</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                        {parentCategory ? `${parentCategory.nombre} > ${cat.nombre}` : "Categoría Raíz"}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        #{cat.orden || 0}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`status-badge ${cat.activa ? "active" : "inactive"}`}>
+                        {cat.activa ? "Activa" : "Inactiva"}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => setEditing({ mode: "categoria", row: cat })}
+                          style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${cat.activa ? "btn-danger-ghost" : "btn-success-ghost"}`}
+                          onClick={() => toggleRowVisibility(cat, "categoria").catch((e) => setError(e.message))}
+                          style={{ padding: '6px 10px' }}
+                        >
+                          {cat.activa ? <EyeOffIcon size={14} /> : <EyeIcon size={14} />}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* PESTAÑA: ATRIBUTOS & VARIANTES */}
+      {tab === "atributos" && (
+        <div className="catalog-attributes-container">
+          {/* Creador de Atributos */}
+          <div className="catalog-panel-card">
+            <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+              Crear Nuevo Atributo Global
+            </h3>
+            <p style={{ margin: '0 0 12px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+              Define características como Tallas, Colores o Materiales que luego podrás asociar a categorías.
+            </p>
+
+            <form
+              className="grid-form"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                try {
+                  assertStoreSelected();
+                  await api.createAtributo({
+                    ...attributeForm,
+                    unidad: attributeForm.unidad || null,
+                  }, selectedStoreRef);
+                  setAttributeForm({
+                    nombre: "",
+                    tipo_dato: "OPTION",
+                    unidad: "",
+                    permite_multiples: false,
+                    usable_en_variantes: false,
+                    activo: true,
+                  });
+                  await load();
+                  pushToast("Atributo creado correctamente");
+                } catch (e) {
+                  setError(e.message);
+                }
+              }}
+            >
+              <label>
+                Nombre del atributo
+                <input
+                  required
+                  placeholder="Ej: Talla, Color, Memoria..."
+                  value={attributeForm.nombre}
+                  onChange={(e) => setAttributeForm((c) => ({ ...c, nombre: e.target.value }))}
+                />
+              </label>
+
+              <label>
+                Tipo de dato
+                <select
+                  value={attributeForm.tipo_dato}
+                  onChange={(e) => setAttributeForm((c) => ({ ...c, tipo_dato: e.target.value }))}
+                >
+                  <option value="OPTION">Lista de opciones (Recomendado para variantes)</option>
+                  <option value="TEXT">Texto libre</option>
+                  <option value="NUMBER">Número</option>
+                  <option value="BOOLEAN">Sí / No</option>
+                </select>
+              </label>
+
+              <label>
+                Unidad de medida (Opcional)
+                <input
+                  placeholder="Ej: cm, GB, kg, ml..."
+                  value={attributeForm.unidad}
+                  onChange={(e) => setAttributeForm((c) => ({ ...c, unidad: e.target.value }))}
+                />
+              </label>
+
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={attributeForm.permite_multiples}
+                  onChange={(e) => setAttributeForm((c) => ({ ...c, permite_multiples: e.target.checked }))}
+                />
+                <span>Permitir seleccionar varios valores a la vez</span>
+              </label>
+
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={attributeForm.usable_en_variantes}
+                  onChange={(e) => setAttributeForm((c) => ({ ...c, usable_en_variantes: e.target.checked }))}
+                />
+                <span>Habilitar para crear combinaciones de variantes</span>
+              </label>
+
+              <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}>
+                + Crear Atributo
+              </button>
+            </form>
+
+            <div style={{ marginTop: '20px' }}>
+              <h4 style={{ margin: '0 0 10px', fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                Atributos Existentes ({rows.length})
+              </h4>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {rows.map((attribute) => (
+                  <div
+                    key={attribute.id_atributo}
+                    style={{
+                      background: 'var(--bg-surface-elevated)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: '12px',
+                      padding: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                    }}
+                  >
+                    <div>
+                      <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>
+                        {attribute.nombre}
+                      </strong>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Tipo: {attribute.tipo_dato} {attribute.unidad ? `(${attribute.unidad})` : ''}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        {(attribute.opciones || []).map((o) => o.valor).join(", ") || "Sin opciones aún"}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {attribute.tipo_dato === "OPTION" && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                          onClick={async () => {
+                            const value = window.prompt("Nueva opción para " + attribute.nombre);
+                            if (!value || !value.trim()) return;
+                            try {
+                              await api.createAtributoOpcion(attribute.id_atributo, { valor: value.trim() });
+                              await load();
+                              pushToast("Opción agregada");
+                            } catch (e) {
+                              setError(e.message);
+                            }
+                          }}
+                        >
+                          + Opción
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className={`btn ${attribute.activo ? "btn-danger-ghost" : "btn-success-ghost"}`}
+                        style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                        onClick={async () => {
+                          try {
+                            await api.updateAtributo(attribute.id_atributo, { activo: !attribute.activo });
+                            await load();
+                          } catch (e) {
+                            setError(e.message);
+                          }
+                        }}
+                      >
+                        {attribute.activo ? "Desactivar" : "Activar"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Configuración de Atributos por Categoría */}
+          <div className="catalog-panel-card">
+            <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+              Asociar Atributos a Categoría
+            </h3>
+            <p style={{ margin: '0 0 12px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+              Selecciona una categoría para definir qué características se solicitarán en sus productos.
+            </p>
+
+            <label style={{ marginBottom: '14px' }}>
+              Selecciona una categoría
+              <select
+                value={attributeCategoryId}
+                onChange={(e) => setAttributeCategoryId(e.target.value)}
+              >
+                <option value="">-- Elige una categoría --</option>
+                {categoryOptions.map((cat) => (
+                  <option key={cat.id_categoria} value={cat.id_categoria}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {attributeCategoryId ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Atributos disponibles para esta categoría:
+                </div>
+
+                {rows.filter((a) => a.activo).map((attribute) => {
+                  const selected = selectedCategoryAttributeIds.includes(attribute.id_atributo);
+                  const canBeVariant = attribute.usable_en_variantes && attribute.tipo_dato === "OPTION";
+
+                  return (
+                    <div
+                      key={attribute.id_atributo}
+                      style={{
+                        background: 'var(--bg-surface-elevated)',
+                        border: `1px solid ${selected ? 'var(--brand-primary)' : 'var(--border-subtle)'}`,
+                        borderRadius: '12px',
+                        padding: '12px',
+                        transition: 'border-color 0.2s',
+                      }}
+                    >
+                      <label className="check-row" style={{ fontWeight: 600 }}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={(e) => {
+                            setSelectedCategoryAttributeIds((current) => e.target.checked
+                              ? [...current, attribute.id_atributo]
+                              : current.filter((id) => id !== attribute.id_atributo));
+                            if (!e.target.checked) {
+                              setVariantCategoryAttributeIds((current) =>
+                                current.filter((id) => id !== attribute.id_atributo));
+                            }
+                          }}
+                        />
+                        <span>{attribute.nombre}</span>
+                      </label>
+
+                      {selected && canBeVariant && (
+                        <div style={{ marginTop: '8px', paddingLeft: '24px' }}>
+                          <label className="check-row" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            <input
+                              type="checkbox"
+                              checked={variantCategoryAttributeIds.includes(attribute.id_atributo)}
+                              onChange={(e) => setVariantCategoryAttributeIds((current) => e.target.checked
+                                ? [...current, attribute.id_atributo]
+                                : current.filter((id) => id !== attribute.id_atributo))}
+                            />
+                            <span>Usar este atributo para generar variantes de stock / precio</span>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ alignSelf: 'flex-start', marginTop: '12px' }}
+                  onClick={async () => {
+                    try {
+                      const selected = selectedCategoryAttributeIds.map((id, index) => ({
+                        id_atributo: id,
+                        requerido: false,
+                        filtrable: true,
+                        usado_en_variantes: variantCategoryAttributeIds.includes(id),
+                        orden: index,
+                      }));
+                      await api.replaceCategoriaAtributos(attributeCategoryId, selected);
+                      pushToast("Configuración de categoría guardada");
+                    } catch (e) {
+                      setError(e.message);
+                    }
+                  }}
+                >
+                  Guardar Configuración de Categoría
+                </button>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                👈 Selecciona una categoría arriba para configurar sus atributos.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* PESTAÑA: DESCARGAR / CATÁLOGO PDF */}
+      {tab === "descargar" && (
+        <div className="catalog-table-card">
+          <CatalogPdfDownload
+            categories={categoriasDisponibles}
+            products={rows}
+            store={catalogStore}
+            tiendaRef={selectedStoreRef}
+            disabled={isSuperadmin && !selectedStoreRef}
+          />
+        </div>
+      )}
+
+      {/* ==========================================================================
+          MODAL DE CREACIÓN / EDICIÓN CON PESTAÑAS INTERNAS
+          ========================================================================== */}
+      {editorOpen && (
         <div
-          className={"catalog-editor-backdrop " + (editorType === "producto" ? "is-product" : "is-category")}
+          className="catalog-modal-overlay"
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) closeEntityEditor();
           }}
         >
           <section
-            className={"catalog-entity-editor " + (editorType === "producto" ? "is-product" : "is-category")}
+            className="catalog-modal-window"
             ref={editorRef}
             role="dialog"
             aria-modal="true"
-            aria-labelledby="catalog-editor-title"
             onMouseDown={(event) => event.stopPropagation()}
           >
-            <header className="catalog-editor-head">
+            {/* Header del Modal */}
+            <header className="catalog-modal-header">
               <div>
-                <span className="catalog-editor-eyebrow">{editorType === "categoria" ? "Organizacion del catalogo" : "Inventario y publicacion"}</span>
-                <h2 id="catalog-editor-title">
-                  {(editing ? "Editar " : "Crear ") + (editorType === "categoria" ? "categoria" : "producto")}
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--brand-primary)' }}>
+                  {editorType === "categoria" ? "Estructura de Catálogo" : "Gestión de Producto"}
+                </span>
+                <h2 style={{ margin: '4px 0 0', fontSize: '1.25rem', color: 'var(--text-primary)' }}>
+                  {(editing ? "Editar " : "Nuevo ") + (editorType === "categoria" ? "Categoría" : "Producto")}
                 </h2>
-                <p>{editorType === "categoria"
-                  ? "Define como se agrupan y presentan tus productos."
-                  : "Completa la informacion y guarda cuando todo este listo."}</p>
               </div>
-              <button type="button" className="icon-close-btn" onClick={closeEntityEditor} aria-label="Cerrar editor">x</button>
+              <button
+                type="button"
+                className="icon-close-btn"
+                onClick={closeEntityEditor}
+                aria-label="Cerrar modal"
+              >
+                <CloseIcon size={20} />
+              </button>
             </header>
-            <div className="catalog-editor-body">
-        {editing ? (
-          <div className="grid-form catalog-editor-form">
-            <label>Nombre<input value={editing.row.nombre || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, nombre: e.target.value } }))} /></label>
-            {editing.mode === "categoria" ? (
-              <>
-                <label>Categoría padre<select value={editing.row.id_categoria_padre || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, id_categoria_padre: e.target.value || null } }))}><option value="">Categoría raíz</option>{categoryOptions.filter((c) => c.id_categoria !== editing.row.id_categoria).map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
-                <label>Orden<input type="number" min="0" value={editing.row.orden || 0} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, orden: Number(e.target.value || 0) } }))} /></label>
-                <CategoryCoverDefaultsFields value={editing.row} onChange={(row) => setEditing((current) => ({ ...current, row }))} />
-                <label className="check-row"><input type="checkbox" checked={!!editing.row.activa} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, activa: e.target.checked } }))} />Activa</label>
-              </>
-            ) : (
-              <>
-                <label>Descripción<textarea value={editing.row.descripcion || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, descripcion: e.target.value } }))} /></label>
-                <label>Precio<input type="number" step="0.01" value={editing.row.precio_venta || 0} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, precio_venta: e.target.value } }))} /></label>
-                <label>{editing.row.tipo_producto === "SET" ? "Disponibilidad calculada" : editing.row.tiene_variantes ? "Stock total de variantes" : "Stock"}
-                  <input
-                    type="number"
-                    value={editing.row.stock_actual || 0}
-                    disabled={editing.row.tipo_producto === "SET" || editing.row.tiene_variantes}
-                    title={editing.row.tipo_producto === "SET" ? "Se calcula desde los productos incluidos" : editing.row.tiene_variantes ? "Edita el stock individual de cada variante debajo" : undefined}
-                    onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, stock_actual: e.target.value } }))}
-                  />
-                  {editing.row.tipo_producto === "SET" ? (
-                    <small className="muted">Se calcula automaticamente segun la disponibilidad de los productos incluidos.</small>
-                  ) : editing.row.tiene_variantes ? (
-                    <small className="muted">Se calcula automáticamente. Edita cada variante debajo.</small>
-                  ) : null}
-                </label>
-                {editing.row.tipo_producto === "SET" ? (
-                  <label>Categoria<input value="Sets (asignada automaticamente)" disabled /></label>
-                ) : (
-                <label>Categoría<select value={editing.row.id_categoria_principal || editing.row.id_categoria || ""} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, id_categoria_principal: e.target.value || null } }))}><option value="">Sin categoría</option>{categoryOptions.map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
+
+            {/* Pestañas internas del modal para productos */}
+            {editorType === "producto" && (
+              <div className="catalog-modal-tabs">
+                <button
+                  type="button"
+                  className={`catalog-modal-tab-btn ${modalTab === "general" ? "active" : ""}`}
+                  onClick={() => setModalTab("general")}
+                >
+                  📝 Información Básica
+                </button>
+                <button
+                  type="button"
+                  className={`catalog-modal-tab-btn ${modalTab === "pricing" ? "active" : ""}`}
+                  onClick={() => setModalTab("pricing")}
+                >
+                  💰 Precios e Inventario
+                </button>
+                <button
+                  type="button"
+                  className={`catalog-modal-tab-btn ${modalTab === "gallery" ? "active" : ""}`}
+                  onClick={() => setModalTab("gallery")}
+                >
+                  🖼️ Galería y Portada
+                </button>
+                {editing && editing.row.tipo_producto !== "SET" && (
+                  <button
+                    type="button"
+                    className={`catalog-modal-tab-btn ${modalTab === "variants" ? "active" : ""}`}
+                    onClick={() => setModalTab("variants")}
+                  >
+                    🔀 Variantes ({editingVariants.length})
+                  </button>
                 )}
-                {editing.row.tipo_producto === "SET" ? (
-                  <SetComponentsEditor
-                    value={editing.row.componentes || []}
-                    onChange={(componentes) => setEditing((current) => ({
-                      ...current,
-                      row: { ...current.row, componentes },
-                    }))}
-                    products={rows}
-                    categoryOptions={categoryOptions}
-                    excludeProductId={editing.row.id_producto}
-                  />
-                ) : null}
-                {editingProductAttributeConfig.length > 0 ? (
+              </div>
+            )}
+
+            {/* Cuerpo del Modal */}
+            <div className="catalog-modal-body">
+              {editing ? (
+                /* --- FORMULARIO DE EDICIÓN --- */
+                editing.mode === "categoria" ? (
                   <div className="grid-form">
-                    <strong>Caracteristicas del producto</strong>
-                    {editingProductAttributeConfig.map((config) => {
-                      const attribute = config.atributo;
-                      const value = editingProductAttributeValues[attribute.id_atributo] ?? "";
-                      if (attribute.tipo_dato === "OPTION") {
-                        return (
-                          <label key={attribute.id_atributo}>{attribute.nombre}
-                            <select value={value} onChange={(e) => setEditingProductAttributeValues((current) => ({ ...current, [attribute.id_atributo]: e.target.value }))}>
-                              <option value="">Sin especificar</option>
-                              {(attribute.opciones || []).filter((option) => option.activo).map((option) => <option key={option.id_opcion} value={option.id_opcion}>{option.valor}</option>)}
-                            </select>
-                          </label>
-                        );
-                      }
-                      if (attribute.tipo_dato === "BOOLEAN") {
-                        return (
-                          <label key={attribute.id_atributo}>{attribute.nombre}
-                            <select value={String(value)} onChange={(e) => setEditingProductAttributeValues((current) => ({ ...current, [attribute.id_atributo]: e.target.value }))}>
-                              <option value="">Sin especificar</option>
-                              <option value="true">Si</option>
-                              <option value="false">No</option>
-                            </select>
-                          </label>
-                        );
-                      }
-                      return (
-                        <label key={attribute.id_atributo}>{attribute.nombre}
+                    <label>
+                      Nombre de la categoría
+                      <input
+                        required
+                        value={editing.row.nombre || ""}
+                        onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, nombre: e.target.value } }))}
+                      />
+                    </label>
+
+                    <label>
+                      Categoría padre (opcional)
+                      <select
+                        value={editing.row.id_categoria_padre || ""}
+                        onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, id_categoria_padre: e.target.value || null } }))}
+                      >
+                        <option value="">Categoría raíz (sin padre)</option>
+                        {categoryOptions
+                          .filter((c) => c.id_categoria !== editing.row.id_categoria)
+                          .map((c) => (
+                            <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>
+                          ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      Orden de visualización
+                      <input
+                        type="number"
+                        min="0"
+                        value={editing.row.orden || 0}
+                        onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, orden: Number(e.target.value || 0) } }))}
+                      />
+                    </label>
+
+                    <CategoryCoverDefaultsFields
+                      value={editing.row}
+                      onChange={(row) => setEditing((current) => ({ ...current, row }))}
+                    />
+
+                    <label className="check-row">
+                      <input
+                        type="checkbox"
+                        checked={!!editing.row.activa}
+                        onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, activa: e.target.checked } }))}
+                      />
+                      <span>Categoría activa en catálogo público</span>
+                    </label>
+                  </div>
+                ) : (
+                  /* --- EDICIÓN DE PRODUCTO CON PESTAÑAS --- */
+                  <div>
+                    {modalTab === "general" && (
+                      <div className="grid-form">
+                        <label>
+                          Nombre del producto
                           <input
-                            type={attribute.tipo_dato === "NUMBER" ? "number" : "text"}
-                            step={attribute.tipo_dato === "NUMBER" ? "any" : undefined}
-                            value={value}
-                            onChange={(e) => setEditingProductAttributeValues((current) => ({ ...current, [attribute.id_atributo]: e.target.value }))}
+                            required
+                            value={editing.row.nombre || ""}
+                            onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, nombre: e.target.value } }))}
                           />
                         </label>
-                      );
-                    })}
-                  </div>
-                ) : null}
-                {/* --- NUEVO GESTOR DE IMÁGENES INTERACTIVO --- */}
-                {editing.row.tipo_producto !== "SET" ? <div className="variant-manager">
-                  <div className="image-manager-gallery-title">
-                    <span>Variantes e inventario ({editingVariants.length})</span>
-                    <span className="muted small">Cada combinacion mantiene su propio precio y stock</span>
-                  </div>
 
-                  {variantAttributeConfig.length > 0 ? (
-                    <div className="grid-form">
-                      <strong>Nueva variante</strong>
-                      {variantAttributeConfig.map((config) => (
-                        <label key={config.id_atributo}>{config.atributo.nombre}
-                          <select
-                            value={variantForm.atributos[config.id_atributo] || ""}
-                            onChange={(e) => setVariantForm((current) => ({
-                              ...current,
-                              atributos: {
-                                ...current.atributos,
-                                [config.id_atributo]: e.target.value,
-                              },
-                            }))}
-                          >
-                            <option value="">Selecciona una opcion</option>
-                            {(config.atributo.opciones || [])
-                              .filter((option) => option.activo)
-                              .map((option) => (
-                                <option key={option.id_opcion} value={option.id_opcion}>
-                                  {option.valor}
-                                </option>
-                              ))}
-                          </select>
+                        <label>
+                          Descripción
+                          <textarea
+                            rows={4}
+                            placeholder="Describe detalles, especificaciones, etc..."
+                            value={editing.row.descripcion || ""}
+                            onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, descripcion: e.target.value } }))}
+                          />
                         </label>
-                      ))}
-                      <label>SKU opcional
-                        <input
-                          value={variantForm.sku}
-                          placeholder="Se genera automaticamente"
-                          onChange={(e) => setVariantForm((current) => ({ ...current, sku: e.target.value }))}
-                        />
-                      </label>
-                      <label>Precio opcional
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          value={variantForm.precio_venta}
-                          placeholder="Usar precio del producto"
-                          onChange={(e) => setVariantForm((current) => ({ ...current, precio_venta: e.target.value }))}
-                        />
-                      </label>
-                      <label>Costo opcional
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={variantForm.costo_adquisicion}
-                          onChange={(e) => setVariantForm((current) => ({ ...current, costo_adquisicion: e.target.value }))}
-                        />
-                      </label>
-                      <label>Stock
-                        <input
-                          type="number"
-                          min="0"
-                          value={variantForm.stock_actual}
-                          onChange={(e) => setVariantForm((current) => ({ ...current, stock_actual: e.target.value }))}
-                        />
-                      </label>
-                      <label className="check-row">
-                        <input
-                          type="checkbox"
-                          checked={variantForm.es_predeterminada}
-                          onChange={(e) => setVariantForm((current) => ({ ...current, es_predeterminada: e.target.checked }))}
-                        />
-                        Variante predeterminada
-                      </label>
-                      <button
-                        className="btn btn-primary"
-                        type="button"
-                        disabled={variantBusy}
-                        onClick={() => createEditingVariant().catch((e) => setError(e.message))}
-                      >
-                        {variantBusy ? "Guardando..." : "Crear variante"}
-                      </button>
-                      <button
-                        className="btn btn-ghost"
-                        type="button"
-                        disabled={variantBusy || missingVariantCombinations.length === 0}
-                        onClick={() => createMissingVariantCombinations().catch((e) => setError(e.message))}
-                      >
-                        Crear combinaciones faltantes ({missingVariantCombinations.length})
-                      </button>
-                      <small className="muted">Usa el precio, costo y stock indicados arriba para todas las combinaciones nuevas.</small>
-                    </div>
-                  ) : (
-                    <p className="muted small">
-                      Configura en la pestana Atributos una opcion de la categoria y marca
-                      "Usar para crear variantes".
-                    </p>
-                  )}
 
-                  {editingVariants.length > 0 ? (
-                    <div className="table-wrap">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Combinacion</th>
-                            <th>SKU</th>
-                            <th>Imagen</th>
-                            <th>Precio</th>
-                            <th>Costo</th>
-                            <th>Stock</th>
-                            <th>Estado</th>
-                            <th></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {editingVariants.map((variant) => (
-                            <tr key={variant.id_variante}>
-                              <td>{(variant.atributos || []).map((item) => item.valor).join(" / ")}</td>
-                              <td>
-                                <input
-                                  value={variant.sku || ""}
-                                  onChange={(e) => setEditingVariants((current) => current.map((item) =>
-                                    item.id_variante === variant.id_variante ? { ...item, sku: e.target.value } : item))}
-                                />
-                              </td>
-                              <td>
-                                <div className="variant-image-editor">
-                                  {variant.imagen_url ? (
-                                    <img
-                                      className="variant-admin-thumb"
-                                      src={getImageSrc(variant.imagen_url)}
-                                      alt={`Imagen de ${(variant.atributos || []).map((item) => item.valor).join(" / ")}`}
+                        {editing.row.tipo_producto === "SET" ? (
+                          <label>
+                            Categoría
+                            <input value="Sets / Combos (Asignada automáticamente)" disabled />
+                          </label>
+                        ) : (
+                          <label>
+                            Categoría principal
+                            <select
+                              value={editing.row.id_categoria_principal || editing.row.id_categoria || ""}
+                              onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, id_categoria_principal: e.target.value || null } }))}
+                            >
+                              <option value="">Sin categoría</option>
+                              {categoryOptions.map((c) => (
+                                <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+
+                        <label className="check-row">
+                          <input
+                            type="checkbox"
+                            checked={!!editing.row.activo}
+                            onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, activo: e.target.checked } }))}
+                          />
+                          <span>Producto activo y visible para compras</span>
+                        </label>
+                      </div>
+                    )}
+
+                    {modalTab === "pricing" && (
+                      <div className="grid-form">
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                          <label>
+                            Precio de venta (Bs.)
+                            <input
+                              type="number"
+                              step="0.01"
+                              required
+                              value={editing.row.precio_venta || 0}
+                              onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, precio_venta: e.target.value } }))}
+                            />
+                          </label>
+
+                          <label>
+                            {editing.row.tipo_producto === "SET"
+                              ? "Stock Calculado"
+                              : editing.row.tiene_variantes
+                                ? "Stock Total Variantes"
+                                : "Stock Actual"}
+                            <input
+                              type="number"
+                              value={editing.row.stock_actual || 0}
+                              disabled={editing.row.tipo_producto === "SET" || editing.row.tiene_variantes}
+                              onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, stock_actual: e.target.value } }))}
+                            />
+                            {editing.row.tipo_producto === "SET" ? (
+                              <small className="muted">Calculado desde los productos componentes.</small>
+                            ) : editing.row.tiene_variantes ? (
+                              <small className="muted">Edita el stock de cada variante en la pestaña Variantes.</small>
+                            ) : null}
+                          </label>
+                        </div>
+
+                        {editing.row.tipo_producto === "SET" && (
+                          <SetComponentsEditor
+                            value={editing.row.componentes || []}
+                            onChange={(componentes) => setEditing((current) => ({
+                              ...current,
+                              row: { ...current.row, componentes },
+                            }))}
+                            products={rows}
+                            categoryOptions={categoryOptions}
+                            excludeProductId={editing.row.id_producto}
+                          />
+                        )}
+
+                        {editingProductAttributeConfig.length > 0 && (
+                          <div style={{ marginTop: '14px', borderTop: '1px solid var(--border-subtle)', paddingTop: '14px' }}>
+                            <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                              Características de la categoría
+                            </strong>
+                            <div className="grid-form" style={{ marginTop: '10px' }}>
+                              {editingProductAttributeConfig.map((config) => {
+                                const attribute = config.atributo;
+                                const value = editingProductAttributeValues[attribute.id_atributo] ?? "";
+
+                                if (attribute.tipo_dato === "OPTION") {
+                                  return (
+                                    <label key={attribute.id_atributo}>
+                                      {attribute.nombre}
+                                      <select
+                                        value={value}
+                                        onChange={(e) => setEditingProductAttributeValues((c) => ({
+                                          ...c,
+                                          [attribute.id_atributo]: e.target.value,
+                                        }))}
+                                      >
+                                        <option value="">Sin especificar</option>
+                                        {(attribute.opciones || [])
+                                          .filter((o) => o.activo)
+                                          .map((o) => (
+                                            <option key={o.id_opcion} value={o.id_opcion}>{o.valor}</option>
+                                          ))}
+                                      </select>
+                                    </label>
+                                  );
+                                }
+                                if (attribute.tipo_dato === "BOOLEAN") {
+                                  return (
+                                    <label key={attribute.id_atributo}>
+                                      {attribute.nombre}
+                                      <select
+                                        value={String(value)}
+                                        onChange={(e) => setEditingProductAttributeValues((c) => ({
+                                          ...c,
+                                          [attribute.id_atributo]: e.target.value,
+                                        }))}
+                                      >
+                                        <option value="">Sin especificar</option>
+                                        <option value="true">Sí</option>
+                                        <option value="false">No</option>
+                                      </select>
+                                    </label>
+                                  );
+                                }
+                                return (
+                                  <label key={attribute.id_atributo}>
+                                    {attribute.nombre}
+                                    <input
+                                      type={attribute.tipo_dato === "NUMBER" ? "number" : "text"}
+                                      step={attribute.tipo_dato === "NUMBER" ? "any" : undefined}
+                                      value={value}
+                                      onChange={(e) => setEditingProductAttributeValues((c) => ({
+                                        ...c,
+                                        [attribute.id_atributo]: e.target.value,
+                                      }))}
                                     />
-                                  ) : (
-                                    <span className="no-image-text">Usa la imagen general</span>
-                                  )}
-                                  <ImageDropZone
-                                    compact
-                                    title={busyVariantImageId === variant.id_variante ? "Subiendo..." : "Imagen de variante"}
-                                    subtitle="Selecciona JPG, PNG o WEBP"
-                                    disabled={busyVariantImageId === variant.id_variante}
-                                    onFileSelected={(file) => openVariantCoverEditor(variant, { file })}
-                                    statusText="Podras ajustar el encuadre antes de guardar"
-                                  />
-                                  <button
-                                    type="button"
-                                    className="btn btn-ghost variant-cover-button"
-                                    disabled={busyVariantImageId === variant.id_variante}
-                                    onClick={() => openVariantCoverEditor(variant)}
-                                  >
-                                    Ajustar encuadre
-                                  </button>
-                                </div>
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  min="0.01"
-                                  step="0.01"
-                                  value={variant.precio_venta ?? ""}
-                                  placeholder="Producto"
-                                  onChange={(e) => setEditingVariants((current) => current.map((item) =>
-                                    item.id_variante === variant.id_variante ? { ...item, precio_venta: e.target.value } : item))}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={variant.costo_adquisicion ?? ""}
-                                  onChange={(e) => setEditingVariants((current) => current.map((item) =>
-                                    item.id_variante === variant.id_variante ? { ...item, costo_adquisicion: e.target.value } : item))}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={variant.stock_actual}
-                                  onChange={(e) => setEditingVariants((current) => current.map((item) =>
-                                    item.id_variante === variant.id_variante ? { ...item, stock_actual: e.target.value } : item))}
-                                />
-                              </td>
-                              <td>
-                                <label className="check-row">
-                                  <input
-                                    type="checkbox"
-                                    checked={variant.activa}
-                                    onChange={(e) => setEditingVariants((current) => current.map((item) =>
-                                      item.id_variante === variant.id_variante ? { ...item, activa: e.target.checked } : item))}
-                                  />
-                                  Activa
-                                </label>
-                                <label className="check-row">
-                                  <input
-                                    type="checkbox"
-                                    checked={variant.es_predeterminada}
-                                    onChange={(e) => setEditingVariants((current) => current.map((item) =>
-                                      item.id_variante === variant.id_variante
-                                        ? { ...item, es_predeterminada: e.target.checked }
-                                        : { ...item, es_predeterminada: e.target.checked ? false : item.es_predeterminada }))}
-                                  />
-                                  Principal
-                                </label>
-                              </td>
-                              <td>
-                                <button
-                                  className="btn btn-ghost"
-                                  type="button"
-                                  disabled={variantBusy}
-                                  onClick={() => saveEditingVariant(variant).catch((e) => setError(e.message))}
-                                >
-                                  Guardar
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : null}
-                </div> : null}
-
-                <div className="image-manager-gallery-wrapper">
-                  <div className="image-manager-gallery-title">
-                    <span>Imágenes del producto ({editing.row.imagenes?.length || 0})</span>
-                    <span className="muted small">La primera imagen será la portada</span>
-                    {editing.row.imagen_url ? (
-                      <button type="button" className="btn btn-ghost" onClick={() => openProductCoverEditor(editing.row)}>
-                        Ajustar portada
-                      </button>
-                    ) : null}
-                  </div>
-                  
-                  {/* File input oculto para reemplazo de imágenes específicas */}
-                  <input
-                    id="replace-image-input"
-                    type="file"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = "";
-                      if (!file || !replacingImageUrl) return;
-                      const isCover = replacingImageUrl === (editing.row.imagenes?.[0] || editing.row.imagen_url);
-                      if (isCover) {
-                        openProductCoverEditor(editing.row, { file, replaceUrl: replacingImageUrl });
-                        setReplacingImageUrl(null);
-                        return;
-                      }
-                      try {
-                        setError("");
-                        setBusyImageProductId(editing.row.id_producto);
-                        const result = await api.replaceProductoImage(editing.row.id_producto, replacingImageUrl, file);
-                        if (result) {
-                          setEditing((prev) => ({
-                            ...prev,
-                            row: {
-                              ...prev.row,
-                              imagenes: result.imagenes || [result.imagen_url],
-                              imagen_url: result.imagen_url,
-                            },
-                          }));
-                        }
-                        await load();
-                      } catch (err) {
-                        setError(err.message || "Error al reemplazar imagen");
-                      } finally {
-                        setBusyImageProductId("");
-                        setReplacingImageUrl(null);
-                      }
-                    }}
-                  />
-
-                  <div className="image-manager-gallery">
-                    {editing.row.imagenes && editing.row.imagenes.length > 0 ? (
-                      editing.row.imagenes.map((url, index) => (
-                        <div key={url} className="image-manager-item">
-                          <img src={getImageSrc(url)} alt={`Imagen ${index + 1}`} />
-                          
-                          {index === 0 && (
-                            <span className="image-manager-badge">Portada</span>
-                          )}
-                          
-                          <div className="image-manager-overlay">
-                            <div className="image-manager-actions-top">
-                              <button
-                                type="button"
-                                className="image-manager-btn btn-danger"
-                                title="Eliminar imagen"
-                                onClick={() => handleDeleteImage(url)}
-                              >
-                                🗑️
-                              </button>
-                            </div>
-                            
-                            <div className="image-manager-actions-bottom">
-                              <button
-                                type="button"
-                                className="image-manager-btn"
-                                title="Mover izquierda"
-                                disabled={index === 0}
-                                onClick={() => handleMoveImage(index, 'left')}
-                              >
-                                ◀
-                              </button>
-                              
-                              <button
-                                type="button"
-                                className="image-manager-btn"
-                                title="Reemplazar imagen"
-                                onClick={() => {
-                                  setReplacingImageUrl(url);
-                                  document.getElementById('replace-image-input').click();
-                                }}
-                              >
-                                🔄
-                              </button>
-                              
-                              <button
-                                type="button"
-                                className="image-manager-btn"
-                                title="Mover derecha"
-                                disabled={index === editing.row.imagenes.length - 1}
-                                onClick={() => handleMoveImage(index, 'right')}
-                              >
-                                ▶
-                              </button>
+                                  </label>
+                                );
+                              })}
                             </div>
                           </div>
+                        )}
+                      </div>
+                    )}
+
+                    {modalTab === "gallery" && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div>
+                            <strong style={{ fontSize: '0.94rem', color: 'var(--text-primary)' }}>
+                              Imágenes del Producto ({editing.row.imagenes?.length || 0})
+                            </strong>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                              La primera imagen funcionará como portada principal en el catálogo.
+                            </div>
+                          </div>
+
+                          {editing.row.imagen_url && (
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => openProductCoverEditor(editing.row)}
+                            >
+                              🎨 Ajustar Enfoque de Portada
+                            </button>
+                          )}
                         </div>
-                      ))
-                    ) : (
-                      <div className="image-manager-empty">
-                        No hay imágenes en este producto.
+
+                        {/* Input invisible para reemplazar imagen específica */}
+                        <input
+                          id="replace-image-input"
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = "";
+                            if (!file || !replacingImageUrl) return;
+                            const isCover = replacingImageUrl === (editing.row.imagenes?.[0] || editing.row.imagen_url);
+                            if (isCover) {
+                              openProductCoverEditor(editing.row, { file, replaceUrl: replacingImageUrl });
+                              setReplacingImageUrl(null);
+                              return;
+                            }
+                            try {
+                              setError("");
+                              setBusyImageProductId(editing.row.id_producto);
+                              const result = await api.replaceProductoImage(editing.row.id_producto, replacingImageUrl, file);
+                              if (result) {
+                                setEditing((prev) => ({
+                                  ...prev,
+                                  row: {
+                                    ...prev.row,
+                                    imagenes: result.imagenes || [result.imagen_url],
+                                    imagen_url: result.imagen_url,
+                                  },
+                                }));
+                              }
+                              await load();
+                              pushToast("Imagen reemplazada");
+                            } catch (err) {
+                              setError(err.message || "Error al reemplazar imagen");
+                            } finally {
+                              setBusyImageProductId("");
+                              setReplacingImageUrl(null);
+                            }
+                          }}
+                        />
+
+                        {/* Galería de imágenes interactivas */}
+                        <div className="image-manager-gallery">
+                          {editing.row.imagenes && editing.row.imagenes.length > 0 ? (
+                            editing.row.imagenes.map((url, index) => (
+                              <div key={url} className="image-manager-item">
+                                <img src={getImageSrc(url)} alt={`Foto ${index + 1}`} />
+                                {index === 0 && (
+                                  <span className="image-manager-badge">Portada</span>
+                                )}
+                                <div className="image-manager-overlay">
+                                  <div className="image-manager-actions-top">
+                                    <button
+                                      type="button"
+                                      className="image-manager-btn btn-danger"
+                                      title="Eliminar imagen"
+                                      onClick={() => handleDeleteImage(url)}
+                                    >
+                                      <TrashIcon size={14} />
+                                    </button>
+                                  </div>
+                                  <div className="image-manager-actions-bottom">
+                                    <button
+                                      type="button"
+                                      className="image-manager-btn"
+                                      title="Mover a la izquierda"
+                                      disabled={index === 0}
+                                      onClick={() => handleMoveImage(index, 'left')}
+                                    >
+                                      ◀
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="image-manager-btn"
+                                      title="Reemplazar foto"
+                                      onClick={() => {
+                                        setReplacingImageUrl(url);
+                                        document.getElementById('replace-image-input').click();
+                                      }}
+                                    >
+                                      🔄
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="image-manager-btn"
+                                      title="Mover a la derecha"
+                                      disabled={index === editing.row.imagenes.length - 1}
+                                      onClick={() => handleMoveImage(index, 'right')}
+                                    >
+                                      ▶
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="image-manager-empty">
+                              Aún no has agregado fotos a este producto.
+                            </div>
+                          )}
+                        </div>
+
+                        <ImageDropZone
+                          title="Subir nueva imagen"
+                          subtitle="Arrastra y suelta o haz clic para subir una nueva foto"
+                          disabled={busyImageProductId === editing.row.id_producto}
+                          onFileSelected={async (file) => {
+                            const hasCover = Boolean(editing.row.imagenes?.length || editing.row.imagen_url);
+                            if (!hasCover) {
+                              openProductCoverEditor(editing.row, { file });
+                              return;
+                            }
+                            try {
+                              setError("");
+                              const result = await uploadImage(editing.row.id_producto, file);
+                              if (result) {
+                                setEditing((prev) => ({
+                                  ...prev,
+                                  row: {
+                                    ...prev.row,
+                                    imagenes: result.imagenes || [result.imagen_url],
+                                    imagen_url: result.imagen_url,
+                                  },
+                                }));
+                              }
+                              pushToast("Foto subida correctamente");
+                            } catch (err) {
+                              setError(err.message || "Error al subir la imagen");
+                            }
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {modalTab === "variants" && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div>
+                          <strong style={{ fontSize: '0.94rem', color: 'var(--text-primary)' }}>
+                            Gestor de Variantes e Inventario
+                          </strong>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            Cada variante mantiene su propio SKU, precio, costo, stock y foto específica.
+                          </div>
+                        </div>
+
+                        {variantAttributeConfig.length > 0 ? (
+                          <div className="grid-form" style={{ background: 'var(--bg-surface-elevated)', padding: '16px', borderRadius: '16px' }}>
+                            <strong>+ Agregar Variante Manual</strong>
+                            {variantAttributeConfig.map((config) => (
+                              <label key={config.id_atributo}>
+                                {config.atributo.nombre}
+                                <select
+                                  value={variantForm.atributos[config.id_atributo] || ""}
+                                  onChange={(e) => setVariantForm((c) => ({
+                                    ...c,
+                                    atributos: {
+                                      ...c.atributos,
+                                      [config.id_atributo]: e.target.value,
+                                    },
+                                  }))}
+                                >
+                                  <option value="">Selecciona una opción</option>
+                                  {(config.atributo.opciones || [])
+                                    .filter((o) => o.activo)
+                                    .map((o) => (
+                                      <option key={o.id_opcion} value={o.id_opcion}>{o.valor}</option>
+                                    ))}
+                                </select>
+                              </label>
+                            ))}
+
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                              <label>
+                                SKU
+                                <input
+                                  placeholder="Auto"
+                                  value={variantForm.sku}
+                                  onChange={(e) => setVariantForm((c) => ({ ...c, sku: e.target.value }))}
+                                />
+                              </label>
+                              <label>
+                                Precio
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  placeholder="General"
+                                  value={variantForm.precio_venta}
+                                  onChange={(e) => setVariantForm((c) => ({ ...c, precio_venta: e.target.value }))}
+                                />
+                              </label>
+                              <label>
+                                Stock
+                                <input
+                                  type="number"
+                                  value={variantForm.stock_actual}
+                                  onChange={(e) => setVariantForm((c) => ({ ...c, stock_actual: e.target.value }))}
+                                />
+                              </label>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '8px' }}>
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                disabled={variantBusy}
+                                onClick={() => createEditingVariant().catch((e) => setError(e.message))}
+                              >
+                                {variantBusy ? "Guardando..." : "+ Crear Variante"}
+                              </button>
+
+                              {missingVariantCombinations.length > 0 && (
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  disabled={variantBusy}
+                                  onClick={() => createMissingVariantCombinations().catch((e) => setError(e.message))}
+                                >
+                                  ⚡ Crear combinaciones faltantes ({missingVariantCombinations.length})
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ padding: '16px', borderRadius: '12px', background: 'var(--bg-surface-elevated)', color: 'var(--text-muted)', fontSize: '0.84rem' }}>
+                            💡 Para habilitar variantes, ve a la pestaña <strong>Atributos & Variantes</strong> y marca las opciones de la categoría para "Usar para crear variantes".
+                          </div>
+                        )}
+
+                        {editingVariants.length > 0 && (
+                          <div className="table-wrap" style={{ marginTop: '12px' }}>
+                            <table className="sales-modern-table">
+                              <thead>
+                                <tr>
+                                  <th>Combinación</th>
+                                  <th>SKU</th>
+                                  <th>Precio</th>
+                                  <th>Stock</th>
+                                  <th>Foto</th>
+                                  <th></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {editingVariants.map((variant) => (
+                                  <tr key={variant.id_variante}>
+                                    <td>
+                                      <strong>{(variant.atributos || []).map((i) => i.valor).join(" / ")}</strong>
+                                    </td>
+                                    <td>
+                                      <input
+                                        style={{ padding: '4px 8px', fontSize: '0.8rem', width: '100px' }}
+                                        value={variant.sku || ""}
+                                        onChange={(e) => setEditingVariants((current) => current.map((item) =>
+                                          item.id_variante === variant.id_variante ? { ...item, sku: e.target.value } : item))}
+                                      />
+                                    </td>
+                                    <td>
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        style={{ padding: '4px 8px', fontSize: '0.8rem', width: '90px' }}
+                                        value={variant.precio_venta ?? ""}
+                                        placeholder="General"
+                                        onChange={(e) => setEditingVariants((current) => current.map((item) =>
+                                          item.id_variante === variant.id_variante ? { ...item, precio_venta: e.target.value } : item))}
+                                      />
+                                    </td>
+                                    <td>
+                                      <input
+                                        type="number"
+                                        style={{ padding: '4px 8px', fontSize: '0.8rem', width: '70px' }}
+                                        value={variant.stock_actual}
+                                        onChange={(e) => setEditingVariants((current) => current.map((item) =>
+                                          item.id_variante === variant.id_variante ? { ...item, stock_actual: e.target.value } : item))}
+                                      />
+                                    </td>
+                                    <td>
+                                      <button
+                                        type="button"
+                                        className="btn btn-ghost"
+                                        style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                                        onClick={() => openVariantCoverEditor(variant)}
+                                      >
+                                        📷 Foto
+                                      </button>
+                                    </td>
+                                    <td>
+                                      <button
+                                        type="button"
+                                        className="btn btn-primary"
+                                        style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                                        disabled={variantBusy}
+                                        onClick={() => saveEditingVariant(variant).catch((e) => setError(e.message))}
+                                      >
+                                        Guardar
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                </div>
-
-                <ImageDropZone
-                  title="Agregar nueva imagen"
-                  subtitle="Arrastra y suelta o selecciona archivo para añadir"
-                  disabled={busyImageProductId === editing.row.id_producto}
-                  onFileSelected={async (file) => {
-                    const hasCover = Boolean(editing.row.imagenes?.length || editing.row.imagen_url);
-                    if (!hasCover) {
-                      openProductCoverEditor(editing.row, { file });
-                      return;
-                    }
+                )
+              ) : (
+                /* --- FORMULARIO DE CREACIÓN NUEVA --- */
+                <form
+                  id="create-entity-form"
+                  className="grid-form"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (isSaving) return;
+                    setIsSaving(true);
                     try {
-                      setError("");
-                      const result = await uploadImage(editing.row.id_producto, file);
-                      if (result) {
-                        setEditing((prev) => ({
-                          ...prev,
-                          row: {
-                            ...prev.row,
-                            imagenes: result.imagenes || [result.imagen_url],
-                            imagen_url: result.imagen_url,
-                          },
-                        }));
+                      assertStoreSelected();
+                      if (tab === "categorias") {
+                        await api.createCategoria(form, selectedStoreRef);
+                      } else {
+                        if (form.tipo_producto === "SET") {
+                          validateSetComposition(form.componentes || []);
+                        }
+                        const created = await api.createProducto({
+                          ...form,
+                          precio_venta: Number(form.precio_venta || 0),
+                          stock_actual: Number(form.stock_actual || 0),
+                          nombre_categoria: form.nombre_categoria || null,
+                        }, selectedStoreRef);
+                        if (pendingImageFile && created?.id_producto) {
+                          await uploadImage(created.id_producto, pendingImageFile);
+                        }
                       }
+                      resetFormForTab(tab);
+                      setPendingImageFile(null);
+                      setEditorOpen(false);
+                      await load();
+                      pushToast(tab === "categorias" ? "✅ Categoría creada correctamente" : "✅ Producto creado correctamente");
                     } catch (err) {
-                      setError(err.message || "Error al subir la imagen");
+                      setError(err.message);
+                      pushToast(err.message, "error");
+                    } finally {
+                      setIsSaving(false);
                     }
                   }}
-                />
-                <label className="check-row"><input type="checkbox" checked={!!editing.row.activo} onChange={(e) => setEditing((s) => ({ ...s, row: { ...s.row, activo: e.target.checked } }))} />Activo</label>
-              </>
-            )}
-            <div className="row catalog-editor-actions">
-              <button className="btn btn-primary" disabled={isSaving} style={{ opacity: isSaving ? 0.6 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }} onClick={async () => {
-                if (isSaving) return;
-                setIsSaving(true);
-                try {
-                  assertStoreSelected();
-                  if (editing.mode === "categoria") {
-                    await api.updateCategoria(editing.row.id_categoria, {
-                      nombre: editing.row.nombre,
-                      id_categoria_padre: editing.row.id_categoria_padre || null,
-                      orden: Number(editing.row.orden || 0),
-                      activa: editing.row.activa,
-                      imagen_fit_default: editing.row.imagen_fit_default || "cover",
-                      imagen_posicion_x_default: Number(editing.row.imagen_posicion_x_default ?? 50),
-                      imagen_posicion_y_default: Number(editing.row.imagen_posicion_y_default ?? 30),
-                      imagen_zoom_default: Number(editing.row.imagen_zoom_default ?? 100),
-                      imagen_fondo_default: editing.row.imagen_fondo_default || null,
-                    }, selectedStoreRef);
-                  } else {
-                    if (editing.row.tipo_producto === "SET") {
-                      validateSetComposition(editing.row.componentes || []);
-                    }
-                    await api.updateProducto(editing.row.id_producto, {
-                      nombre: editing.row.nombre,
-                      descripcion: editing.row.descripcion || "",
-                      precio_venta: Number(editing.row.precio_venta || 0),
-                      ...(editing.row.tipo_producto === "SET" ? {
-                        tipo_producto: "SET",
-                        componentes: (editing.row.componentes || []).map((item) => ({
-                          id_producto_componente: item.id_producto_componente,
-                          id_variante_componente: item.id_variante_componente || null,
-                          cantidad: Number(item.cantidad || 1),
-                        })),
-                      } : {
-                        stock_actual: Number(editing.row.stock_actual || 0),
-                        id_categoria_principal: editing.row.id_categoria_principal || editing.row.id_categoria || null,
-                      }),
-                      activo: editing.row.activo,
-                      imagen_fit: editing.row.imagen_fit || null,
-                      imagen_posicion_x: editing.row.imagen_posicion_x ?? null,
-                      imagen_posicion_y: editing.row.imagen_posicion_y ?? null,
-                      imagen_zoom: editing.row.imagen_zoom ?? null,
-                      imagen_fondo: editing.row.imagen_fondo || null,
-                    }, selectedStoreRef);
-                    if (editingProductAttributeConfig.length > 0) {
-                      await api.replaceProductoAtributos(
-                        editing.row.id_producto,
-                        buildProductAttributePayload(),
-                      );
-                    }
-                  }
-                  setEditing(null);
-                  setEditorOpen(false);
-                  await load();
-                  pushToast(editing.mode === "categoria" ? "Categoría guardada correctamente" : "Producto guardado correctamente");
-                } catch (e) { setError(e.message); pushToast(e.message, "error"); } finally { setIsSaving(false); }
-              }}>{isSaving ? "Guardando..." : "Guardar"}</button>
-              <button type="button" className="btn btn-ghost" onClick={closeEntityEditor}>Cancelar</button>
+                >
+                  <label>
+                    Nombre {tab === "categorias" ? "de la categoría" : "del producto"}
+                    <input
+                      required
+                      value={form.nombre || ""}
+                      onChange={(e) => setForm((s) => ({ ...s, nombre: e.target.value }))}
+                      placeholder={tab === "categorias" ? "Ej: Calzado, Ropa, Electrónica..." : "Ej: Zapatillas Urban Pro..."}
+                    />
+                  </label>
+
+                  {tab === "categorias" ? (
+                    <>
+                      <label>
+                        Categoría padre
+                        <select
+                          value={form.id_categoria_padre || ""}
+                          onChange={(e) => setForm((s) => ({ ...s, id_categoria_padre: e.target.value || null }))}
+                        >
+                          <option value="">Categoría raíz</option>
+                          {categoryOptions.map((c) => (
+                            <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label>
+                        Orden de visualización
+                        <input
+                          type="number"
+                          min="0"
+                          value={form.orden || 0}
+                          onChange={(e) => setForm((s) => ({ ...s, orden: Number(e.target.value || 0) }))}
+                        />
+                      </label>
+
+                      <CategoryCoverDefaultsFields value={form} onChange={setForm} />
+
+                      <label className="check-row">
+                        <input
+                          type="checkbox"
+                          checked={!!form.activa}
+                          onChange={(e) => setForm((s) => ({ ...s, activa: e.target.checked }))}
+                        />
+                        <span>Activar categoría de inmediato</span>
+                      </label>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+                        <label>
+                          Tipo de producto
+                          <select
+                            value={form.tipo_producto || "SIMPLE"}
+                            onChange={(event) => setForm((current) => ({
+                              ...current,
+                              tipo_producto: event.target.value,
+                              componentes: event.target.value === "SET" ? current.componentes || [] : [],
+                              stock_actual: event.target.value === "SET" ? 0 : current.stock_actual,
+                              id_categoria_principal: event.target.value === "SET" ? null : current.id_categoria_principal,
+                            }))}
+                          >
+                            <option value="SIMPLE">Producto normal</option>
+                            <option value="SET">Set / Combo de productos</option>
+                          </select>
+                        </label>
+
+                        {form.tipo_producto !== "SET" && (
+                          <label>
+                            Categoría principal
+                            <select
+                              value={form.id_categoria_principal || ""}
+                              onChange={(e) => setForm((s) => ({ ...s, id_categoria_principal: e.target.value || null }))}
+                            >
+                              <option value="">Sin categoría</option>
+                              {categoryOptions.map((c) => (
+                                <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                      </div>
+
+                      <label>
+                        Descripción
+                        <textarea
+                          rows={3}
+                          placeholder="Describe brevemente el producto..."
+                          value={form.descripcion || ""}
+                          onChange={(e) => setForm((s) => ({ ...s, descripcion: e.target.value }))}
+                        />
+                      </label>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' }}>
+                        <label>
+                          Precio de venta (Bs.)
+                          <input
+                            type="number"
+                            step="0.01"
+                            required
+                            value={form.precio_venta || 0}
+                            onChange={(e) => setForm((s) => ({ ...s, precio_venta: e.target.value }))}
+                          />
+                        </label>
+
+                        {form.tipo_producto !== "SET" && (
+                          <label>
+                            Stock inicial
+                            <input
+                              type="number"
+                              min="0"
+                              value={form.stock_actual || 0}
+                              onChange={(e) => setForm((s) => ({ ...s, stock_actual: e.target.value }))}
+                            />
+                          </label>
+                        )}
+                      </div>
+
+                      {form.tipo_producto === "SET" && (
+                        <SetComponentsEditor
+                          value={form.componentes || []}
+                          onChange={(componentes) => setForm((current) => ({
+                            ...current,
+                            componentes,
+                          }))}
+                          products={rows}
+                          categoryOptions={categoryOptions}
+                        />
+                      )}
+
+                      <ImageDropZone
+                        title="Foto de portada"
+                        subtitle="Arrastra una foto o haz clic para seleccionarla"
+                        previewUrl={pendingImagePreviewUrl}
+                        selectedFileName={pendingImageFile?.name || ""}
+                        onFileSelected={(file) => openProductCoverEditor(form, { target: "new", file })}
+                      />
+
+                      {pendingImageFile && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => openProductCoverEditor(form, {
+                            target: "new",
+                            file: pendingImageFile,
+                            imageUrl: pendingImagePreviewUrl,
+                          })}
+                        >
+                          🎨 Re-ajustar encuadre de portada
+                        </button>
+                      )}
+
+                      <label className="check-row">
+                        <input
+                          type="checkbox"
+                          checked={!!form.activo}
+                          onChange={(e) => setForm((s) => ({ ...s, activo: e.target.checked }))}
+                        />
+                        <span>Activar producto de inmediato</span>
+                      </label>
+                    </>
+                  )}
+                </form>
+              )}
             </div>
-          </div>
-        ) : (
-          <form className="grid-form catalog-editor-form" onSubmit={async (e) => {
-            e.preventDefault();
-            if (isSaving) return;
-            setIsSaving(true);
-            try {
-              assertStoreSelected();
-              if (tab === "categorias") {
-                await api.createCategoria(form, selectedStoreRef);
-              } else {
-                if (form.tipo_producto === "SET") {
-                  validateSetComposition(form.componentes || []);
-                }
-                const created = await api.createProducto({
-                  ...form,
-                  precio_venta: Number(form.precio_venta || 0),
-                  stock_actual: Number(form.stock_actual || 0),
-                  nombre_categoria: form.nombre_categoria || null,
-                }, selectedStoreRef);
-                if (pendingImageFile && created?.id_producto) {
-                  await uploadImage(created.id_producto, pendingImageFile);
-                }
-              }
-              resetFormForTab(tab);
-              setPendingImageFile(null);
-              setEditorOpen(false);
-              await load();
-              pushToast(tab === "categorias" ? "✅ Categoría creada correctamente" : "✅ Producto creado correctamente");
-            } catch (err) { setError(err.message); pushToast(err.message, "error"); } finally { setIsSaving(false); }
-          }}>
-            <label>Nombre<input value={form.nombre || ""} onChange={(e) => setForm((s) => ({ ...s, nombre: e.target.value }))} required /></label>
-            {tab === "categorias" ? (
-              <>
-                <label>Categoría padre<select value={form.id_categoria_padre || ""} onChange={(e) => setForm((s) => ({ ...s, id_categoria_padre: e.target.value || null }))}><option value="">Categoría raíz</option>{categoryOptions.map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
-                <label>Orden<input type="number" min="0" value={form.orden || 0} onChange={(e) => setForm((s) => ({ ...s, orden: Number(e.target.value || 0) }))} /></label>
-                <CategoryCoverDefaultsFields value={form} onChange={setForm} />
-                <label className="check-row"><input type="checkbox" checked={!!form.activa} onChange={(e) => setForm((s) => ({ ...s, activa: e.target.checked }))} />Activa</label>
-              </>
-            ) : (
-              <>
-                <label>Tipo de producto
-                  <select
-                    value={form.tipo_producto || "SIMPLE"}
-                    onChange={(event) => setForm((current) => ({
-                      ...current,
-                      tipo_producto: event.target.value,
-                      componentes: event.target.value === "SET" ? current.componentes || [] : [],
-                      stock_actual: event.target.value === "SET" ? 0 : current.stock_actual,
-                      id_categoria_principal: event.target.value === "SET" ? null : current.id_categoria_principal,
-                    }))}
-                  >
-                    <option value="SIMPLE">Producto normal</option>
-                    <option value="SET">Set de productos</option>
-                  </select>
-                </label>
-                <label>Descripción<textarea value={form.descripcion || ""} onChange={(e) => setForm((s) => ({ ...s, descripcion: e.target.value }))} /></label>
-                <label>Precio<input type="number" step="0.01" value={form.precio_venta || 0} onChange={(e) => setForm((s) => ({ ...s, precio_venta: e.target.value }))} required /></label>
-                {form.tipo_producto !== "SET" ? <label>Stock<input type="number" value={form.stock_actual || 0} onChange={(e) => setForm((s) => ({ ...s, stock_actual: e.target.value }))} /></label> : null}
-                {form.tipo_producto !== "SET" ? (
-                <label>Categoría<select value={form.id_categoria_principal || ""} onChange={(e) => setForm((s) => ({ ...s, id_categoria_principal: e.target.value || null }))}><option value="">Sin categoría</option>{categoryOptions.map((c) => <option key={c.id_categoria} value={c.id_categoria}>{c.label}</option>)}</select></label>
-                ) : <small className="muted">La categoria Sets se asignara automaticamente.</small>}
-                {form.tipo_producto === "SET" ? (
-                  <SetComponentsEditor
-                    value={form.componentes || []}
-                    onChange={(componentes) => setForm((current) => ({
-                      ...current,
-                      componentes,
-                    }))}
-                    products={rows}
-                    categoryOptions={categoryOptions}
-                  />
-                ) : null}
-                <ImageDropZone
-                  title="Portada del producto"
-                  subtitle="Arrastra una imagen para ajustar y previsualizar antes de subir"
-                  previewUrl={pendingImagePreviewUrl}
-                  selectedFileName={pendingImageFile?.name || ""}
-                  onFileSelected={(file) => openProductCoverEditor(form, { target: "new", file })}
-                />
-                {pendingImageFile ? (
-                  <button type="button" className="btn btn-ghost" onClick={() => openProductCoverEditor(form, {
-                    target: "new",
-                    file: pendingImageFile,
-                    imageUrl: pendingImagePreviewUrl,
-                  })}>Volver a ajustar portada</button>
-                ) : null}
-                <label className="check-row"><input type="checkbox" checked={!!form.activo} onChange={(e) => setForm((s) => ({ ...s, activo: e.target.checked }))} />Activo</label>
-              </>
-            )}
-            <div className="row catalog-editor-actions">
-              <button className="btn btn-primary" disabled={isSaving} style={{ opacity: isSaving ? 0.6 : 1, cursor: isSaving ? 'not-allowed' : 'pointer' }}>
-                {isSaving ? "Guardando..." : "Crear"}
+
+            {/* Footer con Acciones de Guardar / Cancelar */}
+            <footer className="catalog-modal-footer">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={closeEntityEditor}
+                disabled={isSaving}
+              >
+                Cancelar
               </button>
-              <button type="button" className="btn btn-ghost" onClick={closeEntityEditor}>Cancelar</button>
-            </div>
-          </form>
-        )}
-            </div>
+
+              {editing ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={isSaving}
+                  onClick={async () => {
+                    if (isSaving) return;
+                    setIsSaving(true);
+                    try {
+                      assertStoreSelected();
+                      if (editing.mode === "categoria") {
+                        await api.updateCategoria(editing.row.id_categoria, {
+                          nombre: editing.row.nombre,
+                          id_categoria_padre: editing.row.id_categoria_padre || null,
+                          orden: Number(editing.row.orden || 0),
+                          activa: editing.row.activa,
+                          imagen_fit_default: editing.row.imagen_fit_default || "cover",
+                          imagen_posicion_x_default: Number(editing.row.imagen_posicion_x_default ?? 50),
+                          imagen_posicion_y_default: Number(editing.row.imagen_posicion_y_default ?? 30),
+                          imagen_zoom_default: Number(editing.row.imagen_zoom_default ?? 100),
+                          imagen_fondo_default: editing.row.imagen_fondo_default || null,
+                        }, selectedStoreRef);
+                      } else {
+                        if (editing.row.tipo_producto === "SET") {
+                          validateSetComposition(editing.row.componentes || []);
+                        }
+                        await api.updateProducto(editing.row.id_producto, {
+                          nombre: editing.row.nombre,
+                          descripcion: editing.row.descripcion || "",
+                          precio_venta: Number(editing.row.precio_venta || 0),
+                          ...(editing.row.tipo_producto === "SET" ? {
+                            tipo_producto: "SET",
+                            componentes: (editing.row.componentes || []).map((item) => ({
+                              id_producto_componente: item.id_producto_componente,
+                              id_variante_componente: item.id_variante_componente || null,
+                              cantidad: Number(item.cantidad || 1),
+                            })),
+                          } : {
+                            stock_actual: Number(editing.row.stock_actual || 0),
+                            id_categoria_principal: editing.row.id_categoria_principal || editing.row.id_categoria || null,
+                          }),
+                          activo: editing.row.activo,
+                          imagen_fit: editing.row.imagen_fit || null,
+                          imagen_posicion_x: editing.row.imagen_posicion_x ?? null,
+                          imagen_posicion_y: editing.row.imagen_posicion_y ?? null,
+                          imagen_zoom: editing.row.imagen_zoom ?? null,
+                          imagen_fondo: editing.row.imagen_fondo || null,
+                        }, selectedStoreRef);
+
+                        if (editingProductAttributeConfig.length > 0) {
+                          await api.replaceProductoAtributos(
+                            editing.row.id_producto,
+                            buildProductAttributePayload(),
+                          );
+                        }
+                      }
+                      setEditing(null);
+                      setEditorOpen(false);
+                      await load();
+                      pushToast(editing.mode === "categoria" ? "Categoría guardada correctamente" : "Producto guardado correctamente");
+                    } catch (e) {
+                      setError(e.message);
+                      pushToast(e.message, "error");
+                    } finally {
+                      setIsSaving(false);
+                    }
+                  }}
+                >
+                  {isSaving ? "Guardando..." : "Guardar Cambios"}
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  form="create-entity-form"
+                  className="btn btn-primary"
+                  disabled={isSaving}
+                >
+                  {isSaving ? "Guardando..." : `Crear ${tab === "categorias" ? "Categoría" : "Producto"}`}
+                </button>
+              )}
+            </footer>
           </section>
         </div>
-      ) : null}
-    </Card>
-    <ProductCoverEditor
-      open={Boolean(coverEditor)}
-      imageUrl={coverEditor?.imageUrl || ""}
-      file={coverEditor?.file || null}
-      product={coverEditor?.product || null}
-      category={coverEditor?.category || null}
-      entityLabel={coverEditor?.target === "variant" ? "variante" : "producto"}
-      busy={coverEditorBusy}
-      onCancel={() => { if (!coverEditorBusy) setCoverEditor(null); }}
-      onApply={applyProductCover}
-    />
-    <ToastStack items={toasts} onDismiss={dismissToast} />
-    </>
+      )}
+
+      {/* MODAL DE ENCUADRE VISUAL DE PORTADA */}
+      <ProductCoverEditor
+        open={Boolean(coverEditor)}
+        imageUrl={coverEditor?.imageUrl || ""}
+        file={coverEditor?.file || null}
+        product={coverEditor?.product || null}
+        category={coverEditor?.category || null}
+        entityLabel={coverEditor?.target === "variant" ? "variante" : "producto"}
+        busy={coverEditorBusy}
+        onCancel={() => { if (!coverEditorBusy) setCoverEditor(null); }}
+        onApply={applyProductCover}
+      />
+
+      {/* STACK GLOBAL DE NOTIFICACIONES TOAST */}
+      <ToastStack items={toasts} onDismiss={dismissToast} />
+    </div>
   );
 }

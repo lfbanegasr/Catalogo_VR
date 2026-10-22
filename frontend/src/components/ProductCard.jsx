@@ -258,11 +258,11 @@ function ProductCard({ product, onViewDetail, compact = false }) {
         <div className="product-price-block">
           {precioOriginal > precioFinal ? (
             <div className="product-price-dual">
-              <span className="product-price-original">
-                {formatPrice(precioOriginal, currencySymbol)}
-              </span>
               <span className="product-price-current">
                 {formatPrice(precioFinal, currencySymbol)}
+              </span>
+              <span className="product-price-original">
+                {formatPrice(precioOriginal, currencySymbol)}
               </span>
             </div>
           ) : (
@@ -326,14 +326,15 @@ function ProductCard({ product, onViewDetail, compact = false }) {
         {/* Acción: Solo Ver o Botón Estándar ("floating_plus" o "view_only") */}
         {(cardActionType === "floating_plus" || cardActionType === "view_only") && (
           <button
-            className="product-card-detail-btn"
+            className="product-card-detail-link"
             type="button"
-            onClick={() => onViewDetail && onViewDetail(product)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetail && onViewDetail(product);
+            }}
+            aria-label={`Ver detalles de ${nombre}`}
           >
-            <span>{cardActionType === "view_only" ? "Ver detalles" : "Ver"}</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
+            <span>{cardActionType === "view_only" ? "Ver detalles →" : "Ver →"}</span>
           </button>
         )}
       </div>

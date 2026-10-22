@@ -393,8 +393,8 @@ function App() {
           />
         )}
 
-        {/* Botón flotante del carrito */}
-        {cartCount > 0 && !isCartOpen && !trackingCode && !legalPage && (
+        {/* Botón flotante del carrito (solo en catálogo, no en detalle donde hay header nav y sticky CTA) */}
+        {cartCount > 0 && !isCartOpen && !trackingCode && !legalPage && !selectedProductFull && (
           <button
             onClick={() => setIsCartOpen(true)}
             className="cart-floating-btn"
@@ -410,7 +410,7 @@ function App() {
         )}
 
         {/* Barra de navegación flotante inferior para móvil */}
-        {!isCartOpen && !trackingCode && !legalPage && (
+        {!isCartOpen && !trackingCode && !legalPage && !selectedProductFull && (
           <StorefrontBottomBar
             onOpenCart={() => setIsCartOpen(true)}
             onGoHome={() => {

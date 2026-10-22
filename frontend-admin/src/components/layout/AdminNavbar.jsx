@@ -10,6 +10,7 @@ import {
   ExternalLinkIcon
 } from "../common/Icons";
 import { useTheme } from "./ThemeContext";
+import { buildPublicStoreUrl } from "../../utils";
 
 export default function AdminNavbar({
   user,
@@ -23,7 +24,7 @@ export default function AdminNavbar({
 
   const storeName = store?.nombre_tienda || "Mi Tienda";
   const publicStoreSlug = store?.slug || "";
-  const publicStoreUrl = publicStoreSlug ? `/${publicStoreSlug}` : "/";
+  const publicStoreUrl = buildPublicStoreUrl(publicStoreSlug);
 
   return (
     <header className="modern-navbar">
@@ -56,10 +57,10 @@ export default function AdminNavbar({
         {/* Selector / Indicador de Tienda */}
         <div
           className="store-select-pill"
-          title={`Tienda activa: ${storeName}`}
+          title={publicStoreUrl ? `Ver catálogo público: ${publicStoreUrl}` : `Tienda activa: ${storeName}`}
           onClick={() => {
-            if (publicStoreSlug) {
-              window.open(publicStoreUrl, "_blank");
+            if (publicStoreUrl) {
+              window.open(publicStoreUrl, "_blank", "noopener,noreferrer");
             }
           }}
         >

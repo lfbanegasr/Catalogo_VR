@@ -6,6 +6,23 @@ export function getImageSrc(imagenUrl) {
   return buildAssetUrl(imagenUrl);
 }
 
+export function buildPublicStoreUrl(slug) {
+  if (!slug) return "";
+  const configuredBase = String(import.meta.env.VITE_PUBLIC_CATALOG_URL || "").trim();
+  const defaultBase = import.meta.env.DEV ? "http://localhost:5173" : "https://catalogo-vr-skr5.vercel.app";
+  const baseUrl = configuredBase || defaultBase;
+  try {
+    const url = new URL(baseUrl, window.location.origin);
+    url.search = "";
+    url.hash = "";
+    url.searchParams.set("slug", slug);
+    return url.toString();
+  } catch {
+    const cleanBase = baseUrl.replace(/\/+$/, "");
+    return `${cleanBase}/?slug=${encodeURIComponent(slug)}`;
+  }
+}
+
 export function toInputDateTime(value) {
   if (!value) return "";
   const date = new Date(value);

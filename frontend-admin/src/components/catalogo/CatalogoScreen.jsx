@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from '../../api';
 import StoreRefPicker from '../StoreRefPicker';
 import ImageDropZone from '../ImageDropZone';
-import { getImageSrc } from '../../utils';
+import { getImageSrc, buildPublicStoreUrl } from '../../utils';
 import { ToastStack } from '../Toast';
 import ProductCoverEditor, { categoryCoverDefaults } from './ProductCoverEditor';
 import ProductPicker from './ProductPicker';
@@ -452,14 +452,7 @@ export default function CatalogoScreen({ isSuperadmin }) {
   const catalogSlug = catalogStore?.slug || "";
 
   const publicCatalogUrl = useMemo(() => {
-    if (!catalogSlug) return "";
-    const configuredBase = String(import.meta.env.VITE_PUBLIC_CATALOG_URL || "").trim();
-    const fallbackBase = import.meta.env.DEV ? "http://localhost:5173/" : window.location.origin;
-    const url = new URL(configuredBase || fallbackBase, window.location.origin);
-    url.search = "";
-    url.hash = "";
-    url.searchParams.set("slug", catalogSlug);
-    return url.toString();
+    return buildPublicStoreUrl(catalogSlug);
   }, [catalogSlug]);
 
   const filteredProductRows = useMemo(() => {

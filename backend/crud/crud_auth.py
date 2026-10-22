@@ -23,10 +23,10 @@ def get_user_by_email(db: Session, email: str) -> Optional[Usuario]:
 
 def get_user_by_identifier(db: Session, identifier: str) -> Optional[Usuario]:
     """
-    Busca un usuario de forma híbrida:
-    1. Por correo electrónico exacto (case-insensitive).
-    2. Por nombre de usuario exacto (case-insensitive).
-    3. Por prefijo del correo antes del '@' (ej: 'luisfernando' para 'luisfernando.banegasro22@gmail.com').
+    Busca un usuario de forma híbrida y segura:
+    1. Si contiene '@', busca por correo electrónico exacto (case-insensitive).
+    2. Coincidencia exacta por nombre de usuario (case-insensitive).
+    3. Coincidencia por correo exacto o prefijo del correo antes del '@'.
     """
     if not identifier:
         return None
@@ -35,14 +35,20 @@ def get_user_by_identifier(db: Session, identifier: str) -> Optional[Usuario]:
     if "@" in val:
         return get_user_by_email(db, val)
 
-    stmt = select(Usuario).where(
+    # 1. Prioridad: Coincidencia exacta por username
+    stmt_user = select(Usuario).where(func.lower(Usuario.username) == val)
+    user_by_user = db.execute(stmt_user).scalar_one_or_none()
+    if user_by_user:
+        return user_by_user
+
+    # 2. Fallback por coincidencia con email o prefijo
+    stmt_email = select(Usuario).where(
         or_(
-            func.lower(Usuario.username) == val,
             func.lower(Usuario.email) == val,
             func.lower(func.split_part(Usuario.email, "@", 1)) == val,
         )
     )
-    return db.execute(stmt).scalar_one_or_none()
+    return db.execute(stmt_email).scalars().first()
 
 
 def authenticate_user(db: Session, identifier: str, password: str) -> Optional[Usuario]:

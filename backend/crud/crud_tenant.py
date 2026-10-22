@@ -1,6 +1,7 @@
 import re
+import secrets
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from core.security import hash_password, verify_password
@@ -117,8 +118,31 @@ def update_tienda_theme(db: Session, id_tienda, payload: TiendaThemeUpdate) -> T
 
 
 def get_user_by_email(db: Session, email: str) -> Usuario | None:
-    stmt = select(Usuario).where(Usuario.email == email)
+    if not email:
+        return None
+    stmt = select(Usuario).where(func.lower(Usuario.email) == email.strip().lower())
     return db.execute(stmt).scalar_one_or_none()
+
+
+def get_user_by_username(db: Session, username: str) -> Usuario | None:
+    if not username:
+        return None
+    clean = username.strip().lower()
+    stmt = select(Usuario).where(func.lower(Usuario.username) == clean)
+    return db.execute(stmt).scalar_one_or_none()
+
+
+def _generate_unique_username(db: Session, base: str) -> str:
+    clean = re.sub(r"[^a-z0-9_.-]", "", base.strip().lower())
+    if len(clean) < 3:
+        clean = f"user_{secrets.token_hex(3)}"
+    clean = clean[:40]
+    candidate = clean
+    counter = 1
+    while get_user_by_username(db, candidate) is not None:
+        candidate = f"{clean[:35]}_{counter}"
+        counter += 1
+    return candidate
 
 
 def get_user_by_id(db: Session, id_usuario) -> Usuario | None:
@@ -126,15 +150,25 @@ def get_user_by_id(db: Session, id_usuario) -> Usuario | None:
 
 
 def create_usuario(db: Session, payload: UsuarioCreate) -> Usuario:
-    existing = get_user_by_email(db, payload.email)
-    if existing:
+    clean_email = payload.email.strip().lower()
+    existing_email = get_user_by_email(db, clean_email)
+    if existing_email:
         raise ValueError("Ya existe un usuario con ese email.")
     if payload.rol not in VALID_USER_ROLES:
         raise ValueError("Rol invalido.")
 
+    if payload.username and payload.username.strip():
+        clean_username = payload.username.strip().lower()
+        existing_user = get_user_by_username(db, clean_username)
+        if existing_user:
+            raise ValueError(f"El nombre de usuario '@{clean_username}' ya se encuentra en uso por otra cuenta.")
+    else:
+        clean_username = _generate_unique_username(db, clean_email.split("@")[0])
+
     user = Usuario(
         id_tienda=payload.id_tienda,
-        email=payload.email,
+        email=clean_email,
+        username=clean_username,
         password_hash=hash_password(payload.password),
         rol=payload.rol or "admin",
         activo=payload.activo,
@@ -151,11 +185,26 @@ def update_usuario(db: Session, id_usuario, payload: UsuarioUpdate) -> Usuario |
         return None
 
     data = payload.model_dump(exclude_unset=True)
-    if "email" in data and data["email"] is not None and data["email"] != user.email:
-        existing = get_user_by_email(db, data["email"])
-        if existing and existing.id_usuario != user.id_usuario:
-            raise ValueError("Ya existe un usuario con ese email.")
-        user.email = data["email"]
+    if "email" in data and data["email"] is not None:
+        clean_email = data["email"].strip().lower()
+        if clean_email != (user.email or "").lower():
+            existing = get_user_by_email(db, clean_email)
+            if existing and existing.id_usuario != user.id_usuario:
+                raise ValueError("Ya existe un usuario con ese email.")
+            user.email = clean_email
+
+    if "username" in data:
+        raw_user = data["username"]
+        if raw_user is not None and str(raw_user).strip():
+            clean_user = str(raw_user).strip().lower()
+            if clean_user != (user.username or "").lower():
+                existing_user = get_user_by_username(db, clean_user)
+                if existing_user and existing_user.id_usuario != user.id_usuario:
+                    raise ValueError(f"El nombre de usuario '@{clean_user}' ya se encuentra en uso por otra cuenta.")
+                user.username = clean_user
+        elif raw_user is None:
+            pass
+
     if "rol" in data and data["rol"] is not None:
         if data["rol"] not in VALID_USER_ROLES:
             raise ValueError("Rol invalido.")

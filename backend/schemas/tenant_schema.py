@@ -1,8 +1,11 @@
+import re
 from datetime import datetime
 from uuid import UUID
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
+
+USERNAME_REGEX = re.compile(r"^[a-zA-Z0-9_.-]{3,50}$")
 
 
 class TiendaCreate(BaseModel):
@@ -33,10 +36,24 @@ class TiendaOut(BaseModel):
 class UsuarioCreate(BaseModel):
     id_tienda: UUID
     email: EmailStr
-    username: Optional[str] = Field(default=None, max_length=60)
+    username: Optional[str] = Field(default=None, max_length=50)
     password: str = Field(..., min_length=6)
     rol: Literal["superadmin", "admin", "empleado", "cliente"] = "admin"
     activo: bool = True
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def validate_username(cls, v):
+        if v is None:
+            return None
+        clean = str(v).strip().lower()
+        if not clean:
+            return None
+        if not USERNAME_REGEX.match(clean):
+            raise ValueError(
+                "El nombre de usuario debe tener entre 3 y 50 caracteres y solo contener letras, números, puntos o guiones (sin espacios)."
+            )
+        return clean
 
 
 class TiendaUpdate(BaseModel):
@@ -63,9 +80,23 @@ class TiendaThemeUpdate(BaseModel):
 class UsuarioUpdate(BaseModel):
     id_tienda: Optional[UUID] = None
     email: Optional[EmailStr] = None
-    username: Optional[str] = Field(default=None, max_length=60)
+    username: Optional[str] = Field(default=None, max_length=50)
     rol: Optional[Literal["superadmin", "admin", "empleado", "cliente"]] = None
     activo: Optional[bool] = None
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def validate_username(cls, v):
+        if v is None:
+            return None
+        clean = str(v).strip().lower()
+        if not clean:
+            return None
+        if not USERNAME_REGEX.match(clean):
+            raise ValueError(
+                "El nombre de usuario debe tener entre 3 y 50 caracteres y solo contener letras, números, puntos o guiones (sin espacios)."
+            )
+        return clean
 
 
 class UserResetPasswordIn(BaseModel):

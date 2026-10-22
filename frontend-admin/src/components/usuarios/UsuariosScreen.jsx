@@ -31,10 +31,12 @@ export default function UsuariosScreen({ user }) {
   const [form, setForm] = useState({
     id_tienda: isSuper ? "" : user.id_tienda,
     email: "",
+    username: "",
     password: "",
     rol: isSuper ? "admin" : "empleado",
     activo: true
   });
+  const [usernameCustomized, setUsernameCustomized] = useState(false);
 
   const [editing, setEditing] = useState(null);
   const [resettingUser, setResettingUser] = useState(null);
@@ -42,6 +44,24 @@ export default function UsuariosScreen({ user }) {
   const [showResetPassword, setShowResetPassword] = useState(false);
 
   const storeMap = useMemo(() => new Map(stores.map((s) => [s.id_tienda, s.nombre_tienda])), [stores]);
+
+  const handleEmailChange = (e) => {
+    const val = e.target.value;
+    setForm((prev) => {
+      const next = { ...prev, email: val };
+      if (!usernameCustomized) {
+        const auto = val.split("@")[0].toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+        next.username = auto;
+      }
+      return next;
+    });
+  };
+
+  const handleUsernameChange = (e) => {
+    setUsernameCustomized(true);
+    const clean = e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, "");
+    setForm((prev) => ({ ...prev, username: clean }));
+  };
 
   const loadStores = async () => {
     if (isSuper) {
@@ -74,15 +94,16 @@ export default function UsuariosScreen({ user }) {
     Promise.all([loadStores(), loadUsers()]).catch((e) => setError(e.message));
   }, [user.id_tienda]);
 
-  // Client-side search filtering
+  // Client-side search filtering (includes username, email, store, and role)
   const filteredUsers = useMemo(() => {
     if (!searchTerm.trim()) return rows;
     const q = searchTerm.toLowerCase();
     return rows.filter((u) => {
+      const username = (u.username || "").toLowerCase();
       const email = (u.email || "").toLowerCase();
       const storeName = (storeMap.get(u.id_tienda) || "").toLowerCase();
       const rol = (u.rol || "").toLowerCase();
-      return email.includes(q) || storeName.includes(q) || rol.includes(q);
+      return username.includes(q) || email.includes(q) || storeName.includes(q) || rol.includes(q);
     });
   }, [rows, searchTerm, storeMap]);
 
@@ -102,13 +123,20 @@ export default function UsuariosScreen({ user }) {
     setError("");
     setOkMsg("");
     try {
-      await api.adminCreateUser(form);
-      setOkMsg(`Usuario ${form.email} creado con éxito`);
+      const payload = {
+        ...form,
+        email: form.email.trim().toLowerCase(),
+        username: form.username.trim().toLowerCase() || undefined,
+      };
+      const created = await api.adminCreateUser(payload);
+      setOkMsg(`Usuario @${created.username || created.email} creado con éxito`);
       setForm((s) => ({
         ...s,
         email: "",
+        username: "",
         password: ""
       }));
+      setUsernameCustomized(false);
       await loadUsers();
     } catch (err) {
       setError(err.message || "No se pudo crear el usuario");
@@ -131,7 +159,8 @@ export default function UsuariosScreen({ user }) {
     if (!editing) return;
     try {
       await api.adminUpdateUser(editing.id_usuario, {
-        email: editing.email,
+        email: editing.email?.trim().toLowerCase(),
+        username: editing.username?.trim().toLowerCase() || undefined,
         rol: isSuper ? editing.rol : "empleado",
         id_tienda: isSuper ? editing.id_tienda : user.id_tienda,
         activo: editing.activo
@@ -260,9 +289,32 @@ export default function UsuariosScreen({ user }) {
                 type="email" 
                 placeholder="ejemplo@mitienda.com" 
                 value={form.email} 
-                onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} 
+                onChange={handleEmailChange} 
                 required 
               />
+            </label>
+
+            <label>
+              <span>Nombre de Usuario (Login)</span>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <span style={{ position: "absolute", left: "12px", color: "var(--brand-primary, #6366f1)", fontWeight: 800, fontSize: "0.95rem", pointerEvents: "none", zIndex: 1 }}>
+                  @
+                </span>
+                <input 
+                  type="text" 
+                  placeholder="ej. loriglow, cajero1" 
+                  value={form.username} 
+                  onChange={handleUsernameChange} 
+                  required 
+                  minLength={3}
+                  maxLength={50}
+                  autoComplete="username"
+                  style={{ paddingLeft: "30px", width: "100%" }}
+                />
+              </div>
+              <small style={{ display: "block", fontSize: "0.76rem", color: "var(--text-muted)", marginTop: "4px" }}>
+                Identificador único para iniciar sesión rápidamente sin correo.
+              </small>
             </label>
 
             <div>
@@ -335,7 +387,7 @@ export default function UsuariosScreen({ user }) {
             <span className="users-search-icon">🔍</span>
             <input 
               type="text" 
-              placeholder="Buscar por correo, tienda o rol..." 
+              placeholder="Buscar por @usuario, correo, tienda o rol..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -360,7 +412,7 @@ export default function UsuariosScreen({ user }) {
 
           {isSuper && (
             <select 
-              className="users-filter-select"
+              className="users-filter-select" 
               value={filters.rol} 
               onChange={(e) => {
                 setFilters((s) => ({ ...s, rol: e.target.value }));
@@ -376,7 +428,7 @@ export default function UsuariosScreen({ user }) {
           )}
 
           <select 
-            className="users-filter-select"
+            className="users-filter-select" 
             value={filters.activo} 
             onChange={(e) => {
               setFilters((s) => ({ ...s, activo: e.target.value }));
@@ -421,7 +473,7 @@ export default function UsuariosScreen({ user }) {
               </thead>
               <tbody>
                 {filteredUsers.map((u) => {
-                  const initial = (u.email || "U").slice(0, 1).toUpperCase();
+                  const initial = (u.username || u.email || "U").slice(0, 1).toUpperCase();
                   const assignedStore = storeMap.get(u.id_tienda) || u.id_tienda || "Sin tienda";
                   return (
                     <tr key={u.id_usuario}>
@@ -431,8 +483,12 @@ export default function UsuariosScreen({ user }) {
                             {initial}
                           </div>
                           <div className="users-user-meta">
-                            <span className="users-user-email">{u.email}</span>
-                            <span className="users-user-store">ID: {u.id_usuario}</span>
+                            <span style={{ fontWeight: 700, color: "var(--brand-primary, #6366f1)", display: "inline-flex", alignItems: "center", gap: "2px", fontSize: "0.94rem" }}>
+                              @{u.username || "sin_usuario"}
+                            </span>
+                            <span className="users-user-email" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
+                              {u.email}
+                            </span>
                           </div>
                         </div>
                       </td>
@@ -511,11 +567,33 @@ export default function UsuariosScreen({ user }) {
 
             <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
               <label>
+                <span>Nombre de Usuario (Login)</span>
+                <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <span style={{ position: "absolute", left: "12px", color: "var(--brand-primary, #6366f1)", fontWeight: 800, fontSize: "0.95rem", pointerEvents: "none", zIndex: 1 }}>
+                    @
+                  </span>
+                  <input 
+                    type="text" 
+                    value={editing.username || ""} 
+                    onChange={(e) => setEditing((s) => ({ ...s, username: e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, "") }))} 
+                    required 
+                    minLength={3}
+                    maxLength={50}
+                    style={{ paddingLeft: "30px", width: "100%" }}
+                  />
+                </div>
+                <small style={{ display: "block", fontSize: "0.76rem", color: "var(--text-muted)", marginTop: "4px" }}>
+                  Identificador único del usuario para iniciar sesión.
+                </small>
+              </label>
+
+              <label>
                 <span>Correo Electrónico</span>
                 <input 
                   type="email" 
                   value={editing.email || ""} 
                   onChange={(e) => setEditing((s) => ({ ...s, email: e.target.value }))} 
+                  required
                 />
               </label>
 
